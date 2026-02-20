@@ -367,6 +367,52 @@ Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERL
 `ALLOW_EXTERNAL_METADATA_FILE_LOCATION`, and `ALLOW_NAMESPACE_CUSTOM_LOCATION` — can only be set at
 the server level and apply uniformly across all catalogs in the realm.
 
+### Version Compatibility
+
+The core location flags have been available since different Polaris releases. The table below
+summarizes when each flag was introduced and any prerequisites that must be met before it can be
+safely enabled.
+
+| Flag | Introduced in | Prerequisites |
+|---|---|---|
+| `ALLOW_TABLE_LOCATION_OVERLAP` | 1.0.0 | — |
+| `ALLOW_NAMESPACE_LOCATION_OVERLAP` | 1.0.0 | — |
+| `ALLOW_EXTERNAL_METADATA_FILE_LOCATION` | 1.0.0 | — |
+| `ALLOW_UNSTRUCTURED_TABLE_LOCATION` | 1.0.0 | — |
+| `ALLOW_EXTERNAL_TABLE_LOCATION` | 1.0.0 | — |
+| `ALLOW_OVERLAPPING_CATALOG_URLS` | 1.0.0 | — |
+| `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` | 1.1.0 | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` must be enabled |
+| `ALLOW_OPTIMIZED_SIBLING_CHECK` | 1.1.0 | JDBC metastore; schema v2 or later |
+| `OPTIMIZED_SIBLING_CHECK` | 1.1.0 | `ALLOW_OPTIMIZED_SIBLING_CHECK` must be enabled; JDBC metastore; schema v2 or later (see note below) |
+| `ALLOW_NAMESPACE_CUSTOM_LOCATION` | 1.2.0 | — |
+
+{{< alert note >}}
+`ALLOW_NAMESPACE_CUSTOM_LOCATION` was introduced as part of a breaking change in 1.2.0. Before 1.2.0,
+namespaces could be created with arbitrary locations by default. The 1.2.0 release changed this default
+to prohibit custom namespace locations. Set `ALLOW_NAMESPACE_CUSTOM_LOCATION` to `true` to restore
+the previous behavior.
+{{< /alert >}}
+
+#### Schema Version Requirement for `OPTIMIZED_SIBLING_CHECK`
+
+The `OPTIMIZED_SIBLING_CHECK` feature depends on a `location_without_scheme` column and a
+location-based index (`idx_locations`) in the JDBC persistence schema. These were introduced in
+**schema v2**, which shipped with Polaris 1.1.0. New installations from 1.1.0 onwards start on
+schema v2 automatically and can enable the optimized check without any additional steps.
+
+If you upgraded from Polaris 1.0.x to 1.1.x and stayed on schema v1, the upgrade guide requires
+adding the `location_without_scheme` column manually. However, even after the column exists, the
+`OPTIMIZED_SIBLING_CHECK` flag must **not** be enabled until the column has been fully backfilled for
+all pre-existing entities. Without a backfill, existing entities will not appear in the location
+index, and the overlap check will silently miss conflicts with them.
+
+{{< alert important >}}
+Do not enable `OPTIMIZED_SIBLING_CHECK` on a deployment that was migrated from schema v1 to v2
+without a full backfill of the `location_without_scheme` column. Doing so will cause the index-based
+overlap check to be unaware of all entities that existed before the migration, leading to incorrect
+results.
+{{< /alert >}}
+
 ## Troubleshooting Configuration Issues
 
 If you encounter issues with the configuration, you can ask Polaris to print out the configuration it
