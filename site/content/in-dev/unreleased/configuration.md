@@ -86,15 +86,20 @@ namespace entities. In general, the defaults favor safety: strict overlap checks
 location placement are enabled unless you opt in to more flexible or more performance-oriented
 behavior.
 
-### Key location flags (5 configs)
+### Key location flags
 
 | Configuration Property | Default Value | Available Since | Scope | Purpose |
 |------------------------|---------------|-----------------|-------|---------|
 | `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.unstructured.table.location`) | Allows table locations outside the parent namespace-based structure (still subject to allowed storage locations). |
-| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0+` | Realm-level | Normalizes new namespace/table base locations to end with `/`. |
-| `polaris.features."OPTIMIZED_SIBLING_CHECK"` | `false` | `1.1.0+` | Realm-level (supports realm overrides) | Enables indexed location-overlap candidate lookup for sibling checks. |
-| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` | `false` | `1.2.0+` | Realm-level (supports realm overrides) | Explicit acknowledgement gate required when enabling `OPTIMIZED_SIBLING_CHECK` in 1.2+. |
+| `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.external.table.location`) | Controls external table-location behavior; in current metadata-file validation paths, this is evaluated from realm-level resolution. |
+| `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.overlapping.table.location`) | If true, table-location overlap validation is relaxed within a namespace. |
+| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0+` | Realm-level in current normalization paths (catalog property key exists: `polaris.config.add-trailing-slash-to-location`) | Normalizes new namespace/table base locations to end with `/`. |
+| `polaris.features."OPTIMIZED_SIBLING_CHECK"` | `false` | `1.1.0+` | Realm-level only (no catalog property) | Enables indexed location-overlap candidate lookup for sibling checks. |
+| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` | `false` | `1.2.0+` | Realm-level only (no catalog property) | Explicit acknowledgement gate required when enabling `OPTIMIZED_SIBLING_CHECK` in 1.2+. |
 | `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` | `false` | `1.1.0+` | Realm-level + catalog property (`polaris.config.default-table-location-object-storage-prefix.enabled`) | Changes default table/view location generation to include a deterministic object-storage prefix. |
+
+All `polaris.features` flags support realm overrides through
+`polaris.features.realm-overrides."MY_REALM"."<FLAG_NAME>"`.
 
 ### How location checks behave
 
@@ -111,9 +116,12 @@ newly created locations use a canonical trailing-slash form.
 generated (when the caller does not specify an explicit location), so objects are distributed under
 a prefixed path instead of only by namespace path depth.
 
-`ALLOW_EXTERNAL_TABLE_LOCATION` is related, but controls metadata-file location validation
-(`metadataFileLocation` relative to table base location). In current runtime paths, this behavior is
-evaluated as a realm-level setting.
+When `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED=true` is used for default location generation,
+you must also keep `ALLOW_UNSTRUCTURED_TABLE_LOCATION=true`.
+
+To avoid runtime failures with prefixed default locations, configure one of these:
+1. `OPTIMIZED_SIBLING_CHECK=true` (and in `1.2.x+`, also `ALLOW_OPTIMIZED_SIBLING_CHECK=true`).
+2. `ALLOW_TABLE_LOCATION_OVERLAP=true` (catalog-level or realm-level).
 
 ### Version and schema compatibility
 
@@ -141,10 +149,11 @@ set both `OPTIMIZED_SIBLING_CHECK=true` and `ALLOW_OPTIMIZED_SIBLING_CHECK=true`
 Realm-level `application.properties`:
 
 ```properties
-polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"=true
+polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"=true
 polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"=true
 polaris.features."OPTIMIZED_SIBLING_CHECK"=true
 polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"=true
 polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"=false
 ```
 
@@ -165,10 +174,11 @@ Catalog-level properties (set on the catalog):
 ```properties
 polaris.config.allow.unstructured.table.location=true
 polaris.config.default-table-location-object-storage-prefix.enabled=true
+polaris.config.allow.overlapping.table.location=true
 ```
 
-When `polaris.config.default-table-location-object-storage-prefix.enabled=true` is used for
-default location generation, keep `ALLOW_UNSTRUCTURED_TABLE_LOCATION` enabled for that catalog.
+If you keep `polaris.config.allow.overlapping.table.location=false`, enable
+`OPTIMIZED_SIBLING_CHECK` at realm-level instead.
 
 Example realm override for optimized checks:
 
