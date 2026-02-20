@@ -311,8 +311,8 @@ Enabling the optimized check is a two-step process:
    location index has not been fully populated — for example, after a schema migration without a data
    backfill, which would cause existing entities to be invisible to the check.
 
-2. Set `polaris.features."OPTIMIZED_SIBLING_CHECK"` to `true`. This can also be overridden per
-   catalog via its catalog properties.
+2. Set `polaris.features."OPTIMIZED_SIBLING_CHECK"` to `true` at the server level. This flag does
+   not have a per-catalog override and applies uniformly across all catalogs in the realm.
 
 {{< alert important >}}
 `OPTIMIZED_SIBLING_CHECK` is only supported by the JDBC (relational) metastore. Deployments using the
