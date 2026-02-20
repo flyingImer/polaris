@@ -260,9 +260,9 @@ When a table or namespace is created or its location is updated, Polaris validat
 location against two constraints:
 
 **Allowed locations.** Each catalog defines a list of allowed storage location prefixes in its storage
-configuration. Every table and namespace location must fall under one of these prefixes. This
-constraint is enforced by the catalog's storage configuration and cannot be disabled by a feature
-flag.
+configuration. Every table and namespace location must fall under one of these prefixes. For tables,
+this constraint is always enforced and cannot be disabled by a feature flag. For namespaces, it can
+be bypassed by enabling `ALLOW_NAMESPACE_CUSTOM_LOCATION` (see **Namespace custom locations** below).
 
 **Structured hierarchy.** By default, tables must be located within the catalog's base location and
 follow the namespace hierarchy. Setting `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` to
@@ -386,8 +386,8 @@ safely enabled.
 | `ALLOW_EXTERNAL_TABLE_LOCATION` | 1.0.0 | — |
 | `ALLOW_OVERLAPPING_CATALOG_URLS` | 1.0.0 | — |
 | `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` | 1.1.0 | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` must be enabled |
-| `ALLOW_OPTIMIZED_SIBLING_CHECK` | 1.1.0 | JDBC metastore; schema v2 or later |
-| `OPTIMIZED_SIBLING_CHECK` | 1.1.0 | `ALLOW_OPTIMIZED_SIBLING_CHECK` must be enabled; JDBC metastore; schema v2 or later (see note below) |
+| `ALLOW_OPTIMIZED_SIBLING_CHECK` | 1.1.0 | Server-level safety gate for `OPTIMIZED_SIBLING_CHECK` |
+| `OPTIMIZED_SIBLING_CHECK` | 1.1.0 | `ALLOW_OPTIMIZED_SIBLING_CHECK` must be enabled; on JDBC metastore, requires schema v2 or later (see note below) |
 | `ALLOW_NAMESPACE_CUSTOM_LOCATION` | 1.2.0 | — |
 
 {{< alert note >}}
