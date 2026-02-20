@@ -90,8 +90,8 @@ behavior.
 
 | Configuration Property | Default Value | Available Since | Scope | Purpose |
 |------------------------|---------------|-----------------|-------|---------|
-| `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.external.table.location`) | Allows table locations outside the default table-location structure. |
-| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0+` | Realm-level + catalog property (`polaris.config.add-trailing-slash-to-location`) | Normalizes new namespace/table base locations to end with `/`. |
+| `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.unstructured.table.location`) | Allows table locations outside the parent namespace-based structure (still subject to allowed storage locations). |
+| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0+` | Realm-level | Normalizes new namespace/table base locations to end with `/`. |
 | `polaris.features."OPTIMIZED_SIBLING_CHECK"` | `false` | `1.1.0+` | Realm-level (supports realm overrides) | Enables indexed location-overlap candidate lookup for sibling checks. |
 | `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` | `false` | `1.2.0+` | Realm-level (supports realm overrides) | Explicit acknowledgement gate required when enabling `OPTIMIZED_SIBLING_CHECK` in 1.2+. |
 | `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` | `false` | `1.1.0+` | Realm-level + catalog property (`polaris.config.default-table-location-object-storage-prefix.enabled`) | Changes default table/view location generation to include a deterministic object-storage prefix. |
@@ -111,11 +111,15 @@ newly created locations use a canonical trailing-slash form.
 generated (when the caller does not specify an explicit location), so objects are distributed under
 a prefixed path instead of only by namespace path depth.
 
+`ALLOW_EXTERNAL_TABLE_LOCATION` is related, but controls metadata-file location validation
+(`metadataFileLocation` relative to table base location). In current runtime paths, this behavior is
+evaluated as a realm-level setting.
+
 ### Version and schema compatibility
 
 | Polaris Version | Compatibility Details |
 |-----------------|-----------------------|
-| `1.0.x` | `ALLOW_EXTERNAL_TABLE_LOCATION` is available. The optimized sibling-check flags are not available yet. |
+| `1.0.x` | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` and `ALLOW_EXTERNAL_TABLE_LOCATION` are available. The optimized sibling-check flags are not available yet. |
 | `1.1.x` | `ADD_TRAILING_SLASH_TO_LOCATION`, `OPTIMIZED_SIBLING_CHECK`, and `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` become available. |
 | `1.2.x+` | `ALLOW_OPTIMIZED_SIBLING_CHECK` is added as an explicit safety acknowledgement for `OPTIMIZED_SIBLING_CHECK`. |
 
@@ -159,9 +163,7 @@ env:
 Catalog-level properties (set on the catalog):
 
 ```properties
-polaris.config.allow.external.table.location=true
 polaris.config.allow.unstructured.table.location=true
-polaris.config.add-trailing-slash-to-location=true
 polaris.config.default-table-location-object-storage-prefix.enabled=true
 ```
 
