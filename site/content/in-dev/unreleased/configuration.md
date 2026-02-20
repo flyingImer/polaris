@@ -260,10 +260,9 @@ When a table or namespace is created or its location is updated, Polaris validat
 location against two constraints:
 
 **Allowed locations.** Each catalog defines a list of allowed storage location prefixes in its storage
-configuration. By default, every table and namespace location must fall under one of these prefixes.
-Setting `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` to `true` removes this constraint,
-allowing tables to point to any otherwise reachable storage path. This is primarily useful for
-registering externally managed datasets without restructuring their existing storage layout.
+configuration. Every table and namespace location must fall under one of these prefixes. This
+constraint is enforced by the catalog's storage configuration and cannot be disabled by a feature
+flag.
 
 **Structured hierarchy.** By default, tables must be located within the catalog's base location and
 follow the namespace hierarchy. Setting `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` to
@@ -361,11 +360,12 @@ policies — for example, a permissive development catalog alongside strict prod
 | `polaris.config.allow.overlapping.table.location` | `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` |
 | `polaris.config.allow.unstructured.table.location` | `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` |
 | `polaris.config.allow.external.table.location` | `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` |
+| `polaris.config.namespace-custom-location.enabled` | `polaris.features."ALLOW_NAMESPACE_CUSTOM_LOCATION"` |
 
 Catalog-level properties take precedence over the server-level flag value for that specific catalog.
-Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERLAP`,
-`ALLOW_EXTERNAL_METADATA_FILE_LOCATION`, and `ALLOW_NAMESPACE_CUSTOM_LOCATION` — can only be set at
-the server level and apply uniformly across all catalogs in the realm.
+Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERLAP` and
+`ALLOW_EXTERNAL_METADATA_FILE_LOCATION` — can only be set at the server level and apply uniformly
+across all catalogs in the realm.
 
 ### Version Compatibility
 
