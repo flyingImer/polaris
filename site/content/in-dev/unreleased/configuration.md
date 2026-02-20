@@ -316,10 +316,11 @@ Enabling the optimized check is a two-step process:
 {{< alert important >}}
 When `OPTIMIZED_SIBLING_CHECK` is enabled, overlap detection is performed catalog-wide (across all
 namespaces) rather than only within the parent namespace. The JDBC metastore uses a database index
-(`idx_locations` on `location_without_scheme`, available from schema v2) for this check. The
-in-memory metastore implements the same catalog-wide check via a full entity scan. On JDBC
-deployments still running schema v1, `hasOverlappingSiblings` cannot use the index and falls back to
-the namespace-scoped listing.
+(`idx_locations` on `location_without_scheme`, available from schema v2) for this check, scoped to
+the target catalog. The in-memory metastore performs a full entity scan across all entities in the
+realm — not just the target catalog — so it may report overlaps between entities in different
+catalogs. On JDBC deployments still running schema v1, `hasOverlappingSiblings` cannot use the index
+and falls back to the namespace-scoped listing.
 {{< /alert >}}
 
 Because the index covers the full catalog, enabling `OPTIMIZED_SIBLING_CHECK` also catches location
