@@ -79,6 +79,102 @@ For Kubernetes deployments, the configuration file is typically defined as a `Co
 mounted in the container at `/deployment/config/application.properties`. It can be mounted in
 read-only mode, as Polaris only reads the configuration file once, at startup.
 
+## Location Flags: Concepts and Behavior
+
+Location flags control how Polaris validates and generates storage locations for table-like and
+namespace entities. In general, the defaults favor safety: strict overlap checks and conservative
+location placement are enabled unless you opt in to more flexible or more performance-oriented
+behavior.
+
+### Key location flags (5 configs)
+
+| Configuration Property | Default Value | Available Since | Scope | Purpose |
+|------------------------|---------------|-----------------|-------|---------|
+| `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` | `false` | `1.0.0+` | Realm-level + catalog property (`polaris.config.allow.external.table.location`) | Allows table locations outside the default table-location structure. |
+| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0+` | Realm-level + catalog property (`polaris.config.add-trailing-slash-to-location`) | Normalizes new namespace/table base locations to end with `/`. |
+| `polaris.features."OPTIMIZED_SIBLING_CHECK"` | `false` | `1.1.0+` | Realm-level (supports realm overrides) | Enables indexed location-overlap candidate lookup for sibling checks. |
+| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` | `false` | `1.2.0+` | Realm-level (supports realm overrides) | Explicit acknowledgement gate required when enabling `OPTIMIZED_SIBLING_CHECK` in 1.2+. |
+| `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` | `false` | `1.1.0+` | Realm-level + catalog property (`polaris.config.default-table-location-object-storage-prefix.enabled`) | Changes default table/view location generation to include a deterministic object-storage prefix. |
+
+### How location checks behave
+
+By default, Polaris validates that sibling namespace/table locations do not overlap. This default
+mode is strict and intended to prevent accidental path conflicts.
+
+When `OPTIMIZED_SIBLING_CHECK=true`, Polaris can use an indexed lookup path to reduce the cost of
+overlap checks. This optimization remains disabled by default.
+
+`ADD_TRAILING_SLASH_TO_LOCATION=true` (default) helps keep overlap checks consistent by ensuring
+newly created locations use a canonical trailing-slash form.
+
+`DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED=true` changes how default table/view locations are
+generated (when the caller does not specify an explicit location), so objects are distributed under
+a prefixed path instead of only by namespace path depth.
+
+### Version and schema compatibility
+
+| Polaris Version | Compatibility Details |
+|-----------------|-----------------------|
+| `1.0.x` | `ALLOW_EXTERNAL_TABLE_LOCATION` is available. The optimized sibling-check flags are not available yet. |
+| `1.1.x` | `ADD_TRAILING_SLASH_TO_LOCATION`, `OPTIMIZED_SIBLING_CHECK`, and `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` become available. |
+| `1.2.x+` | `ALLOW_OPTIMIZED_SIBLING_CHECK` is added as an explicit safety acknowledgement for `OPTIMIZED_SIBLING_CHECK`. |
+
+For JDBC metastore schema compatibility:
+
+| JDBC Schema Version | Optimized Sibling Check Behavior |
+|---------------------|----------------------------------|
+| `v0` / `v1` | Optimized sibling-check index path is not used; Polaris falls back to standard overlap validation. |
+| `v2+` | Optimized sibling-check path can be used. |
+
+{{< alert important >}}
+For upgraded realms (especially 1.0.x to 1.1.x migration paths), enable optimized sibling checks
+only after confirming location index data is fully populated for existing entities. In `1.2.x+`,
+set both `OPTIMIZED_SIBLING_CHECK=true` and `ALLOW_OPTIMIZED_SIBLING_CHECK=true`.
+{{< /alert >}}
+
+### Configuration examples
+
+Realm-level `application.properties`:
+
+```properties
+polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"=true
+polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"=true
+polaris.features."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"=false
+```
+
+Equivalent environment variables (for deployment descriptors that allow full property names):
+
+```yaml
+env:
+  - name: 'polaris.features."OPTIMIZED_SIBLING_CHECK"'
+    value: "true"
+  - name: 'polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"'
+    value: "true"
+  - name: 'polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"'
+    value: "true"
+```
+
+Catalog-level properties (set on the catalog):
+
+```properties
+polaris.config.allow.external.table.location=true
+polaris.config.allow.unstructured.table.location=true
+polaris.config.add-trailing-slash-to-location=true
+polaris.config.default-table-location-object-storage-prefix.enabled=true
+```
+
+When `polaris.config.default-table-location-object-storage-prefix.enabled=true` is used for
+default location generation, keep `ALLOW_UNSTRUCTURED_TABLE_LOCATION` enabled for that catalog.
+
+Example realm override for optimized checks:
+
+```properties
+polaris.features.realm-overrides."MY_REALM".overrides."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features.realm-overrides."MY_REALM".overrides."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+```
+
 ## Polaris Configuration Options Reference
 
 | Configuration Property                                                                 | Default Value                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
