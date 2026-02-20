@@ -171,8 +171,8 @@ default location generation, keep `ALLOW_UNSTRUCTURED_TABLE_LOCATION` enabled fo
 Example realm override for optimized checks:
 
 ```properties
-polaris.features.realm-overrides."MY_REALM".overrides."OPTIMIZED_SIBLING_CHECK"=true
-polaris.features.realm-overrides."MY_REALM".overrides."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+polaris.features.realm-overrides."MY_REALM"."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features.realm-overrides."MY_REALM"."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
 ```
 
 ## Polaris Configuration Options Reference
