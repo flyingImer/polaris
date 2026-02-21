@@ -365,12 +365,58 @@ policies — for example, a permissive development catalog alongside strict prod
 | `polaris.config.allow.overlapping.table.location` | `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` |
 | `polaris.config.allow.unstructured.table.location` | `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` |
 | `polaris.config.allow.external.table.location` | `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` |
+| `polaris.config.add-trailing-slash-to-location` | `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` |
+| `polaris.config.default-table-location-object-storage-prefix.enabled` | `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` |
 | `polaris.config.namespace-custom-location.enabled` | `polaris.features."ALLOW_NAMESPACE_CUSTOM_LOCATION"` |
 
 Catalog-level properties take precedence over the server-level flag value for that specific catalog.
-Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERLAP` and
-`ALLOW_EXTERNAL_METADATA_FILE_LOCATION` — can only be set at the server level and apply uniformly
+Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERLAP`,
+`ALLOW_EXTERNAL_METADATA_FILE_LOCATION`, `OPTIMIZED_SIBLING_CHECK`, and
+`ALLOW_OPTIMIZED_SIBLING_CHECK` — can only be set at the server level and apply uniformly
 across all catalogs in the realm.
+
+### Configuration Examples
+
+Realm-level `application.properties`:
+
+```properties
+polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"=true
+polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"=true
+polaris.features."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"=true
+polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"=false
+```
+
+Equivalent environment variables (for deployment descriptors that allow full property names):
+
+```yaml
+env:
+  - name: 'polaris.features."OPTIMIZED_SIBLING_CHECK"'
+    value: "true"
+  - name: 'polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"'
+    value: "true"
+  - name: 'polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"'
+    value: "true"
+```
+
+Catalog-level properties (set on the catalog via the management API):
+
+```properties
+polaris.config.allow.unstructured.table.location=true
+polaris.config.default-table-location-object-storage-prefix.enabled=true
+polaris.config.allow.overlapping.table.location=true
+```
+
+If you keep `polaris.config.allow.overlapping.table.location=false`, enable
+`OPTIMIZED_SIBLING_CHECK` at realm-level instead.
+
+Example realm override for optimized checks:
+
+```properties
+polaris.features.realm-overrides."MY_REALM"."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features.realm-overrides."MY_REALM"."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+```
 
 ### Version Compatibility
 
@@ -386,6 +432,7 @@ safely enabled.
 | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` | 1.0.0 | — |
 | `ALLOW_EXTERNAL_TABLE_LOCATION` | 1.0.0 | — |
 | `ALLOW_OVERLAPPING_CATALOG_URLS` | 1.0.0 | — |
+| `ADD_TRAILING_SLASH_TO_LOCATION` | 1.1.0 | — |
 | `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` | 1.1.0 | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` must be enabled |
 | `ALLOW_OPTIMIZED_SIBLING_CHECK` | 1.1.0 | Server-level safety gate for `OPTIMIZED_SIBLING_CHECK` |
 | `OPTIMIZED_SIBLING_CHECK` | 1.1.0 | `ALLOW_OPTIMIZED_SIBLING_CHECK` must be enabled; on JDBC metastore, requires schema v2 or later (see note below) |
