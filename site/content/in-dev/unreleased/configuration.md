@@ -79,6 +79,158 @@ For Kubernetes deployments, the configuration file is typically defined as a `Co
 mounted in the container at `/deployment/config/application.properties`. It can be mounted in
 read-only mode, as Polaris only reads the configuration file once, at startup.
 
+## Storage Location Policies
+
+Polaris enforces storage location constraints when namespaces and tables are created or updated. These
+constraints protect data integrity and keep credential scoping predictable.
+
+### Key location flags
+
+| Configuration Property | Default Value | Available Since | Scope | Purpose |
+|---|---|---|---|---|
+| `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` | `false` | `1.0.0` | Realm + catalog property (`polaris.config.allow.unstructured.table.location`) | Allows table locations outside the parent namespace hierarchy (still constrained by allowed locations). |
+| `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` | `false` | `1.0.0` | Realm-level in current metadata validation paths (catalog key exists: `polaris.config.allow.external.table.location`) | Bypasses the metadata-file-within-table-location check (same effect as `ALLOW_EXTERNAL_METADATA_FILE_LOCATION`). |
+| `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` | `false` | `1.0.0` | Realm + catalog property (`polaris.config.allow.overlapping.table.location`) | Allows overlapping table locations within a namespace. |
+| `polaris.features."ALLOW_NAMESPACE_LOCATION_OVERLAP"` | `false` | `1.0.0` | Realm only | Allows overlapping namespace locations within a parent catalog or namespace. |
+| `polaris.features."ALLOW_EXTERNAL_METADATA_FILE_LOCATION"` | `false` | `1.0.0` | Realm only | Allows Iceberg metadata files outside the table base location. |
+| `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"` | `true` | `1.1.0` | Realm-level in current create/update paths (catalog key exists: `polaris.config.add-trailing-slash-to-location`) | Normalizes namespace/table base locations to end with `/`. |
+| `polaris.features."OPTIMIZED_SIBLING_CHECK"` | `false` | `1.1.0` | Realm only | Enables optimized overlap lookup for sibling checks when the metastore can apply it. |
+| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` | `false` | `1.2.0` | Realm only | Required safety acknowledgement before enabling `OPTIMIZED_SIBLING_CHECK`. |
+| `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` | `false` | `1.1.0` | Realm + catalog property (`polaris.config.default-table-location-object-storage-prefix.enabled`) | Uses a deterministic hash prefix when generating default table/view locations. |
+| `polaris.features."ALLOW_NAMESPACE_CUSTOM_LOCATION"` | `false` | `1.2.0` | Server-level behavior-change flag + catalog property (`polaris.config.namespace-custom-location.enabled`) | Allows arbitrary namespace locations outside default namespace-derived paths. |
+
+Location feature flags under `polaris.features` support realm overrides through
+`polaris.features.realm-overrides."MY_REALM"."<FLAG_NAME>"`.
+
+### Location Checks
+
+When a table or namespace is created or its location is updated, Polaris validates the proposed
+location against these constraints:
+
+**Allowed locations.** Each catalog defines allowed storage location prefixes in its storage
+configuration. Table locations must fall under allowed prefixes.
+
+**Structured hierarchy.** By default, tables must remain under their parent namespace-derived path.
+Set `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"=true` to allow table locations elsewhere
+under allowed storage locations.
+
+**Metadata file placement.** By default, Iceberg metadata files must reside under the table base
+location. Either `ALLOW_EXTERNAL_METADATA_FILE_LOCATION=true` or `ALLOW_EXTERNAL_TABLE_LOCATION=true`
+bypasses that check.
+
+**Namespace custom locations.** By default, namespace locations are validated against default
+namespace-derived paths. Set `ALLOW_NAMESPACE_CUSTOM_LOCATION=true` (or catalog property
+`polaris.config.namespace-custom-location.enabled=true`) to allow arbitrary namespace locations.
+
+### Overlap Checks
+
+Polaris validates that sibling entity locations do not overlap by prefix (for example,
+`s3://bucket/ns/a/` and `s3://bucket/ns/a/b/`).
+
+- `ALLOW_TABLE_LOCATION_OVERLAP` controls table overlap checks.
+- `ALLOW_NAMESPACE_LOCATION_OVERLAP` controls namespace overlap checks.
+- `VALIDATE_VIEW_LOCATION_OVERLAP` controls whether view locations participate in overlap checks.
+
+By default, overlap checks compare sibling entities within the same parent namespace path.
+
+### Optimized Overlap Check
+
+`OPTIMIZED_SIBLING_CHECK` enables an optimized lookup path for overlap checks. In `1.2.x+`, enable
+`ALLOW_OPTIMIZED_SIBLING_CHECK=true` first.
+
+When the optimized lookup path is available for the active metastore, overlap detection is broader
+than same-parent sibling listing:
+
+- JDBC schema `v2+`: uses `location_without_scheme` (`idx_locations`) and checks catalog-wide.
+- In-memory metastore: scans all entities in the realm, so overlaps can be reported across catalogs.
+
+If the optimized path is unavailable for a request (for example JDBC schema `v1`), Polaris falls
+back to namespace-scoped sibling listing.
+
+{{< alert important >}}
+For upgraded deployments, enable optimized checks only after confirming `location_without_scheme`
+data is fully populated for existing entities. In `1.2.x+`, set both
+`OPTIMIZED_SIBLING_CHECK=true` and `ALLOW_OPTIMIZED_SIBLING_CHECK=true`.
+{{< /alert >}}
+
+### Object Storage Prefix Mode
+
+When `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED=true`, Polaris generates default table/view
+locations with a hashed prefix under the catalog base location:
+
+```text
+# Standard location
+s3://bucket/catalog_base/my_namespace/my_table/
+
+# Prefix mode location
+s3://bucket/catalog_base/a1b2c3d4/my_namespace/my_table/
+```
+
+This mode requires `ALLOW_UNSTRUCTURED_TABLE_LOCATION=true`. If
+`ALLOW_TABLE_LOCATION_OVERLAP=false`, you must also enable optimized overlap checks, otherwise table
+creation fails at runtime.
+
+### Per-Catalog Overrides
+
+These catalog properties override corresponding server-level behavior for that catalog:
+
+| Catalog Property | Corresponding Flag |
+|---|---|
+| `polaris.config.allow.overlapping.table.location` | `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` |
+| `polaris.config.allow.unstructured.table.location` | `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` |
+| `polaris.config.allow.external.table.location` | `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` |
+| `polaris.config.default-table-location-object-storage-prefix.enabled` | `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` |
+| `polaris.config.namespace-custom-location.enabled` | `ALLOW_NAMESPACE_CUSTOM_LOCATION` |
+
+Flags without catalog overrides (such as `ALLOW_NAMESPACE_LOCATION_OVERLAP` and
+`ALLOW_EXTERNAL_METADATA_FILE_LOCATION`) are server-level only.
+
+In current metadata-file validation paths, `ALLOW_EXTERNAL_TABLE_LOCATION` is resolved from realm
+configuration.
+
+### Version Compatibility
+
+| Flag | Introduced in | Notes |
+|---|---|---|
+| `ALLOW_TABLE_LOCATION_OVERLAP` | `1.0.0` | Base table overlap toggle |
+| `ALLOW_NAMESPACE_LOCATION_OVERLAP` | `1.0.0` | Namespace overlap toggle |
+| `ALLOW_EXTERNAL_METADATA_FILE_LOCATION` | `1.0.0` | Metadata placement bypass |
+| `ALLOW_UNSTRUCTURED_TABLE_LOCATION` | `1.0.0` | Structured hierarchy bypass |
+| `ALLOW_EXTERNAL_TABLE_LOCATION` | `1.0.0` | Metadata placement bypass |
+| `ALLOW_OVERLAPPING_CATALOG_URLS` | `1.0.0` | Allows overlapping catalog base URLs |
+| `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` | `1.1.0` | Requires `ALLOW_UNSTRUCTURED_TABLE_LOCATION=true` |
+| `OPTIMIZED_SIBLING_CHECK` | `1.1.0` | Requires metastore support for optimized lookup |
+| `ALLOW_OPTIMIZED_SIBLING_CHECK` | `1.2.0` | Required acknowledgement in `1.2.x+` |
+| `ALLOW_NAMESPACE_CUSTOM_LOCATION` | `1.2.0` | Behavior change introduced in 1.2 |
+
+### Configuration Examples
+
+Realm-level `application.properties`:
+
+```properties
+polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"=true
+polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"=true
+polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"=true
+polaris.features."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"=false
+```
+
+Catalog-level properties:
+
+```properties
+polaris.config.allow.unstructured.table.location=true
+polaris.config.allow.overlapping.table.location=true
+polaris.config.default-table-location-object-storage-prefix.enabled=true
+```
+
+Realm override example:
+
+```properties
+polaris.features.realm-overrides."MY_REALM"."OPTIMIZED_SIBLING_CHECK"=true
+polaris.features.realm-overrides."MY_REALM"."ALLOW_OPTIMIZED_SIBLING_CHECK"=true
+```
+
 ## Polaris Configuration Options Reference
 
 | Configuration Property                                                                 | Default Value                       | Description                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
@@ -123,9 +275,9 @@ read-only mode, as Polaris only reads the configuration file once, at startup.
 | `polaris.features."ALLOW_INSECURE_STORAGE_TYPES"`                                      | `false`                             | Allow usage of FileIO implementations that are considered insecure. Enabling this setting may expose the service to possibly severe security risks! This should only be set to 'true' for tests!                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
 | `polaris.features."ICEBERG_ROLLBACK_COMPACTION_ON_CONFLICTS"`                          | `false`                             | Rollback replace snapshots created by compaction which have polaris.internal.conflict-resolution.by-operation-type.replace property set to rollback in their snapshot summary.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |
 | `polaris.features."ADD_TRAILING_SLASH_TO_LOCATION"`                                    | `true`                              | When set, the base location for a table or namespace will have `/` added as a suffix if not present.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
-| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"`                                     | `false`                             | Server-level gate that must be set to true before `OPTIMIZED_SIBLING_CHECK` can be enabled on any catalog. Exists to prevent accidental enablement in deployments where the location index has not been fully populated, such as after a schema migration without a data backfill. See [Storage Location Policies](#storage-location-policies).                                                                                                                                                                                                                                                                                     |
-| `polaris.features."OPTIMIZED_SIBLING_CHECK"`                                           | `false`                             | When set, an index is used to perform the location overlap check between tables, views, and namespaces instead of a full sibling scan. Requires `ALLOW_OPTIMIZED_SIBLING_CHECK` to be enabled at the server level. Only supported by the JDBC (relational) metastore. See [Storage Location Policies](#storage-location-policies).                                                                                                                                                                                         |
-| `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"`                    | `false`                             | When enabled, Iceberg tables and views created without an explicit location will have a hashed prefix applied within the catalog's base location, rather than being placed directly under the parent namespace path. Requires `ALLOW_UNSTRUCTURED_TABLE_LOCATION` to be enabled. See [Storage Location Policies](#storage-location-policies) for valid configuration combinations.                                                                                                                                                                                                                                     |
+| `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"`                                     | `false`                             | Server-level gate that must be set to true before `OPTIMIZED_SIBLING_CHECK` can be enabled. Exists to prevent accidental enablement in deployments where location-index data may be incomplete after migration. See [Storage Location Policies](#storage-location-policies).                                                                                                                                                                                                                                                                                                                                             |
+| `polaris.features."OPTIMIZED_SIBLING_CHECK"`                                           | `false`                             | Enables optimized location-overlap checks for tables, views, and namespaces. If the active metastore cannot apply the optimized path for a request, Polaris falls back to sibling listing. See [Storage Location Policies](#storage-location-policies).                                                                                                                                                                                                                                                                                                                                                                 |
+| `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"`                    | `false`                             | When enabled, Iceberg tables and views created without an explicit location use a hashed prefix under the catalog base location. Requires `ALLOW_UNSTRUCTURED_TABLE_LOCATION`; if `ALLOW_TABLE_LOCATION_OVERLAP=false`, enable `OPTIMIZED_SIBLING_CHECK` to avoid runtime failures. See [Storage Location Policies](#storage-location-policies).                                                                                                                                                                                                                                  |
 | `polaris.features."ENABLE_CREDENTIAL_RESET"`                                           | `true`                              | Flag to enable or disable the API to reset principal credentials. Defaults to enabled, but service providers may want to disable it.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                          |
 | `polaris.features."ALLOW_SETTING_SUB_CATALOG_RBAC_FOR_FEDERATED_CATALOGS"`             | `true`                              | If set to true (default), Polaris will allow setting or changing catalog property polaris.config.enable-sub-catalog-rbac-for-federated-catalogs.If set to false, Polaris will disallow setting or changing the above catalog property.                                                                                                                                                                                                                                                                                                                                                                                                                        |
 | `polaris.features."ALLOW_DROPPING_NON_EMPTY_PASSTHROUGH_FACADE_CATALOG"`               | `false`                             | If enabled, allow dropping a passthrough-facade catalog even if it contains namespaces or tables. passthrough-facade catalogs may contain leftover entities when syncing with source catalog.In the short term these entities will be ignored, in the long term there will be method/background job to clean them up.                                                                                                                                                                                                                                                                                                                                         |
@@ -242,181 +394,6 @@ Here are some examples:
 | Set the Java heap size to a _fixed_ amount | `-e JAVA_OPTS_APPEND="-Xms8g -Xmx8g"` lets Polaris use a Java heap of 8g.                                           |
 | Set the maximum heap percentage            | `-e JAVA_MAX_MEM_RATIO="70"` lets Polaris use 70% percent of the available memory.                                  |
 
-
-## Storage Location Policies
-
-Polaris enforces storage location constraints when namespaces and tables are created or updated. These
-constraints protect data integrity and ensure that credential scoping remains predictable — for
-example, preventing two tables from sharing the same storage prefix, or preventing a table's metadata
-files from being written outside the location that scoped credentials cover.
-
-All location constraints are controlled by feature flags that default to `false` (strict enforcement).
-They can be relaxed at the server level via `polaris.features.*` properties, and a subset of them can
-also be overridden per catalog through catalog properties set via the management API.
-
-### Location Checks
-
-When a table or namespace is created or its location is updated, Polaris validates the proposed
-location against two constraints:
-
-**Allowed locations.** Each catalog defines a list of allowed storage location prefixes in its storage
-configuration. Every table and namespace location must fall under one of these prefixes. For tables,
-this constraint is always enforced and cannot be disabled by a feature flag. For namespaces, it can
-be bypassed by enabling `ALLOW_NAMESPACE_CUSTOM_LOCATION` (see **Namespace custom locations** below).
-
-**Structured hierarchy.** By default, tables must be located within the catalog's base location and
-follow the namespace hierarchy. Setting `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` to
-`true` allows tables to be placed at any location within the catalog's allowed storage locations,
-regardless of whether that location falls under the parent namespace's path.
-
-**Metadata file placement.** Iceberg metadata files must, by default, reside within the table's base
-location directory. This ensures that the scoped credentials Polaris vends for a table are sufficient
-to access its metadata as well. Setting `polaris.features."ALLOW_EXTERNAL_METADATA_FILE_LOCATION"` to
-`true` removes this constraint. If `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` is already
-enabled, the metadata file check is bypassed automatically.
-
-**Namespace custom locations.** Setting `polaris.features."ALLOW_NAMESPACE_CUSTOM_LOCATION"` to `true`
-allows namespaces to be created with arbitrary locations that do not fall under the catalog's base
-location or allowed storage prefixes. This does not affect credential vending.
-
-### Overlap Checks
-
-Polaris validates that no two entities within the same parent have locations that are prefixes of each
-other. For example, `s3://bucket/ns/a/` and `s3://bucket/ns/a/b/` overlap because one path is
-contained within the other.
-
-- `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` controls whether table location overlap is
-  permitted within a namespace.
-- `polaris.features."ALLOW_NAMESPACE_LOCATION_OVERLAP"` controls whether namespace location overlap
-  is permitted within a parent catalog or namespace.
-- `polaris.features."VALIDATE_VIEW_LOCATION_OVERLAP"` controls whether view locations are included in
-  the overlap check, in addition to tables and namespaces.
-
-By default, overlap checks are performed by scanning all sibling entities and comparing their
-locations. This works with any persistence backend but its cost grows with the number of entities in a
-namespace.
-
-### Optimized Overlap Check
-
-An index-based overlap check is available as a more scalable alternative to the default full sibling
-scan. When enabled, Polaris uses a database index to directly query for conflicting locations without
-loading all siblings, and can detect conflicts across namespaces rather than only within the same
-parent namespace.
-
-Enabling the optimized check is a two-step process:
-
-1. Set `polaris.features."ALLOW_OPTIMIZED_SIBLING_CHECK"` to `true` at the server level. This gate
-   must be enabled first to prevent the optimized check from being turned on in deployments where the
-   location index has not been fully populated — for example, after a schema migration without a data
-   backfill, which would cause existing entities to be invisible to the check.
-
-2. Set `polaris.features."OPTIMIZED_SIBLING_CHECK"` to `true` at the server level. This flag does
-   not have a per-catalog override and applies uniformly across all catalogs in the realm.
-
-{{< alert important >}}
-When `OPTIMIZED_SIBLING_CHECK` is enabled, overlap detection is performed catalog-wide (across all
-namespaces) rather than only within the parent namespace. The JDBC metastore uses a database index
-(`idx_locations` on `location_without_scheme`, available from schema v2) for this check, scoped to
-the target catalog. The in-memory metastore performs a full entity scan across all entities in the
-realm — not just the target catalog — so it may report overlaps between entities in different
-catalogs. On JDBC deployments still running schema v1, `hasOverlappingSiblings` cannot use the index
-and falls back to the namespace-scoped listing.
-{{< /alert >}}
-
-Because the index covers the full catalog, enabling `OPTIMIZED_SIBLING_CHECK` also catches location
-conflicts between entities in different namespaces. This is particularly relevant when
-`ALLOW_UNSTRUCTURED_TABLE_LOCATION` is enabled and tables may be placed outside their parent
-namespace's path.
-
-### Object Storage Prefix Mode
-
-When `polaris.features."DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED"` is set to `true`, Polaris
-automatically assigns table and view locations using a hashed sub-path prefix rather than placing them
-directly under the parent namespace's path:
-
-```
-# Standard location (namespace-based):
-s3://bucket/catalog_base/my_namespace/my_table/
-
-# Object storage prefix location (hashed):
-s3://bucket/catalog_base/a1b2c3d4/my_namespace/my_table/
-```
-
-The hash distributes table locations across a wider key space, which avoids object storage hot-spots
-when many tables are created in a short period of time. Because hashed locations do not fall under the
-parent namespace's path, this mode requires `ALLOW_UNSTRUCTURED_TABLE_LOCATION` to be enabled. The
-following combinations are valid:
-
-| `ALLOW_UNSTRUCTURED_TABLE_LOCATION` | `ALLOW_TABLE_LOCATION_OVERLAP` | `OPTIMIZED_SIBLING_CHECK` | Result |
-|-------------------------------------|-------------------------------|---------------------------|--------|
-| `false` | any | any | Error — unstructured mode is required for hashed paths |
-| `true` | `true` | any | Valid — overlap checks are disabled |
-| `true` | `false` | `false` | Error — tables may be created outside their parent namespace, but the overlap check is namespace-scoped only, leaving cross-namespace conflicts undetected |
-| `true` | `false` | `true` | Valid — the index-based check enforces uniqueness across all namespaces |
-
-### Per-Catalog Overrides
-
-A subset of location flags can be overridden per catalog through catalog properties set via the
-management API. This allows different catalogs on the same Polaris server to have different location
-policies — for example, a permissive development catalog alongside strict production catalogs.
-
-| Catalog Property | Corresponding Server Flag |
-|---|---|
-| `polaris.config.allow.overlapping.table.location` | `polaris.features."ALLOW_TABLE_LOCATION_OVERLAP"` |
-| `polaris.config.allow.unstructured.table.location` | `polaris.features."ALLOW_UNSTRUCTURED_TABLE_LOCATION"` |
-| `polaris.config.allow.external.table.location` | `polaris.features."ALLOW_EXTERNAL_TABLE_LOCATION"` |
-| `polaris.config.namespace-custom-location.enabled` | `polaris.features."ALLOW_NAMESPACE_CUSTOM_LOCATION"` |
-
-Catalog-level properties take precedence over the server-level flag value for that specific catalog.
-Flags without a per-catalog override — such as `ALLOW_NAMESPACE_LOCATION_OVERLAP` and
-`ALLOW_EXTERNAL_METADATA_FILE_LOCATION` — can only be set at the server level and apply uniformly
-across all catalogs in the realm.
-
-### Version Compatibility
-
-The core location flags have been available since different Polaris releases. The table below
-summarizes when each flag was introduced and any prerequisites that must be met before it can be
-safely enabled.
-
-| Flag | Introduced in | Prerequisites |
-|---|---|---|
-| `ALLOW_TABLE_LOCATION_OVERLAP` | 1.0.0 | — |
-| `ALLOW_NAMESPACE_LOCATION_OVERLAP` | 1.0.0 | — |
-| `ALLOW_EXTERNAL_METADATA_FILE_LOCATION` | 1.0.0 | — |
-| `ALLOW_UNSTRUCTURED_TABLE_LOCATION` | 1.0.0 | — |
-| `ALLOW_EXTERNAL_TABLE_LOCATION` | 1.0.0 | — |
-| `ALLOW_OVERLAPPING_CATALOG_URLS` | 1.0.0 | — |
-| `DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED` | 1.1.0 | `ALLOW_UNSTRUCTURED_TABLE_LOCATION` must be enabled |
-| `ALLOW_OPTIMIZED_SIBLING_CHECK` | 1.1.0 | Server-level safety gate for `OPTIMIZED_SIBLING_CHECK` |
-| `OPTIMIZED_SIBLING_CHECK` | 1.1.0 | `ALLOW_OPTIMIZED_SIBLING_CHECK` must be enabled; on JDBC metastore, requires schema v2 or later (see note below) |
-| `ALLOW_NAMESPACE_CUSTOM_LOCATION` | 1.2.0 | — |
-
-{{< alert note >}}
-`ALLOW_NAMESPACE_CUSTOM_LOCATION` was introduced as part of a breaking change in 1.2.0. Before 1.2.0,
-namespaces could be created with arbitrary locations by default. The 1.2.0 release changed this default
-to prohibit custom namespace locations. Set `ALLOW_NAMESPACE_CUSTOM_LOCATION` to `true` to restore
-the previous behavior.
-{{< /alert >}}
-
-#### Schema Version Requirement for `OPTIMIZED_SIBLING_CHECK`
-
-The `OPTIMIZED_SIBLING_CHECK` feature depends on a `location_without_scheme` column and a
-location-based index (`idx_locations`) in the JDBC persistence schema. These were introduced in
-**schema v2**, which shipped with Polaris 1.1.0. New installations from 1.1.0 onwards start on
-schema v2 automatically and can enable the optimized check without any additional steps.
-
-If you upgraded from Polaris 1.0.x to 1.1.x and stayed on schema v1, the upgrade guide requires
-adding the `location_without_scheme` column manually. However, even after the column exists, the
-`OPTIMIZED_SIBLING_CHECK` flag must **not** be enabled until the column has been fully backfilled for
-all pre-existing entities. Without a backfill, existing entities will not appear in the location
-index, and the overlap check will silently miss conflicts with them.
-
-{{< alert important >}}
-Do not enable `OPTIMIZED_SIBLING_CHECK` on a deployment that was migrated from schema v1 to v2
-without a full backfill of the `location_without_scheme` column. Doing so will cause the index-based
-overlap check to be unaware of all entities that existed before the migration, leading to incorrect
-results.
-{{< /alert >}}
 
 ## Troubleshooting Configuration Issues
 
