@@ -94,6 +94,7 @@ request adding CHANGELOG notes for breaking (!) changes and possibly other secti
 
 ### Changes
 
+- Request-scoped context (realm, principal, request ID) is now propagated to async task threads, so task log messages carry the originating request's identity. The new `TaskContextPropagator` captures context on the calling thread and restores it into the task thread's CDI request scope.
 - The `gcpServiceAccount` configuration value now affects Polaris behavior (enables service account impersonation). This value was previously defined but unused. This change may affect existing deployments that have populated this property.
 - (Before/After)UpdateTableEvent is emitted for all table updates within a transaction.
 - Added KMS options to Polaris CLI.
