@@ -45,6 +45,7 @@ request adding CHANGELOG notes for breaking (!) changes and possibly other secti
 - Added support for **Apache Ranger** as an external authorizer (Beta).
 
 ### Changes
+- Request-scoped context (realm, principal, request ID) is now propagated to async task threads, so task log messages carry the originating request's identity. The new `TaskContextPropagator` captures context on the calling thread and restores it into the task thread's CDI request scope.
 - Removed unused `PolarisAuthorizableOperation` values: `REVOKE_PRINCIPAL_GRANT_FROM_PRINCIPAL_ROLE`, `REVOKE_PRINCIPAL_ROLE_GRANT_FROM_PRINCIPAL_ROLE`, `LIST_GRANTS_ON_ROOT`, `ADD_PRINCIPAL_GRANT_TO_PRINCIPAL_ROLE`, `LIST_GRANTS_ON_PRINCIPAL`, `ADD_PRINCIPAL_ROLE_GRANT_TO_PRINCIPAL_ROLE`, `LIST_GRANTS_ON_PRINCIPAL_ROLE`, `ADD_CATALOG_ROLE_GRANT_TO_CATALOG_ROLE`, `REVOKE_CATALOG_ROLE_GRANT_FROM_CATALOG_ROLE`, `LIST_GRANTS_ON_CATALOG_ROLE`, `LIST_GRANTS_ON_CATALOG`, `LIST_GRANTS_ON_NAMESPACE`, `LIST_GRANTS_ON_TABLE`, `LIST_GRANTS_ON_VIEW`.
 - Changed deprecated APIs in JUnit 5. This change will force downstream projects that pull in the Polaris test packages to adopt JUnit 6.
 
@@ -94,7 +95,6 @@ request adding CHANGELOG notes for breaking (!) changes and possibly other secti
 
 ### Changes
 
-- Request-scoped context (realm, principal, request ID) is now propagated to async task threads, so task log messages carry the originating request's identity. The new `TaskContextPropagator` captures context on the calling thread and restores it into the task thread's CDI request scope.
 - The `gcpServiceAccount` configuration value now affects Polaris behavior (enables service account impersonation). This value was previously defined but unused. This change may affect existing deployments that have populated this property.
 - (Before/After)UpdateTableEvent is emitted for all table updates within a transaction.
 - Added KMS options to Polaris CLI.

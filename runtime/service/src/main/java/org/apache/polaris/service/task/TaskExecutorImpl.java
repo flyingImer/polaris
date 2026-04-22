@@ -151,7 +151,7 @@ public class TaskExecutorImpl implements TaskExecutor {
     PolarisEventMetadata eventMetadata = eventMetadataFactory.create();
 
     // Capture request-scoped context for propagation into the task thread.
-    TaskContextPropagator.CapturedTaskContext captured = taskContextPropagator.capture();
+    CapturedTaskContext captured = taskContextPropagator.capture();
 
     tryHandleTask(taskEntityId, clone, eventMetadata, captured, null, 1);
   }
@@ -160,7 +160,7 @@ public class TaskExecutorImpl implements TaskExecutor {
       long taskEntityId,
       CallContext callContext,
       PolarisEventMetadata eventMetadata,
-      TaskContextPropagator.CapturedTaskContext captured,
+      CapturedTaskContext captured,
       Throwable previousError,
       int attempt) {
     if (attempt > 3) {
@@ -257,7 +257,7 @@ public class TaskExecutorImpl implements TaskExecutor {
   protected void handleTaskWithTracing(
       long taskEntityId,
       CallContext callContext,
-      TaskContextPropagator.CapturedTaskContext captured,
+      CapturedTaskContext captured,
       PolarisEventMetadata eventMetadata,
       int attempt) {
     // Each call to this method runs in a new CDI request context.

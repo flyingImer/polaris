@@ -22,7 +22,6 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.polaris.core.auth.ImmutablePolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.context.catalog.RequestIdHolder;
@@ -89,10 +88,4 @@ class TaskContextPropagator {
     polarisPrincipalHolder.set(context.principal());
     requestIdHolder.set(context.requestId());
   }
-
-  /**
-   * Immutable snapshot of request-scoped context captured for propagation across async boundaries.
-   */
-  record CapturedTaskContext(
-      RealmContext realmContext, PolarisPrincipal principal, String requestId) {}
 }

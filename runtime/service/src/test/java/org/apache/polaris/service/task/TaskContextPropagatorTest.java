@@ -49,7 +49,7 @@ class TaskContextPropagatorTest {
         new TaskContextPropagator(
             realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
 
-    TaskContextPropagator.CapturedTaskContext captured = propagator.capture();
+    CapturedTaskContext captured = propagator.capture();
     assertThat(captured.realmContext()).isSameAs(realmContext);
     assertThat(captured.realmContext().getRealmIdentifier()).isEqualTo("test-realm");
   }
@@ -65,7 +65,7 @@ class TaskContextPropagatorTest {
         new TaskContextPropagator(
             realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
 
-    TaskContextPropagator.CapturedTaskContext captured = propagator.capture();
+    CapturedTaskContext captured = propagator.capture();
     assertThat(captured.principal()).isNotSameAs(principal);
     assertThat(captured.principal().getName()).isEqualTo("bob");
   }
@@ -82,7 +82,7 @@ class TaskContextPropagatorTest {
         new TaskContextPropagator(
             realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
 
-    TaskContextPropagator.CapturedTaskContext captured = propagator.capture();
+    CapturedTaskContext captured = propagator.capture();
     assertThat(captured.requestId()).isEqualTo("req-42");
   }
 
@@ -98,8 +98,7 @@ class TaskContextPropagatorTest {
     TaskContextPropagator propagator =
         new TaskContextPropagator(realmHolder, principalHolder, requestIdHolder, principal);
 
-    TaskContextPropagator.CapturedTaskContext captured =
-        new TaskContextPropagator.CapturedTaskContext(realmContext, principal, "req-99");
+    CapturedTaskContext captured = new CapturedTaskContext(realmContext, principal, "req-99");
 
     propagator.restore(captured);
 
@@ -126,7 +125,7 @@ class TaskContextPropagatorTest {
             sourceRequestIdHolder,
             principal);
 
-    TaskContextPropagator.CapturedTaskContext captured = propagator.capture();
+    CapturedTaskContext captured = propagator.capture();
 
     // Target holders for restore (simulating task thread with fresh holders)
     RealmContextHolder targetRealmHolder = mock(RealmContextHolder.class);
@@ -156,8 +155,7 @@ class TaskContextPropagatorTest {
     TaskContextPropagator propagator =
         new TaskContextPropagator(realmHolder, principalHolder, requestIdHolder, principal);
 
-    TaskContextPropagator.CapturedTaskContext captured =
-        new TaskContextPropagator.CapturedTaskContext(realmContext, principal, null);
+    CapturedTaskContext captured = new CapturedTaskContext(realmContext, principal, null);
 
     propagator.restore(captured);
 
