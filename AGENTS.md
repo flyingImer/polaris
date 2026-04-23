@@ -265,12 +265,10 @@ If a DISCIPLINE step reveals a problem, fix it and re-run the HARD GATE steps.
 ## Common Mistakes
 
 **Changing interface method signatures.** [DISCIPLINE]
-Polaris interfaces are implemented by downstream integrators. Changing a method
-signature breaks those implementations. Before modifying any interface, search for
-all implementations (`grep -rn 'implements YourInterface'`). When extending an
-interface, add new methods with `default` implementations rather than modifying
-existing signatures. Changes to public interfaces or extension points require prior
-discussion on the dev mailing list — see
+Polaris interfaces may be implemented by downstream integrators outside this
+repository. Changing a method signature can break those implementations even if all
+in-repo usages compile. Changes to public interfaces or extension points require
+prior discussion on the dev mailing list, see
 [CONTRIBUTING.md](CONTRIBUTING.md#code-contribution-guidelines).
 
 **Inventing new patterns.** [DISCIPLINE]
