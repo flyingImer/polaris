@@ -45,7 +45,7 @@ assumptions and running with them without checking.
 2. **Identify existing patterns.** Polaris has established patterns for CDI wiring,
    request-scoped holders, persistence SPIs, and extension modules. Match them. If
    you are unsure what pattern applies, look at two or three similar files and follow
-   what they do.
+   what they do. If in doubt, ask the user.
 3. **Plan multi-step tasks.** For changes that span more than one file, write a brief
    plan before coding:
    ```
@@ -59,9 +59,10 @@ assumptions and running with them without checking.
    intended scope, ambiguous requirements), state it explicitly in the PR description.
    This is especially important for agents running in batch mode without interactive
    feedback.
-6. **Investigate before editing.** When debugging, do not modify source files. Read,
-   search, and trace the code to build a diagnosis first. Speculative edits obscure
-   the original problem and risk regressions.
+6. **Investigate before editing.** When debugging, read, search, and trace the code
+   to build a diagnosis first. Speculative source edits obscure the original problem
+   and risk regressions. Temporary debug output (e.g., `System.out.println`) is fine
+   as long as it is removed before committing.
 
 ---
 
@@ -91,34 +92,36 @@ failure as a blocking error.
 **Build system:** Gradle with Kotlin DSL. **Framework:** Quarkus with CDI.
 
 ```bash
-# Format + compile — run before every commit
+# Full build with all checks (formatting, checkstyle, errorprone, tests)
+./gradlew check
+
+# Compile only (no tests)
+./gradlew compileAll
+
+# Format code (Google Java Format via Spotless)
+./gradlew format
+
+# Format + compile (recommended before pushing)
 ./gradlew format compileAll
 
 # Run a specific module's checks and tests
 ./gradlew :polaris-runtime-service:check
 
 # Run a specific test class
-./gradlew :polaris-runtime-service:test \
-  --tests "org.apache.polaris.service.tracing.RequestIdFilterTest"
+./gradlew :polaris-core:test \
+  --tests "org.apache.polaris.core.SomeTest"
 
-# Full check (formatting + all tests + all modules)
-./gradlew check
+# Run a specific test method
+./gradlew :polaris-core:test \
+  --tests "org.apache.polaris.core.SomeTest.testMethod"
 ```
 
 Error Prone runs during compilation. Fix every Error Prone error rather than
 suppressing checks with `@SuppressWarnings`. Do not introduce new `-Xlint` compiler
 warnings (unchecked casts, deprecation usage). [DISCIPLINE]
 
-Module names map to directory paths via `gradle/projects.main.properties`. Common
-modules:
-
-| Module | Path |
-|--------|------|
-| `polaris-core` | `polaris-core/` |
-| `polaris-runtime-service` | `runtime/service/` |
-| `polaris-server` | `runtime/server/` |
-| `polaris-relational-jdbc` | `persistence/relational-jdbc/` |
-| `polaris-tests` | `integration-tests/` |
+Module names map to directory paths via `gradle/projects.main.properties`. See
+[README.md](README.md) for a breakdown of all modules.
 
 ---
 
@@ -147,6 +150,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 ```
 
+**Tests:** Favor parameterized tests when the same behavior is tested across
+different inputs. [DISCIPLINE]
+
 **Banned imports:** Checkstyle blocks all `*.shaded.*` imports and `*.relocated.*`
 imports (with a narrow exception) — see `codestyle/checkstyle.xml` for details.
 [HARD GATE — `./gradlew check` catches this]
@@ -166,27 +172,12 @@ void pathSegmentRejectsNullEntityType()            // BDD style
 void capture_whenScopeNotActive_returnsNull()      // wrong — no underscores
 ```
 
-### Commit messages [DISCIPLINE]
+### Commit messages and PR titles [DISCIPLINE]
 
-[Conventional Commits](https://www.conventionalcommits.org/en/v1.0.0/) format:
-
-```
-feat(service): async context propagation for task executor
-fix(core): null check in entity cache lookup
-refactor(persistence): extract connection pooling
-docs: update CONTRIBUTING.md with AI guidelines
-```
-
-- Scope matches the module area (`service` for `runtime/service`, `core` for
-  `polaris-core`).
-- `feat` / `fix` appear in release notes. Describe the feature or bug for users,
-  not the action.
-- No trailing period. Lowercase after the colon.
-
-### PR titles [DISCIPLINE]
-
-Same Conventional Commits format. The PR title becomes the squash-merge commit
-subject, so write it as if it will appear in release notes.
+Follow the conventions in
+[CONTRIBUTING.md](CONTRIBUTING.md#code-contribution-guidelines). The PR title
+becomes the squash-merge commit subject. Write it as if it will appear in release
+notes: describe the feature or bug for users, not the action.
 
 ---
 
@@ -265,11 +256,11 @@ If a DISCIPLINE step reveals a problem, fix it and re-run the HARD GATE steps.
 ## Common Mistakes
 
 **Changing interface method signatures.** [DISCIPLINE]
-Polaris interfaces may be implemented by downstream integrators outside this
-repository. Changing a method signature can break those implementations even if all
-in-repo usages compile. Changes to public interfaces or extension points require
-prior discussion on the dev mailing list, see
-[CONTRIBUTING.md](CONTRIBUTING.md#code-contribution-guidelines).
+Changes to public interfaces or extension points are significant design decisions
+that require prior discussion on the dev mailing list, see
+[CONTRIBUTING.md](CONTRIBUTING.md#code-contribution-guidelines). See also the
+[evolution guidelines](site/content/in-dev/unreleased/evolution.md) for the
+project's approach to API and code changes.
 
 **Inventing new patterns.** [DISCIPLINE]
 Check the codebase for existing patterns before introducing new utility classes or
