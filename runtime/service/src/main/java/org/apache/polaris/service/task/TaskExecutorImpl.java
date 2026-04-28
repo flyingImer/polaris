@@ -62,7 +62,7 @@ import org.slf4j.LoggerFactory;
  * {@link CallContext}.
  */
 @ApplicationScoped
-public class TaskExecutorImpl implements TaskExecutor {
+class TaskExecutorImpl implements TaskExecutor {
   private static final Logger LOGGER = LoggerFactory.getLogger(TaskExecutorImpl.class);
   private static final long TASK_RETRY_DELAY = 1000;
 
@@ -83,7 +83,7 @@ public class TaskExecutorImpl implements TaskExecutor {
   }
 
   @Inject
-  public TaskExecutorImpl(
+  TaskExecutorImpl(
       @Identifier("task-executor") Executor executor,
       @Identifier("task-error-handler")
           Instance<TriConsumer<Long, Boolean, Throwable>> errorHandler,
