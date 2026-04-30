@@ -27,10 +27,6 @@ import org.apache.polaris.core.context.RequestIdSupplier;
 /**
  * Request-scoped holder for the request ID.
  *
- * <p>On HTTP request threads the request ID is set by {@code RequestIdFilter}. On async task
- * threads a new CDI request scope is activated by {@code TaskExecutorImpl}, and the request ID from
- * the originating request is propagated into this holder by {@code RequestIdPropagator}.
- *
  * <p>The holder exposes the stored ID as a {@link RequestIdSupplier} produced bean so that any
  * component injecting {@code Instance<RequestIdSupplier>} can resolve it without depending on
  * JAX-RS internals.
