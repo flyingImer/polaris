@@ -41,7 +41,10 @@ assumptions and running with them without checking.
 
 1. **Read the relevant code first.** Before changing a file, read it. Before
    implementing an interface, find existing implementations and study them. Before
-   adding a utility, search the codebase for one that already exists.
+   adding a utility, search the codebase for one that already exists. For a fast
+   module-level overview to get oriented, see
+   [Get oriented in the codebase](CONTRIBUTING.md#get-oriented-in-the-codebase)
+   in `CONTRIBUTING.md`.
 2. **Identify existing patterns.** Polaris has established patterns for CDI wiring,
    request-scoped holders, persistence SPIs, and extension modules. Match them. If
    you are unsure what pattern applies, look at two or three similar files and follow

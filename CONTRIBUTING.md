@@ -54,6 +54,10 @@ When creating your feature request, document your requirements first. Please, tr
 
 ## Before you begin contributing code 
 
+### Get oriented in the codebase
+
+Before diving into a change, it helps to know where things live. The [Code Wiki for Apache Polaris](https://codewiki.google/github.com/apache/polaris) is a third-party, auto-generated overview of modules and their relationships, useful for fast orientation. It is a navigation aid, not authoritative, so verify details against the source tree before relying on them for design decisions.
+
 ### Review open issues and discuss your approach
 
 If you want to dive into development yourself then you can check out existing open issues or requests for features that need to be implemented. Take ownership of an issue and try fix it. 
