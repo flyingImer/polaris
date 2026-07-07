@@ -19,27 +19,30 @@
 package org.apache.polaris.core.persistence;
 
 import com.google.errorprone.annotations.FormatMethod;
-import org.apache.polaris.core.exceptions.PolarisException;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
+import org.apache.polaris.exceptions.PolarisConflictException;
 
 /**
- * Exception raised when an existing policy mapping preveents the attempted creation of a new policy
- * mapping record.
+ * Exception raised when an existing policy mapping prevents the attempted creation of a new policy
+ * mapping record. It is a {@link PolarisConflictException}, so the error mapper renders it as HTTP
+ * 409 with the stable wire code {@code policy.mapping_already_exists} and needs no dedicated arm.
  */
-public class PolicyMappingAlreadyExistsException extends PolarisException {
+public class PolicyMappingAlreadyExistsException extends PolarisConflictException {
+  private static final String ERROR_CODE = "policy.mapping_already_exists";
+
   private PolarisPolicyMappingRecord existingRecord;
 
   /**
    * @param existingRecord The conflicting record that caused creation to fail.
    */
   public PolicyMappingAlreadyExistsException(PolarisPolicyMappingRecord existingRecord) {
-    super("Existing Policy Mapping Record: " + existingRecord);
+    super(ERROR_CODE, "Existing Policy Mapping Record: " + existingRecord);
     this.existingRecord = existingRecord;
   }
 
   @FormatMethod
   public PolicyMappingAlreadyExistsException(String message, Object... arg) {
-    super(String.format(message, arg));
+    super(ERROR_CODE, String.format(message, arg));
   }
 
   public PolarisPolicyMappingRecord getExistingRecord() {

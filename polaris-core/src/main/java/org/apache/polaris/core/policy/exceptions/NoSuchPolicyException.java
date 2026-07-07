@@ -18,15 +18,20 @@
  */
 package org.apache.polaris.core.policy.exceptions;
 
-import org.apache.polaris.core.exceptions.PolarisException;
+import org.apache.polaris.exceptions.PolarisNotFoundException;
 
-public class NoSuchPolicyException extends PolarisException {
+/**
+ * Thrown when a policy does not exist. It is a {@link PolarisNotFoundException}, mapped to HTTP 404
+ * with the stable wire code {@code policy.not_found} and needs no dedicated arm.
+ */
+public class NoSuchPolicyException extends PolarisNotFoundException {
+  private static final String ERROR_CODE = "policy.not_found";
 
   public NoSuchPolicyException(String message) {
-    super(message);
+    super(ERROR_CODE, message);
   }
 
   public NoSuchPolicyException(String message, Throwable cause) {
-    super(message, cause);
+    super(ERROR_CODE, message, cause);
   }
 }

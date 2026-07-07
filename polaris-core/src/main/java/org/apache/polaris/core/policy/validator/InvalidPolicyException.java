@@ -18,19 +18,24 @@
  */
 package org.apache.polaris.core.policy.validator;
 
-import org.apache.polaris.core.exceptions.PolarisException;
+import org.apache.polaris.exceptions.PolarisBadRequestException;
 
-/** Exception thrown when a policy is invalid or violates defined rules. */
-public class InvalidPolicyException extends PolarisException {
+/**
+ * Thrown when a policy is invalid or violates defined rules. It is a {@link
+ * PolarisBadRequestException}, mapped to HTTP 400 with the stable wire code {@code policy.invalid}.
+ */
+public class InvalidPolicyException extends PolarisBadRequestException {
+  private static final String ERROR_CODE = "policy.invalid";
+
   public InvalidPolicyException(String message) {
-    super(message);
+    super(ERROR_CODE, message);
   }
 
   public InvalidPolicyException(String message, Throwable cause) {
-    super(message, cause);
+    super(ERROR_CODE, message, cause);
   }
 
   public InvalidPolicyException(Throwable cause) {
-    super("Invalid policy", cause);
+    super(ERROR_CODE, "Invalid policy", cause);
   }
 }

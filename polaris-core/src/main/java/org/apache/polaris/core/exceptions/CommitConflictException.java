@@ -20,23 +20,31 @@
 package org.apache.polaris.core.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
+import org.apache.polaris.exceptions.PolarisConflictException;
 
-public class CommitConflictException extends PolarisException {
+/**
+ * Raised on a commit conflict. It is a {@link PolarisConflictException}, so the error mapper
+ * renders it as HTTP 409 with the stable wire code {@code commit.conflict} and needs no dedicated
+ * arm.
+ */
+public class CommitConflictException extends PolarisConflictException {
+  private static final String ERROR_CODE = "commit.conflict";
+
   public CommitConflictException(String message) {
-    super(message);
+    super(ERROR_CODE, message);
   }
 
   @FormatMethod
   public CommitConflictException(String message, Object... args) {
-    super(String.format(message, args));
+    super(ERROR_CODE, String.format(message, args));
   }
 
   @FormatMethod
   public CommitConflictException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(ERROR_CODE, String.format(message, args), cause);
   }
 
   public CommitConflictException(String message, Throwable cause) {
-    super(message, cause);
+    super(ERROR_CODE, message, cause);
   }
 }

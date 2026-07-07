@@ -18,16 +18,21 @@
  */
 package org.apache.polaris.core.exceptions;
 
+import org.apache.polaris.exceptions.PolarisConflictException;
+
 /**
- * A {@link PolarisException} implementation for when Polaris is unable to create an entity that
- * already exists.
+ * Raised when Polaris cannot create an entity that already exists. It is a {@link
+ * PolarisConflictException}, so the error mapper renders it as HTTP 409 with the stable wire code
+ * {@code resource.already_exists} and needs no dedicated arm.
  */
-public class AlreadyExistsException extends PolarisException {
+public class AlreadyExistsException extends PolarisConflictException {
+  private static final String ERROR_CODE = "resource.already_exists";
+
   public AlreadyExistsException(String message) {
-    super(message);
+    super(ERROR_CODE, message);
   }
 
   public AlreadyExistsException(String message, Throwable cause) {
-    super(message, cause);
+    super(ERROR_CODE, message, cause);
   }
 }

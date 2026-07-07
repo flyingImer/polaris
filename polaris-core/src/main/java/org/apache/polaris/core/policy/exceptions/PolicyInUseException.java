@@ -19,16 +19,22 @@
 package org.apache.polaris.core.policy.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
-import org.apache.polaris.core.exceptions.PolarisException;
+import org.apache.polaris.exceptions.PolarisBadRequestException;
 
-public class PolicyInUseException extends PolarisException {
+/**
+ * Thrown when a policy is still in use. It is a {@link PolarisBadRequestException}, mapped to HTTP
+ * 400 with the stable wire code {@code policy.in_use}.
+ */
+public class PolicyInUseException extends PolarisBadRequestException {
+  private static final String ERROR_CODE = "policy.in_use";
+
   @FormatMethod
   public PolicyInUseException(String message, Object... args) {
-    super(String.format(message, args));
+    super(ERROR_CODE, String.format(message, args));
   }
 
   @FormatMethod
   public PolicyInUseException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(ERROR_CODE, String.format(message, args), cause);
   }
 }

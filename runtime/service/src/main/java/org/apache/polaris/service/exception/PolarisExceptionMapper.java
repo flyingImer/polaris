@@ -24,15 +24,10 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
 import org.apache.iceberg.rest.responses.ErrorResponse;
-import org.apache.polaris.core.exceptions.AlreadyExistsException;
-import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.exceptions.PolarisException;
-import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
-import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
-import org.apache.polaris.core.policy.exceptions.PolicyAttachException;
-import org.apache.polaris.core.policy.exceptions.PolicyInUseException;
-import org.apache.polaris.core.policy.exceptions.PolicyVersionMismatchException;
-import org.apache.polaris.core.policy.validator.InvalidPolicyException;
+import org.apache.polaris.exceptions.PolarisBadRequestException;
+import org.apache.polaris.exceptions.PolarisConflictException;
+import org.apache.polaris.exceptions.PolarisNotFoundException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
@@ -47,18 +42,31 @@ public class PolarisExceptionMapper implements ExceptionMapper<PolarisException>
   private static final Logger LOGGER = LoggerFactory.getLogger(PolarisExceptionMapper.class);
 
   private Response.Status getStatus(PolarisException exception) {
+    // The mapper classifies purely by the three HTTP-semantic base exceptions: any error, OSS or
+    // provider, that extends one of them inherits the right status with no new arm here. Errors
+    // that
+    // are genuinely internal (for example a persistence failure) extend none of the bases and fall
+    // to the default 500, which is the intended behavior for a server-side fault.
     return switch (exception) {
-      case AlreadyExistsException alreadyExistsException -> Response.Status.CONFLICT;
-      case CommitConflictException commitConflictException -> Response.Status.CONFLICT;
-      case InvalidPolicyException invalidPolicyException -> Response.Status.BAD_REQUEST;
-      case PolicyAttachException policyAttachException -> Response.Status.BAD_REQUEST;
-      case NoSuchPolicyException noSuchPolicyException -> Response.Status.NOT_FOUND;
-      case PolicyVersionMismatchException policyVersionMismatchException ->
-          Response.Status.CONFLICT;
-      case PolicyMappingAlreadyExistsException policyMappingAlreadyExistsException ->
-          Response.Status.CONFLICT;
-      case PolicyInUseException policyInUseException -> Response.Status.BAD_REQUEST;
+      case PolarisNotFoundException notFound -> Response.Status.NOT_FOUND;
+      case PolarisConflictException conflict -> Response.Status.CONFLICT;
+      case PolarisBadRequestException badRequest -> Response.Status.BAD_REQUEST;
       default -> Response.Status.INTERNAL_SERVER_ERROR;
+    };
+  }
+
+  /**
+   * The wire {@code type}. For the client-facing semantic bases it is the stable declared {@code
+   * errorCode()}, so a class rename cannot silently change the wire contract. The default applies
+   * only to internal (500) errors, whose {@code type} is not a client contract; there it falls back
+   * to the class simple name.
+   */
+  private static String wireType(PolarisException exception) {
+    return switch (exception) {
+      case PolarisNotFoundException notFound -> notFound.errorCode();
+      case PolarisConflictException conflict -> conflict.errorCode();
+      case PolarisBadRequestException badRequest -> badRequest.errorCode();
+      default -> exception.getClass().getSimpleName();
     };
   }
 
@@ -74,7 +82,7 @@ public class PolarisExceptionMapper implements ExceptionMapper<PolarisException>
     ErrorResponse errorResponse =
         ErrorResponse.builder()
             .responseCode(status.getStatusCode())
-            .withType(exception.getClass().getSimpleName())
+            .withType(wireType(exception))
             .withMessage(exception.getMessage())
             .build();
     return Response.status(status)

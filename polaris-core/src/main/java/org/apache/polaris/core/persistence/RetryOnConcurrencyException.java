@@ -19,20 +19,31 @@
 package org.apache.polaris.core.persistence;
 
 import com.google.errorprone.annotations.FormatMethod;
+import org.apache.polaris.exceptions.PolarisConflictException;
 
-/** Exception raised when the data is accessed concurrently with conflict. */
-public class RetryOnConcurrencyException extends RuntimeException {
+/**
+ * Exception raised when data is accessed concurrently with conflict.
+ *
+ * <p>It is a {@link PolarisConflictException}, so anywhere it reaches the error mapper it renders
+ * as HTTP 409 with the stable wire code {@code entity.concurrency_conflict} and needs no dedicated
+ * mapper arm. Before this it extended {@code RuntimeException} directly and fell through the mapper
+ * to a 500. The {@code loadTasks} path in {@code AtomicOperationMetaStoreManager} throws it
+ * uncaught, so that path now returns 409 instead of 500.
+ */
+public class RetryOnConcurrencyException extends PolarisConflictException {
+  private static final String ERROR_CODE = "entity.concurrency_conflict";
+
   @FormatMethod
   public RetryOnConcurrencyException(String message, Object... args) {
-    super(String.format(message, args));
+    super(ERROR_CODE, String.format(message, args));
   }
 
   @FormatMethod
   public RetryOnConcurrencyException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(ERROR_CODE, String.format(message, args), cause);
   }
 
   public RetryOnConcurrencyException(Throwable cause) {
-    super(cause);
+    super(ERROR_CODE, cause == null ? null : cause.toString(), cause);
   }
 }

@@ -18,14 +18,20 @@
  */
 package org.apache.polaris.core.policy.exceptions;
 
-import org.apache.polaris.core.exceptions.PolarisException;
+import org.apache.polaris.exceptions.PolarisConflictException;
 
-public class PolicyVersionMismatchException extends PolarisException {
+/**
+ * Thrown when a policy version does not match. It is a {@link PolarisConflictException}, mapped to
+ * HTTP 409 with the stable wire code {@code policy.version_mismatch}.
+ */
+public class PolicyVersionMismatchException extends PolarisConflictException {
+  private static final String ERROR_CODE = "policy.version_mismatch";
+
   public PolicyVersionMismatchException(String message) {
-    super(message);
+    super(ERROR_CODE, message);
   }
 
   public PolicyVersionMismatchException(String message, Throwable cause) {
-    super(message, cause);
+    super(ERROR_CODE, message, cause);
   }
 }

@@ -19,16 +19,22 @@
 package org.apache.polaris.core.policy.exceptions;
 
 import com.google.errorprone.annotations.FormatMethod;
-import org.apache.polaris.core.exceptions.PolarisException;
+import org.apache.polaris.exceptions.PolarisBadRequestException;
 
-public class PolicyAttachException extends PolarisException {
+/**
+ * Thrown when a policy cannot be attached. It is a {@link PolarisBadRequestException}, mapped to
+ * HTTP 400 with the stable wire code {@code policy.attach_failed}.
+ */
+public class PolicyAttachException extends PolarisBadRequestException {
+  private static final String ERROR_CODE = "policy.attach_failed";
+
   @FormatMethod
   public PolicyAttachException(String message, Object... args) {
-    super(String.format(message, args));
+    super(ERROR_CODE, String.format(message, args));
   }
 
   @FormatMethod
   public PolicyAttachException(Throwable cause, String message, Object... args) {
-    super(String.format(message, args), cause);
+    super(ERROR_CODE, String.format(message, args), cause);
   }
 }
