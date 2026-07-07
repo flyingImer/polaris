@@ -96,6 +96,12 @@ mockito-core = { module = "org.mockito:mockito-core", version = "5.23.0" }
 mockito-junit-jupiter = { module = "org.mockito:mockito-junit-jupiter", version = "5.23.0" }
 mongodb-driver-sync = { module = "org.mongodb:mongodb-driver-sync", version = "5.8.0" }
 opentelemetry-instrumentation-bom-alpha = { module = "io.opentelemetry.instrumentation:opentelemetry-instrumentation-bom-alpha", version= "2.20.1-alpha" }
+# Forkless PoC: aliases the managed-polaris composite consumer needs (managed OTel exporters +
+# prometheus servlet). Kept here so the shared catalog resolves for the managed build; a
+# managed-local catalog would be the forkless-clean long-term home.
+opentelemetry-bom = { module = "io.opentelemetry:opentelemetry-bom", version = "1.55.0" }
+opentelemetry-semconv = { module = "io.opentelemetry.semconv:opentelemetry-semconv", version = "1.37.0" }
+prometheus-metrics-exporter-servlet-jakarta = { module = "io.prometheus:prometheus-metrics-exporter-servlet-jakarta", version = "1.4.2" }
 picocli = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 picocli-codegen = { module = "info.picocli:picocli-codegen", version.ref = "picocli" }
 postgresql = { module = "org.postgresql:postgresql", version = "42.7.11" }
