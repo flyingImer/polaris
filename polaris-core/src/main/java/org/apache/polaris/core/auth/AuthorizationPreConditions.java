@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.core.auth;
 
+import java.util.Optional;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
@@ -30,6 +31,40 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 public final class AuthorizationPreConditions {
 
   private AuthorizationPreConditions() {}
+
+  private static boolean credentialRotationRequired(
+      PolarisPrincipal polarisPrincipal,
+      PolarisAuthorizableOperation authzOp,
+      RealmConfig realmConfig) {
+    return realmConfig.getConfig(
+            FeatureConfiguration.ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING)
+        && authzOp != PolarisAuthorizableOperation.ROTATE_CREDENTIALS
+        && polarisPrincipal
+            .getProperties()
+            .containsKey(PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE);
+  }
+
+  private static String credentialRotationDenialMessage(
+      PolarisPrincipal polarisPrincipal, PolarisAuthorizableOperation authzOp) {
+    return String.format(
+        "Principal '%s' is not authorized for op %s due to PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE",
+        polarisPrincipal.getName(), authzOp);
+  }
+
+  /**
+   * Decision-native form of {@link #checkCredentialRotationRequired}: returns the deny reason when
+   * the principal must rotate credentials before performing {@code authzOp}, otherwise empty. Used
+   * by decision-returning authorizers so the credential-rotation pre-check does not require
+   * throw-as-control-flow.
+   */
+  public static Optional<String> credentialRotationDenial(
+      PolarisPrincipal polarisPrincipal,
+      PolarisAuthorizableOperation authzOp,
+      RealmConfig realmConfig) {
+    return credentialRotationRequired(polarisPrincipal, authzOp, realmConfig)
+        ? Optional.of(credentialRotationDenialMessage(polarisPrincipal, authzOp))
+        : Optional.empty();
+  }
 
   /**
    * Checks whether the principal is required to rotate credentials before performing the requested
@@ -45,15 +80,9 @@ public final class AuthorizationPreConditions {
       PolarisPrincipal polarisPrincipal,
       PolarisAuthorizableOperation authzOp,
       RealmConfig realmConfig) {
-    if (realmConfig.getConfig(
-            FeatureConfiguration.ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING)
-        && authzOp != PolarisAuthorizableOperation.ROTATE_CREDENTIALS
-        && polarisPrincipal
-            .getProperties()
-            .containsKey(PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE)) {
+    if (credentialRotationRequired(polarisPrincipal, authzOp, realmConfig)) {
       throw new ForbiddenException(
-          "Principal '%s' is not authorized for op %s due to PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE",
-          polarisPrincipal.getName(), authzOp);
+          "%s", credentialRotationDenialMessage(polarisPrincipal, authzOp));
     }
   }
 }

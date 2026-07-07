@@ -128,6 +128,7 @@ import com.google.common.collect.HashMultimap;
 import com.google.common.collect.SetMultimap;
 import java.util.EnumSet;
 import java.util.List;
+import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ForbiddenException;
@@ -773,80 +774,80 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
       AuthorizationIntent intent) {
     RbacOperationSemantics semantics = RbacOperationSemantics.forOperation(intent.getOperation());
     boolean prependRootContainer = semantics.rooting() == ResolvedPathRooting.ROOT;
-    try {
-      List<PolarisResolvedPathWrapper> resolvedTargets;
-      List<PolarisResolvedPathWrapper> resolvedSecondaries;
-      if (intent instanceof TargetlessAuthorizationIntent) {
-        resolvedTargets =
-            prependRootContainer
-                ? List.of(resolutionManifest.getResolvedRootContainerEntityAsPath())
-                : null;
-        resolvedSecondaries = null;
-      } else if (intent instanceof SingleTargetAuthorizationIntent singleTargetIntent) {
-        resolvedTargets =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, singleTargetIntent.target(), prependRootContainer));
-        resolvedSecondaries = null;
-      } else if (intent instanceof RenameAuthorizationIntent renameIntent) {
-        resolvedTargets =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, renameIntent.from(), prependRootContainer));
-        resolvedSecondaries =
-            List.of(
-                getResolvedSecurable(resolutionManifest, renameIntent.to(), prependRootContainer));
-      } else if (intent instanceof PolicyAttachmentAuthorizationIntent policyAttachmentIntent) {
-        resolvedTargets =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, policyAttachmentIntent.policy(), prependRootContainer));
-        resolvedSecondaries =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, policyAttachmentIntent.attachedTo(), prependRootContainer));
-      } else if (intent instanceof RoleAssignmentAuthorizationIntent roleAssignmentIntent) {
-        resolvedTargets =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, roleAssignmentIntent.role(), prependRootContainer));
-        resolvedSecondaries =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, roleAssignmentIntent.assignee(), prependRootContainer));
-      } else if (intent instanceof PrivilegeGrantAuthorizationIntent privilegeGrantIntent) {
-        resolvedTargets =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, privilegeGrantIntent.grantTarget(), prependRootContainer));
-        resolvedSecondaries =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, privilegeGrantIntent.grantee(), prependRootContainer));
-      } else if (intent instanceof RootPrivilegeGrantAuthorizationIntent rootPrivilegeGrantIntent) {
-        resolvedTargets = List.of(resolutionManifest.getResolvedRootContainerEntityAsPath());
-        resolvedSecondaries =
-            List.of(
-                getResolvedSecurable(
-                    resolutionManifest, rootPrivilegeGrantIntent.grantee(), prependRootContainer));
-      } else {
-        throw new IllegalStateException("Unsupported authorization intent: " + intent.getClass());
-      }
-      authorizeOrThrow(
-          polarisPrincipal,
-          resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
-          intent.getOperation(),
-          resolvedTargets,
-          resolvedSecondaries);
-      return AuthorizationDecision.allow();
-    } catch (ForbiddenException e) {
+    List<PolarisResolvedPathWrapper> resolvedTargets;
+    List<PolarisResolvedPathWrapper> resolvedSecondaries;
+    if (intent instanceof TargetlessAuthorizationIntent) {
+      resolvedTargets =
+          prependRootContainer
+              ? List.of(resolutionManifest.getResolvedRootContainerEntityAsPath())
+              : null;
+      resolvedSecondaries = null;
+    } else if (intent instanceof SingleTargetAuthorizationIntent singleTargetIntent) {
+      resolvedTargets =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, singleTargetIntent.target(), prependRootContainer));
+      resolvedSecondaries = null;
+    } else if (intent instanceof RenameAuthorizationIntent renameIntent) {
+      resolvedTargets =
+          List.of(
+              getResolvedSecurable(resolutionManifest, renameIntent.from(), prependRootContainer));
+      resolvedSecondaries =
+          List.of(
+              getResolvedSecurable(resolutionManifest, renameIntent.to(), prependRootContainer));
+    } else if (intent instanceof PolicyAttachmentAuthorizationIntent policyAttachmentIntent) {
+      resolvedTargets =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, policyAttachmentIntent.policy(), prependRootContainer));
+      resolvedSecondaries =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, policyAttachmentIntent.attachedTo(), prependRootContainer));
+    } else if (intent instanceof RoleAssignmentAuthorizationIntent roleAssignmentIntent) {
+      resolvedTargets =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, roleAssignmentIntent.role(), prependRootContainer));
+      resolvedSecondaries =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, roleAssignmentIntent.assignee(), prependRootContainer));
+    } else if (intent instanceof PrivilegeGrantAuthorizationIntent privilegeGrantIntent) {
+      resolvedTargets =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, privilegeGrantIntent.grantTarget(), prependRootContainer));
+      resolvedSecondaries =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, privilegeGrantIntent.grantee(), prependRootContainer));
+    } else if (intent instanceof RootPrivilegeGrantAuthorizationIntent rootPrivilegeGrantIntent) {
+      resolvedTargets = List.of(resolutionManifest.getResolvedRootContainerEntityAsPath());
+      resolvedSecondaries =
+          List.of(
+              getResolvedSecurable(
+                  resolutionManifest, rootPrivilegeGrantIntent.grantee(), prependRootContainer));
+    } else {
+      throw new IllegalStateException("Unsupported authorization intent: " + intent.getClass());
+    }
+    // Decision-native: compute allow/deny directly rather than round-tripping through the throw
+    // form and catching ForbiddenException (ADR-0005 Decision 1).
+    AuthorizationDecision decision =
+        decide(
+            polarisPrincipal,
+            resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
+            intent.getOperation(),
+            resolvedTargets,
+            resolvedSecondaries);
+    if (!decision.isAllowed()) {
       LOGGER.debug(
-          "Authorization denied for principalName {} intent {}",
+          "Authorization denied for principalName {} intent {}: {}",
           polarisPrincipal.getName(),
           intent,
-          e);
-      return AuthorizationDecision.deny(e.getMessage());
+          decision.getMessage().orElse(""));
     }
+    return decision;
   }
 
   private PolarisResolvedPathWrapper getResolvedSecurable(
@@ -916,31 +917,77 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
   }
 
   @Override
+  @NonNull
+  public AuthorizationDecision authorize(
+      @NonNull PolarisPrincipal polarisPrincipal,
+      @NonNull Set<PolarisBaseEntity> activatedEntities,
+      @NonNull PolarisAuthorizableOperation authzOp,
+      @Nullable PolarisResolvedPathWrapper target,
+      @Nullable PolarisResolvedPathWrapper secondary) {
+    return decide(
+        polarisPrincipal,
+        activatedEntities,
+        authzOp,
+        target == null ? null : List.of(target),
+        secondary == null ? null : List.of(secondary));
+  }
+
+  @Override
   public void authorizeOrThrow(
       @NonNull PolarisPrincipal polarisPrincipal,
       @NonNull Set<PolarisBaseEntity> activatedEntities,
       @NonNull PolarisAuthorizableOperation authzOp,
       @Nullable List<PolarisResolvedPathWrapper> targets,
       @Nullable List<PolarisResolvedPathWrapper> secondaries) {
-    AuthorizationPreConditions.checkCredentialRotationRequired(
-        polarisPrincipal, authzOp, realmConfig);
+    AuthorizationDecision decision =
+        decide(polarisPrincipal, activatedEntities, authzOp, targets, secondaries);
+    if (!decision.isAllowed()) {
+      throw new ForbiddenException("%s", decision.getMessage().orElse("Authorization denied"));
+    }
+  }
+
+  /**
+   * Decision-native core of the authorizer: the single source of truth for the allow/deny outcome
+   * of one already-resolved operation. Returns an {@link AuthorizationDecision} instead of throwing
+   * (ADR-0005 Decision 1). {@link #authorize} calls this directly, and the {@code authorizeOrThrow}
+   * forms are thin conveniences that turn a deny into a {@link ForbiddenException} at the call
+   * edge.
+   */
+  AuthorizationDecision decide(
+      @NonNull PolarisPrincipal polarisPrincipal,
+      @NonNull Set<PolarisBaseEntity> activatedEntities,
+      @NonNull PolarisAuthorizableOperation authzOp,
+      @Nullable List<PolarisResolvedPathWrapper> targets,
+      @Nullable List<PolarisResolvedPathWrapper> secondaries) {
+    Optional<String> credentialRotationDenial =
+        AuthorizationPreConditions.credentialRotationDenial(polarisPrincipal, authzOp, realmConfig);
+    if (credentialRotationDenial.isPresent()) {
+      return AuthorizationDecision.deny(credentialRotationDenial.get());
+    }
     boolean isRoot = getRootPrincipalName().equals(polarisPrincipal.getName());
     if (authzOp == PolarisAuthorizableOperation.RESET_CREDENTIALS) {
       if (!isRoot) {
-        throw new ForbiddenException("Only Root principal(service-admin) can perform %s", authzOp);
+        return AuthorizationDecision.deny(
+            String.format("Only Root principal(service-admin) can perform %s", authzOp));
       }
       LOGGER
           .atDebug()
           .addKeyValue("principalName", polarisPrincipal.getName())
           .log("Root principal allowed to reset credentials");
-    } else if (!isAuthorized(polarisPrincipal, activatedEntities, authzOp, targets, secondaries)) {
-      throw new ForbiddenException(
-          "Principal '%s' with activated PrincipalRoles '%s' and activated grants via '%s' is not authorized for op %s",
-          polarisPrincipal.getName(),
-          polarisPrincipal.getRoles(),
-          activatedEntities.stream().map(PolarisEntityCore::getName).collect(Collectors.toSet()),
-          authzOp);
+      return AuthorizationDecision.allow();
     }
+    if (!isAuthorized(polarisPrincipal, activatedEntities, authzOp, targets, secondaries)) {
+      return AuthorizationDecision.deny(
+          String.format(
+              "Principal '%s' with activated PrincipalRoles '%s' and activated grants via '%s' is not authorized for op %s",
+              polarisPrincipal.getName(),
+              polarisPrincipal.getRoles(),
+              activatedEntities.stream()
+                  .map(PolarisEntityCore::getName)
+                  .collect(Collectors.toSet()),
+              authzOp));
+    }
+    return AuthorizationDecision.allow();
   }
 
   /**

@@ -80,4 +80,27 @@ public interface PolarisAuthorizer {
       @NonNull PolarisAuthorizableOperation authzOp,
       @Nullable List<PolarisResolvedPathWrapper> targets,
       @Nullable List<PolarisResolvedPathWrapper> secondaries);
+
+  /**
+   * Decision-native per-op convenience: returns allow/deny for one already-resolved operation
+   * instead of throwing, so callers can branch on the outcome rather than probe with try/catch.
+   *
+   * <p>The default derives the decision from {@link #authorizeOrThrow(PolarisPrincipal, Set,
+   * PolarisAuthorizableOperation, PolarisResolvedPathWrapper, PolarisResolvedPathWrapper)} so an
+   * implementation that only knows how to throw still works. A decision-native implementation
+   * should override this to compute the decision directly (ADR-0005 Decision 1).
+   */
+  default @NonNull AuthorizationDecision authorize(
+      @NonNull PolarisPrincipal polarisPrincipal,
+      @NonNull Set<PolarisBaseEntity> activatedEntities,
+      @NonNull PolarisAuthorizableOperation authzOp,
+      @Nullable PolarisResolvedPathWrapper target,
+      @Nullable PolarisResolvedPathWrapper secondary) {
+    try {
+      authorizeOrThrow(polarisPrincipal, activatedEntities, authzOp, target, secondary);
+      return AuthorizationDecision.allow();
+    } catch (ForbiddenException e) {
+      return AuthorizationDecision.deny(e.getMessage());
+    }
+  }
 }

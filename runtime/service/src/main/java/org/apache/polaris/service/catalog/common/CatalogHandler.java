@@ -30,6 +30,7 @@ import java.util.Optional;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
@@ -322,6 +323,36 @@ public abstract class CatalogHandler {
     }
 
     initializeCatalog();
+  }
+
+  /**
+   * Decision-native counterpart of {@link #authorizeBasicTableLikeOperationOrThrow}: returns the
+   * allow/deny decision for a single operation instead of throwing, so callers can branch on the
+   * outcome (for example, probing for a more-privileged operation) without exception-driven control
+   * flow. Resolution and not-found handling match the throwing form; the catalog is initialized
+   * only when the decision allows the operation, mirroring the throw form's post-authz
+   * initialization.
+   */
+  protected AuthorizationDecision authorizeBasicTableLikeOperation(
+      PolarisAuthorizableOperation op, PolarisEntitySubType subType, TableIdentifier identifier) {
+    ensureResolutionManifestForTable(identifier);
+    PolarisResolvedPathWrapper target =
+        resolutionManifest.getResolvedPath(ResolvedPathKey.ofTableLike(identifier), subType, true);
+    if (target == null) {
+      throw notFoundExceptionForTableLikeEntity(identifier, subType);
+    }
+    AuthorizationDecision decision =
+        authorizer()
+            .authorize(
+                polarisPrincipal(),
+                resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
+                op,
+                target,
+                null /* secondary */);
+    if (decision.isAllowed()) {
+      initializeCatalog();
+    }
+    return decision;
   }
 
   protected void authorizeCollectionOfTableLikeOperationOrThrow(

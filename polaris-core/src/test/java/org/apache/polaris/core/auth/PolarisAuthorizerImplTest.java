@@ -21,8 +21,7 @@ package org.apache.polaris.core.auth;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.ArgumentMatchers.eq;
-import static org.mockito.Mockito.doNothing;
-import static org.mockito.Mockito.doThrow;
+import static org.mockito.Mockito.doReturn;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.spy;
 import static org.mockito.Mockito.times;
@@ -34,7 +33,10 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
@@ -96,9 +98,9 @@ public class PolarisAuthorizerImplTest {
     when(manifest.getResolvedTopLevelEntity("analytics-admin", PolarisEntityType.PRINCIPAL_ROLE))
         .thenReturn(principalRoleWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doNothing()
+    doReturn(AuthorizationDecision.allow())
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             eq(PolarisAuthorizableOperation.ADD_ROOT_GRANT_TO_PRINCIPAL_ROLE),
@@ -118,7 +120,7 @@ public class PolarisAuthorizerImplTest {
 
     assertThat(decision.isAllowed()).isTrue();
     verify(authorizer)
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.ADD_ROOT_GRANT_TO_PRINCIPAL_ROLE),
@@ -139,9 +141,9 @@ public class PolarisAuthorizerImplTest {
     authzState.setResolutionManifest(manifest);
     when(manifest.getResolvedRootContainerEntityAsPath()).thenReturn(rootWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doNothing()
+    doReturn(AuthorizationDecision.allow())
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             eq(PolarisAuthorizableOperation.LIST_CATALOGS),
@@ -157,7 +159,7 @@ public class PolarisAuthorizerImplTest {
 
     assertThat(decision.isAllowed()).isTrue();
     verify(authorizer)
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.LIST_CATALOGS),
@@ -180,9 +182,9 @@ public class PolarisAuthorizerImplTest {
             ResolvedPathKey.of(List.of("ns"), PolarisEntityType.NAMESPACE), true))
         .thenReturn(namespaceWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doNothing()
+    doReturn(AuthorizationDecision.allow())
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             eq(PolarisAuthorizableOperation.LIST_NAMESPACES),
@@ -205,7 +207,7 @@ public class PolarisAuthorizerImplTest {
     verify(manifest)
         .getResolvedPath(ResolvedPathKey.of(List.of("ns"), PolarisEntityType.NAMESPACE), true);
     verify(authorizer)
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.LIST_NAMESPACES),
@@ -228,9 +230,9 @@ public class PolarisAuthorizerImplTest {
     when(manifest.getResolvedTopLevelEntity("catalog2", PolarisEntityType.CATALOG))
         .thenReturn(secondCatalogWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doNothing()
+    doReturn(AuthorizationDecision.allow())
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             eq(PolarisAuthorizableOperation.GET_CATALOG),
@@ -254,14 +256,14 @@ public class PolarisAuthorizerImplTest {
 
     assertThat(decision.isAllowed()).isTrue();
     verify(authorizer, times(1))
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.GET_CATALOG),
             eq(List.of(firstCatalogWrapper)),
             eq(null));
     verify(authorizer, times(1))
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.GET_CATALOG),
@@ -282,9 +284,9 @@ public class PolarisAuthorizerImplTest {
             ResolvedPathKey.of(List.of("ns", "table"), PolarisEntityType.TABLE_LIKE), true))
         .thenReturn(tableWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doNothing()
+    doReturn(AuthorizationDecision.allow())
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             any(PolarisAuthorizableOperation.class),
@@ -310,14 +312,14 @@ public class PolarisAuthorizerImplTest {
 
     assertThat(decision.isAllowed()).isTrue();
     verify(authorizer, times(1))
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.REMOVE_TABLE_PROPERTIES),
             eq(List.of(tableWrapper)),
             eq(null));
     verify(authorizer, times(1))
-        .authorizeOrThrow(
+        .decide(
             eq(principal),
             eq(Set.of()),
             eq(PolarisAuthorizableOperation.SET_TABLE_SNAPSHOT_REF),
@@ -347,9 +349,9 @@ public class PolarisAuthorizerImplTest {
     when(manifest.getResolvedTopLevelEntity("catalog", PolarisEntityType.CATALOG))
         .thenReturn(catalogWrapper);
     when(manifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-    doThrow(new ForbiddenException("missing privilege"))
+    doReturn(AuthorizationDecision.deny("missing privilege"))
         .when(authorizer)
-        .authorizeOrThrow(
+        .decide(
             any(PolarisPrincipal.class),
             ArgumentMatchers.any(),
             eq(PolarisAuthorizableOperation.GET_CATALOG),
@@ -368,5 +370,201 @@ public class PolarisAuthorizerImplTest {
 
     assertThat(decision.isAllowed()).isFalse();
     assertThat(decision.getMessage()).hasValue("missing privilege");
+  }
+
+  // --- ADR-0005 Decision 1 parity oracle -------------------------------------------------------
+  // decide(...) is the single decision-native source of truth; authorizeOrThrow is a thin throwing
+  // convenience over it. These pin the pre-check behavior that the veneer inversion lifted into the
+  // decision path (credential-rotation, RESET_CREDENTIALS root-only) and the throw/decision parity.
+
+  private static RealmConfig realmConfigWithRotationEnforcement(boolean enforce) {
+    RealmConfig realmConfig = mock(RealmConfig.class);
+    when(realmConfig.getConfig(
+            FeatureConfiguration.ENFORCE_PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_CHECKING))
+        .thenReturn(enforce);
+    return realmConfig;
+  }
+
+  @Test
+  void decideDeniesWhenCredentialRotationRequired() {
+    PolarisAuthorizerImpl authorizer =
+        new PolarisAuthorizerImpl(realmConfigWithRotationEnforcement(true));
+    PolarisPrincipal principal =
+        PolarisPrincipal.of(
+            "alice",
+            Map.of(PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE, "true"),
+            Set.of("role"));
+
+    AuthorizationDecision decision =
+        authorizer.decide(
+            principal, Set.of(), PolarisAuthorizableOperation.LIST_CATALOGS, null, null);
+
+    assertThat(decision.isAllowed()).isFalse();
+    assertThat(decision.getMessage())
+        .hasValueSatisfying(
+            msg -> assertThat(msg).contains("PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE"));
+  }
+
+  @Test
+  void decideDeniesResetCredentialsForNonRootPrincipal() {
+    PolarisAuthorizerImpl authorizer =
+        new PolarisAuthorizerImpl(realmConfigWithRotationEnforcement(false));
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
+
+    AuthorizationDecision decision =
+        authorizer.decide(
+            principal, Set.of(), PolarisAuthorizableOperation.RESET_CREDENTIALS, null, null);
+
+    assertThat(decision.isAllowed()).isFalse();
+    assertThat(decision.getMessage())
+        .hasValue("Only Root principal(service-admin) can perform RESET_CREDENTIALS");
+  }
+
+  @Test
+  void decideAllowsResetCredentialsForRootPrincipal() {
+    PolarisAuthorizerImpl authorizer =
+        new PolarisAuthorizerImpl(realmConfigWithRotationEnforcement(false));
+    PolarisPrincipal root =
+        PolarisPrincipal.of(
+            PolarisEntityConstants.getRootPrincipalName(), Map.of(), Set.of("role"));
+
+    AuthorizationDecision decision =
+        authorizer.decide(
+            root, Set.of(), PolarisAuthorizableOperation.RESET_CREDENTIALS, null, null);
+
+    assertThat(decision.isAllowed()).isTrue();
+  }
+
+  @Test
+  void authorizeOrThrowThrowsWithDecisionMessageWhenDenied() {
+    PolarisAuthorizerImpl authorizer = spy(new PolarisAuthorizerImpl(mock(RealmConfig.class)));
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
+    doReturn(AuthorizationDecision.deny("nope"))
+        .when(authorizer)
+        .decide(
+            any(PolarisPrincipal.class),
+            ArgumentMatchers.any(),
+            eq(PolarisAuthorizableOperation.GET_CATALOG),
+            ArgumentMatchers.<List<PolarisResolvedPathWrapper>>any(),
+            ArgumentMatchers.<List<PolarisResolvedPathWrapper>>any());
+
+    org.assertj.core.api.Assertions.assertThatThrownBy(
+            () ->
+                authorizer.authorizeOrThrow(
+                    principal,
+                    Set.of(),
+                    PolarisAuthorizableOperation.GET_CATALOG,
+                    (List<PolarisResolvedPathWrapper>) null,
+                    (List<PolarisResolvedPathWrapper>) null))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("nope");
+  }
+
+  @Test
+  void authorizeOrThrowDoesNotThrowWhenAllowed() {
+    PolarisAuthorizerImpl authorizer = spy(new PolarisAuthorizerImpl(mock(RealmConfig.class)));
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
+    doReturn(AuthorizationDecision.allow())
+        .when(authorizer)
+        .decide(
+            any(PolarisPrincipal.class),
+            ArgumentMatchers.any(),
+            eq(PolarisAuthorizableOperation.GET_CATALOG),
+            ArgumentMatchers.<List<PolarisResolvedPathWrapper>>any(),
+            ArgumentMatchers.<List<PolarisResolvedPathWrapper>>any());
+
+    org.assertj.core.api.Assertions.assertThatCode(
+            () ->
+                authorizer.authorizeOrThrow(
+                    principal,
+                    Set.of(),
+                    PolarisAuthorizableOperation.GET_CATALOG,
+                    (List<PolarisResolvedPathWrapper>) null,
+                    (List<PolarisResolvedPathWrapper>) null))
+        .doesNotThrowAnyException();
+  }
+
+  // --- ADR-0005 Decision 1 consequence: decision-native per-op form lets callers branch instead of
+  // probing with try/catch (drives IcebergCatalogHandler.authorizeLoadTable, E3).
+  // ------------------
+
+  @Test
+  void perOpAuthorizeDelegatesToDecideNatively() {
+    PolarisAuthorizerImpl authorizer = spy(new PolarisAuthorizerImpl(mock(RealmConfig.class)));
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
+    PolarisResolvedPathWrapper target = mock(PolarisResolvedPathWrapper.class);
+    doReturn(AuthorizationDecision.deny("no"))
+        .when(authorizer)
+        .decide(
+            any(PolarisPrincipal.class),
+            ArgumentMatchers.any(),
+            eq(PolarisAuthorizableOperation.GET_CATALOG),
+            eq(List.of(target)),
+            eq(null));
+
+    AuthorizationDecision decision =
+        authorizer.authorize(
+            principal, Set.of(), PolarisAuthorizableOperation.GET_CATALOG, target, null);
+
+    assertThat(decision.isAllowed()).isFalse();
+    assertThat(decision.getMessage()).hasValue("no");
+    verify(authorizer)
+        .decide(
+            eq(principal),
+            eq(Set.of()),
+            eq(PolarisAuthorizableOperation.GET_CATALOG),
+            eq(List.of(target)),
+            eq(null));
+  }
+
+  @Test
+  void interfaceDefaultPerOpAuthorizeBridgesThrowToDecision() {
+    // A throw-only authorizer (models OPA/Ranger, which do not override the decision-native per-op
+    // form): the interface default maps its ForbiddenException to a deny and a clean return to
+    // allow.
+    PolarisAuthorizer throwOnly =
+        new PolarisAuthorizer() {
+          @Override
+          public void resolveAuthorizationInputs(
+              AuthorizationState authzState, AuthorizationRequest request) {}
+
+          @Override
+          public AuthorizationDecision authorize(
+              AuthorizationState authzState, AuthorizationRequest request) {
+            return AuthorizationDecision.allow();
+          }
+
+          @Override
+          public void authorizeOrThrow(
+              PolarisPrincipal polarisPrincipal,
+              Set<PolarisBaseEntity> activatedEntities,
+              PolarisAuthorizableOperation authzOp,
+              PolarisResolvedPathWrapper target,
+              PolarisResolvedPathWrapper secondary) {
+            if (authzOp == PolarisAuthorizableOperation.LIST_CATALOGS) {
+              throw new ForbiddenException("denied");
+            }
+          }
+
+          @Override
+          public void authorizeOrThrow(
+              PolarisPrincipal polarisPrincipal,
+              Set<PolarisBaseEntity> activatedEntities,
+              PolarisAuthorizableOperation authzOp,
+              List<PolarisResolvedPathWrapper> targets,
+              List<PolarisResolvedPathWrapper> secondaries) {}
+        };
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
+
+    AuthorizationDecision allowed =
+        throwOnly.authorize(
+            principal, Set.of(), PolarisAuthorizableOperation.GET_CATALOG, null, null);
+    AuthorizationDecision denied =
+        throwOnly.authorize(
+            principal, Set.of(), PolarisAuthorizableOperation.LIST_CATALOGS, null, null);
+
+    assertThat(allowed.isAllowed()).isTrue();
+    assertThat(denied.isAllowed()).isFalse();
+    assertThat(denied.getMessage()).hasValue("denied");
   }
 }

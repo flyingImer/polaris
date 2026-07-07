@@ -863,13 +863,14 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
     Set<PolarisStorageActions> actionsRequested =
         new HashSet<>(Set.of(PolarisStorageActions.READ, PolarisStorageActions.LIST));
-    try {
-      // TODO: Refactor to have a boolean-return version of the helpers so we can fallthrough
-      // easily.
-      authorizeBasicTableLikeOperationOrThrow(
-          write, PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier);
+    // Probe for write delegation without exception-driven control flow: branch on the decision-
+    // native authorizer instead of try/catch(ForbiddenException). If write is not granted, fall
+    // back to requiring read (which still throws 403 when read is also denied), preserving the
+    // most-privileged-match behavior.
+    if (authorizeBasicTableLikeOperation(write, PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier)
+        .isAllowed()) {
       actionsRequested.add(PolarisStorageActions.WRITE);
-    } catch (ForbiddenException e) {
+    } else {
       authorizeBasicTableLikeOperationOrThrow(
           read, PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier);
     }

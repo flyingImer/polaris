@@ -74,6 +74,14 @@ public class RbacDecisionAuthorizer implements PolarisDecisionAuthorizer {
     if (privilege.isBlank()) {
       throw new AuthorizationEvaluationException("intent has a blank privilege");
     }
+    // NOTE: an instanceof chain (not a switch over the sealed type) because polaris-client modules
+    // compile at release 17 (build-logic/polaris-client.gradle.kts), where pattern switch is not
+    // available. The trailing throw is therefore a real, reachable fallthrough that the compiler
+    // cannot rule out: adding a fourth AuthorizationIntent variant would silently hit it rather
+    // than
+    // fail to compile. Compiler-enforced exhaustiveness (switch over the sealed hierarchy) is gated
+    // on raising the authz source level to Java 21 and mirrors the same constraint in the real
+    // core PolarisAuthorizerImpl.authorizeIntent.
     if (intent instanceof AuthorizationIntent.SingleTarget single) {
       return requireGrant(principal, privilege, single.securablePath());
     }
