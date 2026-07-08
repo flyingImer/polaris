@@ -26,6 +26,7 @@ import static org.apache.polaris.extension.auth.ranger.RangerTestUtils.createRea
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.fail;
+import static org.mockito.Mockito.mock;
 
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -44,6 +45,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.junit.jupiter.api.Test;
 import tools.jackson.core.JsonParser;
 import tools.jackson.databind.DatabindException;
@@ -62,7 +64,8 @@ public class RangerPolarisAuthorizerTest {
 
   public RangerPolarisAuthorizerTest() {
     RangerPolarisAuthorizerFactory factory = new RangerPolarisAuthorizerFactory(createConfig());
-    RangerPolarisAuthorizer rangerPolarisAuthorizer = factory.create(createRealmConfig());
+    RangerPolarisAuthorizer rangerPolarisAuthorizer =
+        factory.create(createRealmConfig(), mock(EntityResolver.class));
     rangerPolarisAuthorizer.setRealmContext(createRealmContext());
     this.authorizer = rangerPolarisAuthorizer;
 

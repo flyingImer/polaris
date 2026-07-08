@@ -29,38 +29,25 @@ import org.jspecify.annotations.Nullable;
 /** Interface for invoking authorization checks. */
 public interface PolarisAuthorizer {
   /**
-   * Resolve authorizer-specific inputs before authorization.
-   *
-   * <p>Implementations may resolve only the entities required for the request (for example, the
-   * caller principal, principal roles, catalog roles, and requested targets) and store that state
-   * in {@link AuthorizationState}.
-   *
-   * <p>This method should not perform authorization decisions directly.
-   */
-  void resolveAuthorizationInputs(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request);
-
-  /**
-   * Core authorization entry point for the new SPI.
-   *
-   * <p>Implementations should rely on any required state in {@link AuthorizationState} and the
-   * request captured by {@link AuthorizationRequest}.
+   * Core authorization entry point: decide allow/deny for a names-only {@link AuthorizationRequest}
+   * (ADR-0005 Decision 4). The request carries only the principal and typed intents over
+   * name-addressed securables, no resolved state. An implementation that needs resolved entities
+   * composes the {@link org.apache.polaris.core.persistence.resolver.EntityResolver} SPI itself,
+   * turning the request's names into a resolved snapshot; a remote authorizer can forward the names
+   * directly.
    *
    * <p>When a request contains multiple intents, they form a single batch contract: implementations
-   * must AND-combine the intents in that request and may short-circuit evaluation on the first
-   * deny.
+   * must AND-combine the intents and may short-circuit evaluation on the first deny.
    */
-  @NonNull AuthorizationDecision authorize(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request);
+  @NonNull AuthorizationDecision authorize(@NonNull AuthorizationRequest request);
 
   /**
    * Convenience method that throws a {@link ForbiddenException} when authorization is denied.
    *
    * <p>Implementations should provide allow/deny decisions via {@link #authorize}.
    */
-  default void authorizeOrThrow(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request) {
-    AuthorizationDecision decision = authorize(authzState, request);
+  default void authorizeOrThrow(@NonNull AuthorizationRequest request) {
+    AuthorizationDecision decision = authorize(request);
     if (!decision.isAllowed()) {
       String message = decision.getMessage().orElse("Authorization denied");
       throw new ForbiddenException("%s", message);

@@ -28,6 +28,7 @@ import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.extension.auth.opa.token.FileBearerTokenProvider;
 import org.apache.polaris.nosql.async.java.JavaPoolAsyncExec;
 import org.junit.jupiter.api.Test;
@@ -67,7 +68,8 @@ public class OpaPolarisAuthorizerFactoryTest {
 
       // Create authorizer
       RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) factory.create(realmConfig);
+      OpaPolarisAuthorizer authorizer =
+          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
 
       assertThat(authorizer).isNotNull();
     }
@@ -111,7 +113,8 @@ public class OpaPolarisAuthorizerFactoryTest {
 
       // Create authorizer
       RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) factory.create(realmConfig);
+      OpaPolarisAuthorizer authorizer =
+          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
 
       assertThat(authorizer).isNotNull();
 
@@ -155,7 +158,8 @@ public class OpaPolarisAuthorizerFactoryTest {
 
       // Create authorizer
       RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) factory.create(realmConfig);
+      OpaPolarisAuthorizer authorizer =
+          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
 
       assertThat(authorizer).isNotNull();
     }

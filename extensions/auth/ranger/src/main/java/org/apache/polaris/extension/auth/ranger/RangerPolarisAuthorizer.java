@@ -26,7 +26,6 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationPreConditions;
 import org.apache.polaris.core.auth.AuthorizationRequest;
-import org.apache.polaris.core.auth.AuthorizationState;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
@@ -76,14 +75,7 @@ public class RangerPolarisAuthorizer implements PolarisAuthorizer {
   }
 
   @Override
-  public void resolveAuthorizationInputs(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request) {
-    throw new UnsupportedOperationException("resolveAuthorizationInputs is not implemented yet");
-  }
-
-  @Override
-  public @NonNull AuthorizationDecision authorize(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request) {
+  public @NonNull AuthorizationDecision authorize(@NonNull AuthorizationRequest request) {
     throw new UnsupportedOperationException("authorize is not implemented yet");
   }
 

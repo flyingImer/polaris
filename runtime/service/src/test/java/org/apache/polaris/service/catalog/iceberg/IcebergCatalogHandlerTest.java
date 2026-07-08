@@ -41,6 +41,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.credentials.Credential;
 import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
@@ -109,13 +110,19 @@ class IcebergCatalogHandlerTest {
     when(resolutionManifest.getResolvedCatalogEntity()).thenReturn(catalogEntity);
     when(catalogEntity.getConnectionConfigInfoDpo()).thenReturn(null);
 
+    // Grant the decision-native per-op check so authorizeLoadTable's write-delegation probe yields
+    // a non-null decision; these tests exercise credential loading, not the authz outcome.
+    PolarisAuthorizer authorizer = mock(PolarisAuthorizer.class);
+    when(authorizer.authorize(any(), any(), any(), any(), any()))
+        .thenReturn(AuthorizationDecision.allow());
+
     return ImmutableIcebergCatalogHandler.builder()
         .catalogName(CATALOG_NAME)
         .polarisPrincipal(PolarisPrincipal.of("test", Map.of(), Set.of()))
         .callContext(callContext)
         .metaStoreManager(mock(PolarisMetaStoreManager.class))
         .resolutionManifestFactory(resolutionManifestFactory)
-        .authorizer(mock(PolarisAuthorizer.class))
+        .authorizer(authorizer)
         .diagnostics(mock(PolarisDiagnostics.class))
         .credentialManager(mock(PolarisCredentialManager.class))
         .federatedCatalogFactories(mock(Instance.class))

@@ -19,6 +19,7 @@
 package org.apache.polaris.core.auth;
 
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 /**
  * Factory interface for creating PolarisAuthorizer instances.
@@ -32,7 +33,10 @@ public interface PolarisAuthorizerFactory {
    * Creates a PolarisAuthorizer instance with the given realm configuration.
    *
    * @param realmConfig the realm configuration
+   * @param entityResolver the resolution SPI an in-process authorizer composes to turn a names-only
+   *     request into resolved entities; remote authorizers (OPA, Ranger) that forward names may
+   *     ignore it
    * @return a configured PolarisAuthorizer instance
    */
-  PolarisAuthorizer create(RealmConfig realmConfig);
+  PolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver);
 }

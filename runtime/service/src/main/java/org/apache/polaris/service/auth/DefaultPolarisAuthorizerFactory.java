@@ -24,6 +24,7 @@ import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 /** Factory for creating the default Polaris authorizer implementation. */
 @ApplicationScoped
@@ -31,7 +32,7 @@ import org.apache.polaris.core.config.RealmConfig;
 class DefaultPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
 
   @Override
-  public PolarisAuthorizer create(RealmConfig realmConfig) {
-    return new PolarisAuthorizerImpl(realmConfig);
+  public PolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
+    return new PolarisAuthorizerImpl(realmConfig, entityResolver);
   }
 }

@@ -42,7 +42,6 @@ import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationIntent;
 import org.apache.polaris.core.auth.AuthorizationRequest;
-import org.apache.polaris.core.auth.AuthorizationState;
 import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
@@ -109,22 +108,9 @@ class OpaPolarisAuthorizer implements PolarisAuthorizer {
     this.objectMapper = objectMapper;
   }
 
-  /**
-   * Resolves authorization inputs using {@code resolveAll()} for backward compatibility.
-   *
-   * <p>This scope is intentionally broad for now and will be narrowed in a future refactoring to
-   * resolve only the selections required by OPA authorization.
-   */
-  @Override
-  public void resolveAuthorizationInputs(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request) {
-    authzState.getResolutionManifest().resolveAll();
-  }
-
   @Override
   @NonNull
-  public AuthorizationDecision authorize(
-      @NonNull AuthorizationState authzState, @NonNull AuthorizationRequest request) {
+  public AuthorizationDecision authorize(@NonNull AuthorizationRequest request) {
     for (AuthorizationIntent intent : request.intents()) {
       PolarisAuthorizableOperation operation = intent.getOperation();
       List<ResourceEntity> targets;

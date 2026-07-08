@@ -38,7 +38,6 @@ import java.util.stream.Collectors;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.AuthorizationState;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.config.RealmConfig;
@@ -54,6 +53,7 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
@@ -170,14 +170,8 @@ public class ServiceProducers {
   @Produces
   @RequestScoped
   public PolarisAuthorizer polarisAuthorizer(
-      PolarisAuthorizerFactory factory, RealmConfig realmConfig) {
-    return factory.create(realmConfig);
-  }
-
-  @Produces
-  @RequestScoped
-  public AuthorizationState authorizationState() {
-    return new AuthorizationState();
+      PolarisAuthorizerFactory factory, RealmConfig realmConfig, ResolverFactory resolverFactory) {
+    return factory.create(realmConfig, new DefaultEntityResolver(resolverFactory));
   }
 
   @Produces

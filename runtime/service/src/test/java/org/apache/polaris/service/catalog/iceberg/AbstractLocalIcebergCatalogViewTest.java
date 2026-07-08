@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
+import static org.mockito.Mockito.mock;
+
 import com.google.common.collect.ImmutableMap;
 import io.quarkus.test.junit.QuarkusMock;
 import io.smallrye.common.annotation.Identifier;
@@ -49,6 +51,7 @@ import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -154,7 +157,8 @@ public abstract class AbstractLocalIcebergCatalogViewTest
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
     PolarisPrincipal authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
 
-    PolarisAuthorizer authorizer = new PolarisAuthorizerImpl(realmConfig);
+    PolarisAuthorizer authorizer =
+        new PolarisAuthorizerImpl(realmConfig, mock(EntityResolver.class));
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
     PolarisAdminService adminService =

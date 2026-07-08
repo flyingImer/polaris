@@ -26,6 +26,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.ranger.authz.api.RangerAuthzException;
 import org.apache.ranger.authz.embedded.RangerEmbeddedAuthorizer;
 import org.slf4j.Logger;
@@ -63,7 +64,8 @@ public class RangerPolarisAuthorizerFactory implements PolarisAuthorizerFactory 
   }
 
   @Override
-  public RangerPolarisAuthorizer create(RealmConfig realmConfig) {
+  public RangerPolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
+    // Ranger evaluates against its own policy store, so the EntityResolver is unused here.
     LOG.debug("Creating RangerPolarisAuthorizer");
 
     if (authorizer == null || StringUtils.isBlank(serviceName)) {

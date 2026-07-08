@@ -36,6 +36,7 @@ import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
@@ -205,6 +206,12 @@ public record TestServices(
     public TestServices build() {
       RealmConfigurationSource configurationSource = (rc, name) -> config.get(name);
       PolarisAuthorizer authorizer = Mockito.mock(PolarisAuthorizer.class);
+      // Grant the decision-native per-op check by default so tests exercising the
+      // authorizeBasicTableLikeOperation path (the ADR-0005 decision-native probe) reach their real
+      // subject instead of NPEing on a null decision; deny paths run through authorizeOrThrow
+      // stubs.
+      Mockito.when(authorizer.authorize(any(), any(), any(), any(), any()))
+          .thenReturn(AuthorizationDecision.allow());
 
       // Application level
       StorageCredentialCacheConfig storageCredentialCacheConfig = () -> 10_000;

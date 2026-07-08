@@ -34,6 +34,7 @@ import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.extension.auth.opa.token.BearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.FileBearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.StaticBearerTokenProvider;
@@ -86,7 +87,8 @@ class OpaPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
   }
 
   @Override
-  public PolarisAuthorizer create(RealmConfig realmConfig) {
+  public PolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
+    // OPA forwards the request's names to the policy server, so the EntityResolver is unused here.
     // All components are now pre-initialized, just create the authorizer
     URI policyUri =
         opaConfig

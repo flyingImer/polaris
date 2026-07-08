@@ -26,6 +26,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.isA;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -60,6 +61,7 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
@@ -174,7 +176,8 @@ public abstract class AbstractPolicyCatalogTest {
     authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
     polarisPrincipalHolder.set(authenticatedRoot);
 
-    PolarisAuthorizer authorizer = new PolarisAuthorizerImpl(realmConfig);
+    PolarisAuthorizer authorizer =
+        new PolarisAuthorizerImpl(realmConfig, mock(EntityResolver.class));
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
     adminService =
