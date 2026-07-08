@@ -95,12 +95,25 @@ public class DefaultEntityResolver implements EntityResolver {
       }
     }
 
+    Map<ResolutionResult.TopLevelKey, ResolvedPolarisEntity> resolvedTopLevel =
+        new LinkedHashMap<>();
+    for (ResolverEntityName topLevel : request.topLevelNames()) {
+      ResolvedPolarisEntity resolved =
+          resolver.getResolvedEntity(topLevel.entityType(), topLevel.entityName());
+      if (resolved != null) {
+        resolvedTopLevel.put(
+            new ResolutionResult.TopLevelKey(topLevel.entityType(), topLevel.entityName()),
+            resolved);
+      }
+    }
+
     return new ResolutionResult(
         status,
         resolver.getResolvedCallerPrincipal(),
         resolver.getResolvedCallerPrincipalRoles(),
         resolver.getResolvedReferenceCatalog(),
         resolver.getResolvedCatalogRoles(),
-        resolvedPaths);
+        resolvedPaths,
+        resolvedTopLevel);
   }
 }

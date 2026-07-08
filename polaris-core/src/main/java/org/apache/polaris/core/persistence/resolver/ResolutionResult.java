@@ -21,6 +21,7 @@ package org.apache.polaris.core.persistence.resolver;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -47,17 +48,22 @@ public record ResolutionResult(
     @NonNull List<ResolvedPolarisEntity> resolvedCallerPrincipalRoles,
     @Nullable ResolvedPolarisEntity resolvedReferenceCatalog,
     @Nullable Map<Long, ResolvedPolarisEntity> resolvedCatalogRoles,
-    @NonNull Map<ResolvedPathKey, List<ResolvedPolarisEntity>> resolvedPaths) {
+    @NonNull Map<ResolvedPathKey, List<ResolvedPolarisEntity>> resolvedPaths,
+    @NonNull Map<TopLevelKey, ResolvedPolarisEntity> resolvedTopLevelEntities) {
+
+  /** Addresses a resolved top-level (non-path) entity by its type and name. */
+  public record TopLevelKey(@NonNull PolarisEntityType entityType, @NonNull String entityName) {}
 
   public ResolutionResult {
     Objects.requireNonNull(status, "status must be non-null");
     resolvedCallerPrincipalRoles = List.copyOf(resolvedCallerPrincipalRoles);
     resolvedPaths = Map.copyOf(resolvedPaths);
+    resolvedTopLevelEntities = Map.copyOf(resolvedTopLevelEntities);
   }
 
   /** A failure result carrying only the status; resolved data is empty. */
   public static ResolutionResult failure(@NonNull ResolverStatus status) {
-    return new ResolutionResult(status, null, List.of(), null, null, Map.of());
+    return new ResolutionResult(status, null, List.of(), null, null, Map.of(), Map.of());
   }
 
   public boolean isSuccess() {
@@ -71,5 +77,14 @@ public record ResolutionResult(
    */
   public @Nullable List<ResolvedPolarisEntity> resolvedPath(@NonNull ResolvedPathKey key) {
     return resolvedPaths.get(key);
+  }
+
+  /**
+   * The resolved top-level (non-path) entity for a requested type and name, or {@code null} if it
+   * was not requested or (if optional) did not resolve.
+   */
+  public @Nullable ResolvedPolarisEntity resolvedTopLevelEntity(
+      @NonNull PolarisEntityType entityType, @NonNull String entityName) {
+    return resolvedTopLevelEntities.get(new TopLevelKey(entityType, entityName));
   }
 }

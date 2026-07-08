@@ -80,13 +80,15 @@ class DefaultEntityResolverTest {
   }
 
   @Test
-  void addsTopLevelNames() {
+  void addsTopLevelNamesAndMapsResolvedEntityByTypeAndName() {
     Resolver resolver = mock(Resolver.class);
     when(resolver.resolveAll()).thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS));
     when(resolver.getResolvedCallerPrincipal()).thenReturn(mock(ResolvedPolarisEntity.class));
     when(resolver.getResolvedCallerPrincipalRoles()).thenReturn(List.of());
     when(resolver.getResolvedReferenceCatalog()).thenReturn(null);
     when(resolver.getResolvedCatalogRoles()).thenReturn(null);
+    ResolvedPolarisEntity role = mock(ResolvedPolarisEntity.class);
+    when(resolver.getResolvedEntity(PolarisEntityType.CATALOG_ROLE, "admin")).thenReturn(role);
 
     ResolutionRequest request =
         new ResolutionRequest(
@@ -95,9 +97,11 @@ class DefaultEntityResolverTest {
             List.of(),
             List.of(new TestName(PolarisEntityType.CATALOG_ROLE, "admin", false)));
 
-    newResolver(resolver).resolve(request);
+    ResolutionResult result = newResolver(resolver).resolve(request);
 
     verify(resolver).addEntityByName(PolarisEntityType.CATALOG_ROLE, "admin");
+    assertThat(result.resolvedTopLevelEntity(PolarisEntityType.CATALOG_ROLE, "admin"))
+        .isSameAs(role);
     // No paths were added, so the positional path accessor must not be touched (it asserts >=1).
     verify(resolver, never()).getResolvedPaths();
   }
