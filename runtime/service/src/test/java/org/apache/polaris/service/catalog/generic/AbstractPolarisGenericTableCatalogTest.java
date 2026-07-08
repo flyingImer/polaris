@@ -20,7 +20,6 @@ package org.apache.polaris.service.catalog.generic;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.mockito.ArgumentMatchers.isA;
-import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
@@ -54,7 +53,7 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.table.GenericTableEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -156,7 +155,7 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
     polarisPrincipalHolder.set(authenticatedRoot);
 
     PolarisAuthorizer authorizer =
-        new PolarisAuthorizerImpl(realmConfig, mock(EntityResolver.class));
+        new PolarisAuthorizerImpl(realmConfig, new DefaultEntityResolver(resolverFactory));
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
     adminService =

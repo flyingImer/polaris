@@ -37,6 +37,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthorizationDecision;
+import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
@@ -209,8 +210,11 @@ public record TestServices(
       // Grant the decision-native per-op check by default so tests exercising the
       // authorizeBasicTableLikeOperation path (the ADR-0005 decision-native probe) reach their real
       // subject instead of NPEing on a null decision; deny paths run through authorizeOrThrow
-      // stubs.
+      // stubs. Stubbed on both the resolved-path overload (any remaining direct callers) and the
+      // names-only AuthorizationRequest overload CatalogHandler now composes (ADR-0008 Stage 4).
       Mockito.when(authorizer.authorize(any(), any(), any(), any(), any()))
+          .thenReturn(AuthorizationDecision.allow());
+      Mockito.when(authorizer.authorize(any(AuthorizationRequest.class)))
           .thenReturn(AuthorizationDecision.allow());
 
       // Application level

@@ -20,7 +20,6 @@ package org.apache.polaris.service.admin;
 
 import static org.apache.iceberg.types.Types.NestedField.required;
 import static org.apache.polaris.core.entity.CatalogEntity.DEFAULT_BASE_LOCATION_KEY;
-import static org.mockito.Mockito.mock;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -68,7 +67,7 @@ import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
@@ -216,7 +215,8 @@ public abstract class PolarisAuthzTestBase {
     QuarkusMock.installMockForType(realmContext, RealmContext.class);
     polarisContext = callContext.getPolarisCallContext();
 
-    polarisAuthorizer = new PolarisAuthorizerImpl(realmConfig, mock(EntityResolver.class));
+    polarisAuthorizer =
+        new PolarisAuthorizerImpl(realmConfig, new DefaultEntityResolver(resolverFactory));
 
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();

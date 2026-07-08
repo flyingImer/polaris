@@ -92,7 +92,12 @@ public interface PolarisSecurable {
         Preconditions.checkState(
             child.entityType().getParentType() == parent.entityType()
                 || (child.entityType().isParentSelfReference()
-                    && child.entityType() == parent.entityType()),
+                    && child.entityType() == parent.entityType())
+                // A passthrough-facade path (a federated catalog with no persisted intermediate
+                // levels, e.g. a table directly under a namespace-less catalog) may skip straight
+                // from the top-level anchor to the leaf: leniency the resolution layer already
+                // grants (ADR-0008 Decision 3), mirrored here so the same path is authorizable.
+                || (i == 1 && parent.entityType().isTopLevel()),
             "PathSegments must follow declared parent hierarchy for child=%s",
             child);
       }

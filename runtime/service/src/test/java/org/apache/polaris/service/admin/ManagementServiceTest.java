@@ -20,7 +20,6 @@ package org.apache.polaris.service.admin;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
-import static org.mockito.Mockito.mock;
 
 import jakarta.ws.rs.core.Response;
 import java.time.Instant;
@@ -56,7 +55,7 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.secrets.UnsafeInMemorySecretsManager;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.config.ReservedProperties;
@@ -385,7 +384,8 @@ public class ManagementServiceTest {
         new UnsafeInMemorySecretsManager(),
         new DefaultServiceIdentityProvider(),
         principal,
-        new PolarisAuthorizerImpl(services.realmConfig(), mock(EntityResolver.class)),
+        new PolarisAuthorizerImpl(
+            services.realmConfig(), new DefaultEntityResolver(services.resolverFactory())),
         ReservedProperties.NONE);
   }
 

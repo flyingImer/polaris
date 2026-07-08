@@ -28,7 +28,12 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
+import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
+import org.apache.polaris.core.auth.PolarisSecurable;
+import org.apache.polaris.core.auth.PolicyAttachmentAuthorizationIntent;
+import org.apache.polaris.core.auth.SingleTargetAuthorizationIntent;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -136,6 +141,26 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
         .build();
   }
 
+  private PolarisSecurable policySecurable(PolicyIdentifier identifier) {
+    String[] levels = identifier.namespace().levels();
+    PathSegment[] segments = new PathSegment[levels.length + 1];
+    for (int i = 0; i < levels.length; i++) {
+      segments[i] = new PathSegment(PolarisEntityType.NAMESPACE, levels[i]);
+    }
+    segments[levels.length] = new PathSegment(PolarisEntityType.POLICY, identifier.name());
+    return PolarisSecurable.of(new PathSegment(PolarisEntityType.CATALOG, catalogName()), segments);
+  }
+
+  private PolarisSecurable attachmentTargetSecurable(PolicyAttachmentTarget target) {
+    return switch (target.getType()) {
+      case CATALOG -> catalogSecurable();
+      case NAMESPACE -> namespaceSecurable(Namespace.of(target.getPath().toArray(new String[0])));
+      case TABLE_LIKE ->
+          tableLikeSecurable(TableIdentifier.of(target.getPath().toArray(new String[0])));
+      default -> throw new IllegalArgumentException("Unsupported target type: " + target.getType());
+    };
+  }
+
   private void authorizeBasicPolicyOperationOrThrow(
       PolarisAuthorizableOperation op, PolicyIdentifier identifier) {
     resolutionManifest = newResolutionManifest();
@@ -155,11 +180,9 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
     authorizer()
         .authorizeOrThrow(
-            polarisPrincipal(),
-            resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
-            op,
-            target,
-            null /* secondary */);
+            new AuthorizationRequest(
+                polarisPrincipal(),
+                List.of(new SingleTargetAuthorizationIntent(op, policySecurable(identifier)))));
 
     initializeCatalog();
   }
@@ -198,11 +221,9 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
     }
     authorizer()
         .authorizeOrThrow(
-            polarisPrincipal(),
-            resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
-            op,
-            targetCatalog,
-            null);
+            new AuthorizationRequest(
+                polarisPrincipal(),
+                List.of(new SingleTargetAuthorizationIntent(op, catalogSecurable()))));
 
     initializeCatalog();
   }
@@ -254,11 +275,11 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
     authorizer()
         .authorizeOrThrow(
-            polarisPrincipal(),
-            resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles(),
-            op,
-            policyWrapper,
-            targetWrapper);
+            new AuthorizationRequest(
+                polarisPrincipal(),
+                List.of(
+                    new PolicyAttachmentAuthorizationIntent(
+                        op, policySecurable(identifier), attachmentTargetSecurable(target)))));
 
     initializeCatalog();
   }
