@@ -12,10 +12,11 @@ seams with no long-lived source fork. Contracts and data carriers are framework-
 - `wiring/` (`:polaris-forkless-wiring`) — stands in for the runtime/app layer. The CDI annotations
   that select among implementations live here, never on an implementation.
 
-Seams covered: storage IO, entity resolution, authorization decision, error model, durable layer,
-operation metadata. See `docs/forkless-poc-implementation-report.md` (in the forkless-effort
-workspace) for the full rationale, the credential-vending call chain, the dependability tiers, and
-the migration list.
+Demo seams remaining here: durable layer. (Entity resolution, authorization decision, error model,
+operation metadata, and storage IO have all since been migrated to real production wiring in
+`runtime/service` and no longer live as demo scaffolding in this module.) See
+`docs/forkless-poc-implementation-report.md` (in the forkless-effort workspace) for the full
+rationale, the credential-vending call chain, the dependability tiers, and the migration list.
 
 Build and test, with Java 21:
 
