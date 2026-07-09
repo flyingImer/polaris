@@ -52,6 +52,8 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisResourcePaths;
+import org.apache.polaris.operation.model.ConditionalLoadOutcome;
+import org.apache.polaris.operation.model.OperationMetadata;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
@@ -349,21 +351,43 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          Optional<LoadTableResponse> response =
+          ConditionalLoadOutcome<LoadTableResponse> outcome =
               catalog.loadTable(
                   tableIdentifier,
                   snapshots,
                   ifNoneMatch,
                   delegationModes,
                   getRefreshCredentialsEndpoint(delegationModes, prefix, tableIdentifier));
-
-          if (response.isEmpty()) {
-            return Response.notModified().build();
-          }
-
-          return tryInsertETagHeader(Response.ok(response.get()), response.get(), namespace, table)
-              .build();
+          return toLoadTableResponse(outcome);
         });
+  }
+
+  /**
+   * Maps the sealed conditional-load outcome to the wire-level response: {@code Loaded} becomes 200
+   * + body + ETag header, {@code NotModified} becomes 304 + ETag header. The impl (not this
+   * adapter) derived the etag (ADR-0003). Package-private + static so it is directly unit-testable.
+   *
+   * <p>Reads only {@link OperationMetadata#etag()}. {@code providerPayload()} is a
+   * managed-runtime-interpreted extension slot (ADR-0003 amendment refinement 4) and MUST NEVER be
+   * read here -- enforced by {@code loadTableResponseMapping_neverReadsProviderPayload} in
+   * IcebergCatalogAdapterTest.
+   */
+  static Response toLoadTableResponse(ConditionalLoadOutcome<LoadTableResponse> outcome) {
+    return switch (outcome) {
+      case ConditionalLoadOutcome.Loaded<LoadTableResponse> loaded ->
+          withEtagHeader(Response.ok(loaded.result().icebergResponse()), loaded.result().metadata())
+              .build();
+      case ConditionalLoadOutcome.NotModified<LoadTableResponse> notModified ->
+          withEtagHeader(Response.notModified(), notModified.metadata()).build();
+      default ->
+          throw new IllegalStateException("Unreachable: unknown ConditionalLoadOutcome case");
+    };
+  }
+
+  private static Response.ResponseBuilder withEtagHeader(
+      Response.ResponseBuilder builder, OperationMetadata metadata) {
+    metadata.etag().ifPresent(etag -> builder.header(HttpHeaders.ETAG, etag));
+    return builder;
   }
 
   private static Optional<String> getRefreshCredentialsEndpoint(

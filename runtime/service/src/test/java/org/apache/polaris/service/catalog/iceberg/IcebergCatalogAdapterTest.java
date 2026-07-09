@@ -20,10 +20,13 @@
 package org.apache.polaris.service.catalog.iceberg;
 
 import com.google.common.base.Strings;
+import jakarta.ws.rs.core.HttpHeaders;
+import jakarta.ws.rs.core.Response;
 import java.io.IOException;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.stream.Stream;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.catalog.Namespace;
@@ -31,6 +34,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.inmemory.InMemoryCatalog;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.polaris.core.admin.model.AuthenticationParameters;
 import org.apache.polaris.core.admin.model.AwsStorageConfigInfo;
 import org.apache.polaris.core.admin.model.BearerAuthenticationParameters;
@@ -40,9 +44,13 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.ExternalCatalog;
 import org.apache.polaris.core.admin.model.IcebergRestConnectionConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.operation.model.ConditionalLoadOutcome;
+import org.apache.polaris.operation.model.OperationMetadata;
+import org.apache.polaris.operation.model.OperationResult;
 import org.apache.polaris.service.TestServices;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
+import org.junit.jupiter.api.Test;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -245,5 +253,61 @@ public class IcebergCatalogAdapterTest {
         Arguments.of("5", 3),
         Arguments.of("5", 5),
         Arguments.of("5", 10));
+  }
+
+  @Test
+  void toLoadTableResponse_loadedMapsTo200WithEtagHeader() {
+    LoadTableResponse body = Mockito.mock(LoadTableResponse.class);
+    OperationMetadata metadata =
+        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
+
+    Response response =
+        IcebergCatalogAdapter.toLoadTableResponse(
+            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, metadata)));
+
+    Assertions.assertThat(response.getStatus()).isEqualTo(200);
+    Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
+    Assertions.assertThat(response.getEntity()).isSameAs(body);
+  }
+
+  @Test
+  void toLoadTableResponse_notModifiedMapsTo304WithEtagHeader() {
+    OperationMetadata metadata =
+        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
+
+    Response response =
+        IcebergCatalogAdapter.toLoadTableResponse(
+            new ConditionalLoadOutcome.NotModified<>(metadata));
+
+    Assertions.assertThat(response.getStatus()).isEqualTo(304);
+    Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
+  }
+
+  @Test
+  void toLoadTableResponse_neverReadsProviderPayload() {
+    LoadTableResponse body = Mockito.mock(LoadTableResponse.class);
+    OperationMetadata sentinelPayload =
+        new OperationMetadata(
+            Optional.of("W/\"etag-1\""),
+            Optional.of(
+                new Object() {
+                  @Override
+                  public String toString() {
+                    throw new AssertionError("providerPayload must never be read by the adapter");
+                  }
+                }));
+    OperationMetadata noPayload =
+        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
+
+    Response withSentinel =
+        IcebergCatalogAdapter.toLoadTableResponse(
+            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, sentinelPayload)));
+    Response withoutPayload =
+        IcebergCatalogAdapter.toLoadTableResponse(
+            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, noPayload)));
+
+    Assertions.assertThat(withSentinel.getStatus()).isEqualTo(withoutPayload.getStatus());
+    Assertions.assertThat(withSentinel.getHeaderString(HttpHeaders.ETAG))
+        .isEqualTo(withoutPayload.getHeaderString(HttpHeaders.ETAG));
   }
 }

@@ -118,6 +118,9 @@ import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageUtil;
 import org.apache.polaris.immutables.PolarisImmutable;
+import org.apache.polaris.operation.model.ConditionalLoadOutcome;
+import org.apache.polaris.operation.model.OperationMetadata;
+import org.apache.polaris.operation.model.OperationResult;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
@@ -717,7 +720,14 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
   }
 
   public LoadTableResponse loadTable(TableIdentifier tableIdentifier, String snapshots) {
-    return loadTableIfStale(tableIdentifier, null, snapshots).get();
+    ConditionalLoadOutcome<LoadTableResponse> outcome =
+        loadTableIfStale(tableIdentifier, null, snapshots);
+    if (outcome instanceof ConditionalLoadOutcome.Loaded<LoadTableResponse> loaded) {
+      return loaded.result().icebergResponse();
+    }
+    throw new IllegalStateException(
+        "loadTableIfStale returned NotModified with ifNoneMatch=null; this is unreachable by"
+            + " construction (the not-modified decision is gated on ifNoneMatch != null)");
   }
 
   /**
@@ -727,10 +737,10 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
    * @param tableIdentifier The identifier of the table to load
    * @param ifNoneMatch set of entity-tags to check the metadata against for staleness
    * @param snapshots
-   * @return {@link Optional#empty()} if the ETag is current, an {@link Optional} containing the
-   *     load table response, otherwise
+   * @return {@link ConditionalLoadOutcome.NotModified} if the ETag is current, otherwise {@link
+   *     ConditionalLoadOutcome.Loaded} carrying the load table response
    */
-  public Optional<LoadTableResponse> loadTableIfStale(
+  public ConditionalLoadOutcome<LoadTableResponse> loadTableIfStale(
       TableIdentifier tableIdentifier, IfNoneMatch ifNoneMatch, String snapshots) {
     return loadTable(
         tableIdentifier,
@@ -744,9 +754,16 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
       TableIdentifier tableIdentifier,
       String snapshots,
       Optional<String> refreshCredentialsEndpoint) {
-    return loadTableWithAccessDelegationIfStale(
-            tableIdentifier, null, snapshots, refreshCredentialsEndpoint)
-        .get();
+    ConditionalLoadOutcome<LoadTableResponse> outcome =
+        loadTableWithAccessDelegationIfStale(
+            tableIdentifier, null, snapshots, refreshCredentialsEndpoint);
+    if (outcome instanceof ConditionalLoadOutcome.Loaded<LoadTableResponse> loaded) {
+      return loaded.result().icebergResponse();
+    }
+    throw new IllegalStateException(
+        "loadTableWithAccessDelegationIfStale returned NotModified with ifNoneMatch=null; this is"
+            + " unreachable by construction (the not-modified decision is gated on ifNoneMatch !="
+            + " null)");
   }
 
   /**
@@ -756,10 +773,10 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
    * @param tableIdentifier The identifier of the table to load
    * @param ifNoneMatch set of entity-tags to check the metadata against for staleness
    * @param snapshots
-   * @return {@link Optional#empty()} if the ETag is current, an {@link Optional} containing the
-   *     load table response, otherwise
+   * @return {@link ConditionalLoadOutcome.NotModified} if the ETag is current, otherwise {@link
+   *     ConditionalLoadOutcome.Loaded} carrying the load table response
    */
-  public Optional<LoadTableResponse> loadTableWithAccessDelegationIfStale(
+  public ConditionalLoadOutcome<LoadTableResponse> loadTableWithAccessDelegationIfStale(
       TableIdentifier tableIdentifier,
       IfNoneMatch ifNoneMatch,
       String snapshots,
@@ -929,7 +946,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
     }
   }
 
-  public Optional<LoadTableResponse> loadTable(
+  public ConditionalLoadOutcome<LoadTableResponse> loadTable(
       TableIdentifier tableIdentifier,
       String snapshots,
       IfNoneMatch ifNoneMatch,
@@ -955,7 +972,8 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
         String tableETag =
             IcebergHttpUtil.generateETagForMetadataFileLocation(tableEntity.getMetadataLocation());
         if (ifNoneMatch.anyMatch(tableETag)) {
-          return Optional.empty();
+          return new ConditionalLoadOutcome.NotModified<>(
+              new OperationMetadata(Optional.of(tableETag), Optional.empty()));
         }
       }
     }
@@ -974,7 +992,29 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
                   actionsRequested,
                   refreshCredentialsEndpoint)
               .build();
-      return Optional.of(filterResponseToSnapshots(response, snapshots));
+      LoadTableResponse filteredResponse = filterResponseToSnapshots(response, snapshots);
+
+      // Derive the ETag from the POST-load response actually being returned -- this is the same
+      // input IcebergCatalogAdapter.tryInsertETagHeader used before this migration
+      // (response.metadataLocation()), deliberately NOT the pre-load entity value above (that one
+      // backs only the staleness comparison / the NotModified case; the two can legitimately
+      // diverge under concurrent metadata updates).
+      Optional<String> loadedEtag;
+      if (filteredResponse.metadataLocation() != null) {
+        loadedEtag =
+            Optional.of(
+                IcebergHttpUtil.generateETagForMetadataFileLocation(
+                    filteredResponse.metadataLocation()));
+      } else {
+        LOGGER
+            .atWarn()
+            .addKeyValue("tableIdentifier", tableIdentifier)
+            .log("Response has null metadataLocation; omitting etag");
+        loadedEtag = Optional.empty();
+      }
+      return new ConditionalLoadOutcome.Loaded<>(
+          new OperationResult<>(
+              filteredResponse, new OperationMetadata(loadedEtag, Optional.empty())));
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
       throw notFoundExceptionForTableLikeEntity(
