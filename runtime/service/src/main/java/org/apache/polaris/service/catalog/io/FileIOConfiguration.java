@@ -25,7 +25,7 @@ public interface FileIOConfiguration {
 
   /**
    * The type of the catalog IO to use. Must be a registered {@link
-   * org.apache.polaris.service.catalog.io.FileIOFactory} identifier.
+   * org.apache.polaris.spi.substrate.StorageIoProvider} identifier.
    */
   String type();
 }

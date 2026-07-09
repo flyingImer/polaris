@@ -21,6 +21,7 @@ package org.apache.polaris.service.task;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -34,18 +35,21 @@ import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.storage.model.VendedClientStorageAccess;
+import org.apache.polaris.storage.model.VendedServerStorageAccess;
 
 @RequestScoped
 public class TaskFileIOSupplier {
-  private final FileIOFactory fileIOFactory;
+  private final StorageIoProvider storageIoProvider;
   private final StorageAccessConfigProvider accessConfigProvider;
 
   @Inject
   public TaskFileIOSupplier(
-      FileIOFactory fileIOFactory, StorageAccessConfigProvider storageAccessConfigProvider) {
-    this.fileIOFactory = fileIOFactory;
+      StorageIoProvider storageIoProvider,
+      StorageAccessConfigProvider storageAccessConfigProvider) {
+    this.storageIoProvider = storageIoProvider;
     this.accessConfigProvider = storageAccessConfigProvider;
   }
 
@@ -60,7 +64,7 @@ public class TaskFileIOSupplier {
         new ResolvedPolarisEntity(task, List.of(), List.of());
     PolarisResolvedPathWrapper resolvedPath =
         new PolarisResolvedPathWrapper(List.of(resolvedTaskEntity));
-    StorageAccessConfig storageAccessConfig =
+    StorageAccessConfig cfg =
         accessConfigProvider.getStorageAccessConfig(
             identifier, locations, storageActions, Optional.empty(), resolvedPath);
 
@@ -68,6 +72,12 @@ public class TaskFileIOSupplier {
         properties.getOrDefault(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.io.ResolvingFileIO");
 
-    return fileIOFactory.loadFileIO(storageAccessConfig, ioImpl, properties);
+    VendedClientStorageAccess clientView =
+        new VendedClientStorageAccess(cfg.credentials(), cfg.extraProperties(), cfg.expiresAt());
+    Map<String, String> internalProps = new LinkedHashMap<>(properties);
+    internalProps.putAll(cfg.internalProperties());
+    VendedServerStorageAccess access =
+        new VendedServerStorageAccess(clientView, internalProps, ioImpl);
+    return storageIoProvider.fileIoFor(access);
   }
 }

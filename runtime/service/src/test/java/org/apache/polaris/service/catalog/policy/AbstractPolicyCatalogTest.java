@@ -77,7 +77,6 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
@@ -89,6 +88,7 @@ import org.apache.polaris.service.types.ApplicablePolicy;
 import org.apache.polaris.service.types.Policy;
 import org.apache.polaris.service.types.PolicyAttachmentTarget;
 import org.apache.polaris.service.types.PolicyIdentifier;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
@@ -135,7 +135,7 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject FileIOFactory fileIOFactory;
+  @Inject StorageIoProvider fileIOFactory;
   @Inject PolarisPrincipalHolder polarisPrincipalHolder;
 
   private PolicyCatalog policyCatalog;

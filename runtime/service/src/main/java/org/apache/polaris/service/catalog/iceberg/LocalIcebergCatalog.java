@@ -39,6 +39,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Locale;
 import java.util.Map;
@@ -132,7 +133,6 @@ import org.apache.polaris.core.storage.StorageUtil;
 import org.apache.polaris.service.catalog.SupportsNotifications;
 import org.apache.polaris.service.catalog.common.CatalogUtils;
 import org.apache.polaris.service.catalog.common.LocationUtils;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.FileIOUtil;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation;
@@ -145,6 +145,9 @@ import org.apache.polaris.service.events.PolarisEventType;
 import org.apache.polaris.service.task.TaskExecutor;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.storage.model.VendedClientStorageAccess;
+import org.apache.polaris.storage.model.VendedServerStorageAccess;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -193,7 +196,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private String defaultBaseLocation;
   private Map<String, String> catalogProperties;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
-  private final FileIOFactory fileIOFactory;
+  private final StorageIoProvider storageIoProvider;
   private PolarisMetaStoreManager metaStoreManager;
 
   /**
@@ -211,7 +214,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       PolarisPrincipal principal,
       TaskExecutor taskExecutor,
       StorageAccessConfigProvider storageAccessConfigProvider,
-      FileIOFactory fileIOFactory,
+      StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory) {
     this.diagnostics = diagnostics;
@@ -225,7 +228,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     this.catalogId = catalogEntity.getId();
     this.catalogName = catalogEntity.getName();
     this.storageAccessConfigProvider = storageAccessConfigProvider;
-    this.fileIOFactory = fileIOFactory;
+    this.storageIoProvider = storageIoProvider;
     this.metaStoreManager = metaStoreManager;
     this.polarisEventDispatcher = polarisEventDispatcher;
     this.eventMetadataFactory = eventMetadataFactory;
@@ -2437,11 +2440,17 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       PolarisResolvedPathWrapper resolvedStorageEntity,
       Map<String, String> tableProperties,
       Set<PolarisStorageActions> storageActions) {
-    StorageAccessConfig storageAccessConfig =
+    StorageAccessConfig cfg =
         storageAccessConfigProvider.getStorageAccessConfig(
             identifier, readLocations, storageActions, Optional.empty(), resolvedStorageEntity);
     // Reload fileIO based on table specific context
-    FileIO fileIO = fileIOFactory.loadFileIO(storageAccessConfig, ioImplClassName, tableProperties);
+    VendedClientStorageAccess clientView =
+        new VendedClientStorageAccess(cfg.credentials(), cfg.extraProperties(), cfg.expiresAt());
+    Map<String, String> internalProps = new LinkedHashMap<>(tableProperties);
+    internalProps.putAll(cfg.internalProperties());
+    VendedServerStorageAccess access =
+        new VendedServerStorageAccess(clientView, internalProps, ioImplClassName);
+    FileIO fileIO = storageIoProvider.fileIoFor(access);
     // ensure the new fileIO is closed when the catalog is closed
     closeableGroup.addCloseable(fileIO);
     return fileIO;

@@ -78,7 +78,6 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalog;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.catalog.policy.PolicyCatalog;
 import org.apache.polaris.service.config.ReservedProperties;
@@ -89,6 +88,7 @@ import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.task.TaskExecutor;
 import org.apache.polaris.service.types.PolicyIdentifier;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
@@ -163,7 +163,7 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected ResolutionManifestFactory resolutionManifestFactory;
   @Inject protected ServiceIdentityProvider serviceIdentityProvider;
   @Inject protected PolarisDiagnostics diagServices;
-  @Inject protected FileIOFactory fileIOFactory;
+  @Inject protected StorageIoProvider fileIOFactory;
   @Inject protected PolarisEventMetadataFactory eventMetadataFactory;
   @Inject protected StorageCredentialCache storageCredentialCache;
   @Inject protected ResolverFactory resolverFactory;
@@ -495,7 +495,7 @@ public abstract class PolarisAuthzTestBase {
         ResolverFactory resolverFactory,
         TaskExecutor taskExecutor,
         StorageAccessConfigProvider accessConfigProvider,
-        FileIOFactory fileIOFactory,
+        StorageIoProvider fileIOFactory,
         PolarisEventDispatcher polarisEventDispatcher,
         PolarisEventMetadataFactory eventMetadataFactory,
         PolarisMetaStoreManager metaStoreManager,

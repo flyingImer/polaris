@@ -22,19 +22,18 @@ import jakarta.enterprise.inject.Vetoed;
 import jakarta.inject.Inject;
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.iceberg.io.FileIO;
-import org.apache.polaris.core.storage.StorageAccessConfig;
-import org.jspecify.annotations.NonNull;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.storage.model.VendedServerStorageAccess;
 
 /**
- * A FileIOFactory that measures the number of bytes read, files written, and files deleted. It can
- * inject exceptions at various parts of the IO construction.
+ * A {@link StorageIoProvider} that measures the number of bytes read, files written, and files
+ * deleted. It can inject exceptions at various parts of the IO construction.
  */
 @Vetoed
-public class MeasuredFileIOFactory implements FileIOFactory {
+public class MeasuredFileIOFactory implements StorageIoProvider {
   private final List<MeasuredFileIO> ios = new ArrayList<>();
 
   // When present, the following will be used to throw exceptions at various parts of the IO
@@ -43,18 +42,15 @@ public class MeasuredFileIOFactory implements FileIOFactory {
   public Optional<Supplier<RuntimeException>> newOutputFileExceptionSupplier = Optional.empty();
   public Optional<Supplier<RuntimeException>> getLengthExceptionSupplier = Optional.empty();
 
-  private final FileIOFactory defaultFileIOFactory;
+  private final StorageIoProvider defaultStorageIoProvider;
 
   @Inject
   public MeasuredFileIOFactory() {
-    defaultFileIOFactory = new DefaultFileIOFactory();
+    defaultStorageIoProvider = new DefaultStorageIoProvider();
   }
 
   @Override
-  public FileIO loadFileIO(
-      @NonNull StorageAccessConfig storageAccessConfig,
-      @NonNull String ioImplClassName,
-      @NonNull Map<String, String> properties) {
+  public FileIO fileIoFor(VendedServerStorageAccess access) {
     loadFileIOExceptionSupplier.ifPresent(
         s -> {
           throw s.get();
@@ -62,7 +58,7 @@ public class MeasuredFileIOFactory implements FileIOFactory {
 
     MeasuredFileIO wrapped =
         new MeasuredFileIO(
-            defaultFileIOFactory.loadFileIO(storageAccessConfig, ioImplClassName, properties),
+            defaultStorageIoProvider.fileIoFor(access),
             newInputFileExceptionSupplier,
             newOutputFileExceptionSupplier,
             getLengthExceptionSupplier);

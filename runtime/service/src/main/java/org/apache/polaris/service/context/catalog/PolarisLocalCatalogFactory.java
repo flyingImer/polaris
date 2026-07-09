@@ -33,11 +33,11 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.task.TaskExecutor;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -48,7 +48,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
   private final PolarisDiagnostics diagnostics;
   private final TaskExecutor taskExecutor;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
-  private final FileIOFactory fileIOFactory;
+  private final StorageIoProvider storageIoProvider;
   private final ResolverFactory resolverFactory;
   private final PolarisEventDispatcher polarisEventDispatcher;
   private final PolarisEventMetadataFactory eventMetadataFactory;
@@ -62,7 +62,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
       ResolverFactory resolverFactory,
       TaskExecutor taskExecutor,
       StorageAccessConfigProvider storageAccessConfigProvider,
-      FileIOFactory fileIOFactory,
+      StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,
       PolarisMetaStoreManager metaStoreManager,
@@ -72,7 +72,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
     this.resolverFactory = resolverFactory;
     this.taskExecutor = taskExecutor;
     this.storageAccessConfigProvider = storageAccessConfigProvider;
-    this.fileIOFactory = fileIOFactory;
+    this.storageIoProvider = storageIoProvider;
     this.polarisEventDispatcher = polarisEventDispatcher;
     this.eventMetadataFactory = eventMetadataFactory;
     this.metaStoreManager = metaStoreManager;
@@ -99,7 +99,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
             principal,
             taskExecutor,
             storageAccessConfigProvider,
-            fileIOFactory,
+            storageIoProvider,
             polarisEventDispatcher,
             eventMetadataFactory);
 

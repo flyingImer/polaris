@@ -88,7 +88,6 @@ import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFactory;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.ImmutableIcebergCatalogHandler;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
@@ -106,6 +105,7 @@ import org.apache.polaris.service.reporting.DefaultMetricsReporter;
 import org.apache.polaris.service.secrets.UnsafeInMemorySecretsManagerFactory;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.task.TaskExecutor;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.mockito.Mockito;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
@@ -130,7 +130,7 @@ public record TestServices(
     PolarisPrincipal principal,
     SecurityContext securityContext,
     PolarisMetaStoreManager metaStoreManager,
-    FileIOFactory fileIOFactory,
+    StorageIoProvider fileIOFactory,
     TaskExecutor taskExecutor,
     PolarisEventDispatcher polarisEventDispatcher,
     PolarisEventMetadataFactory eventMetadataFactory,
@@ -150,7 +150,7 @@ public record TestServices(
     private Map<String, Object> config = Map.of();
     private StsClient stsClient;
     private boolean useEventDelegator = false;
-    private Supplier<FileIOFactory> fileIOFactorySupplier = MeasuredFileIOFactory::new;
+    private Supplier<StorageIoProvider> fileIOFactorySupplier = MeasuredFileIOFactory::new;
     private final PolarisEventMetadataFactory eventMetadataFactory =
         new PolarisEventMetadataFactory() {
           @Override
@@ -190,7 +190,7 @@ public record TestServices(
       return this;
     }
 
-    public Builder fileIOFactorySupplier(Supplier<FileIOFactory> fileIOFactorySupplier) {
+    public Builder fileIOFactorySupplier(Supplier<StorageIoProvider> fileIOFactorySupplier) {
       this.fileIOFactorySupplier = fileIOFactorySupplier;
       return this;
     }
@@ -319,7 +319,7 @@ public record TestServices(
       StorageAccessConfigProvider storageAccessConfigProvider =
           new StorageAccessConfigProvider(
               callContext, principal, realmContext, storageIntegrationProvider);
-      FileIOFactory fileIOFactory = fileIOFactorySupplier.get();
+      StorageIoProvider fileIOFactory = fileIOFactorySupplier.get();
 
       TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
 

@@ -57,7 +57,6 @@ import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.events.EventAttributes;
@@ -69,6 +68,7 @@ import org.apache.polaris.service.events.listeners.PolarisEventListener;
 import org.apache.polaris.service.events.listeners.TestPolarisEventListener;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.test.TestData;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.assertj.core.configuration.PreferredAssumptionException;
@@ -113,7 +113,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject FileIOFactory fileIOFactory;
+  @Inject StorageIoProvider fileIOFactory;
 
   private LocalIcebergCatalog catalog;
 

@@ -16,21 +16,29 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.forkless.oss;
+package org.apache.polaris.service.catalog.io;
 
-import org.apache.iceberg.CatalogUtil;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.inject.Inject;
 import org.apache.iceberg.io.FileIO;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.storage.model.VendedServerStorageAccess;
 
-/**
- * OSS-default storage-IO provider. A peer implementation, sited in extensions/ alongside every
- * other selected impl. Frame-work agnostic: plain Java, no CDI, no jakarta.
- */
-public class DefaultStorageIoProvider implements StorageIoProvider {
+/** A {@link StorageIoProvider} that translates WASB paths to ABFS ones */
+@ApplicationScoped
+@Identifier("wasb")
+public class WasbTranslatingStorageIoProvider implements StorageIoProvider {
+
+  private final StorageIoProvider defaultStorageIoProvider;
+
+  @Inject
+  public WasbTranslatingStorageIoProvider() {
+    defaultStorageIoProvider = new DefaultStorageIoProvider();
+  }
 
   @Override
   public FileIO fileIoFor(VendedServerStorageAccess access) {
-    return CatalogUtil.loadFileIO(access.ioImplementation(), access.serverProperties(), null);
+    return new WasbTranslatingFileIO(defaultStorageIoProvider.fileIoFor(access));
   }
 }

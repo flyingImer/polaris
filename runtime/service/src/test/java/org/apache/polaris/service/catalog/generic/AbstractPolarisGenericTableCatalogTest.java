@@ -65,7 +65,6 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
@@ -73,6 +72,7 @@ import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.task.TaskExecutor;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
@@ -109,7 +109,7 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject FileIOFactory fileIOFactory;
+  @Inject StorageIoProvider fileIOFactory;
   @Inject PolarisPrincipalHolder polarisPrincipalHolder;
 
   private PolarisGenericTableCatalog genericTableCatalog;

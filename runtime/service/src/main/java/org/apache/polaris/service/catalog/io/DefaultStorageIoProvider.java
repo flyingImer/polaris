@@ -22,49 +22,36 @@ import com.google.common.annotations.VisibleForTesting;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.inject.Inject;
-import java.util.HashMap;
 import java.util.Map;
 import org.apache.iceberg.CatalogUtil;
 import org.apache.iceberg.io.FileIO;
-import org.apache.polaris.core.storage.StorageAccessConfig;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.storage.model.VendedServerStorageAccess;
 import org.jspecify.annotations.NonNull;
 
 /**
- * A default FileIO factory implementation for creating Iceberg {@link FileIO} instances with
- * contextual table-level properties.
+ * A default storage-IO provider implementation for creating Iceberg {@link FileIO} instances from
+ * already-vended server-side storage access.
  *
- * <p>This class acts as a translation layer between Polaris properties and the properties required
- * by Iceberg's {@link FileIO}.
+ * <p>This class acts as a translation layer between Polaris's vended access and the properties
+ * required by Iceberg's {@link FileIO}.
+ *
+ * <p>Available via CDI as a {@link RequestScoped @RequestScoped} bean.
  */
 @RequestScoped
 @Identifier("default")
-public class DefaultFileIOFactory implements FileIOFactory {
+public class DefaultStorageIoProvider implements StorageIoProvider {
 
   @Inject
-  public DefaultFileIOFactory() {}
+  public DefaultStorageIoProvider() {}
 
   @Override
-  public FileIO loadFileIO(
-      @NonNull StorageAccessConfig storageAccessConfig,
-      @NonNull String ioImplClassName,
-      @NonNull Map<String, String> properties) {
-
-    // Get subcoped creds
-    properties = new HashMap<>(properties);
-
-    // Update the FileIO with the subscoped credentials
-    // Update with properties in case there are table-level overrides the credentials should
-    // always override table-level properties, since storage configuration will be found at
-    // whatever entity defines it
-    properties.putAll(storageAccessConfig.credentials());
-    properties.putAll(storageAccessConfig.extraProperties());
-    properties.putAll(storageAccessConfig.internalProperties());
-
-    return loadFileIOInternal(ioImplClassName, properties);
+  public FileIO fileIoFor(@NonNull VendedServerStorageAccess access) {
+    return fileIoForInternal(access.ioImplementation(), access.serverProperties());
   }
 
   @VisibleForTesting
-  FileIO loadFileIOInternal(
+  FileIO fileIoForInternal(
       @NonNull String ioImplClassName, @NonNull Map<String, String> properties) {
     return new ExceptionMappingFileIO(CatalogUtil.loadFileIO(ioImplClassName, properties, null));
   }

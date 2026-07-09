@@ -73,7 +73,6 @@ import org.apache.polaris.service.auth.internal.broker.TokenBroker;
 import org.apache.polaris.service.auth.internal.broker.TokenBrokerFactory;
 import org.apache.polaris.service.catalog.api.IcebergRestOAuth2ApiService;
 import org.apache.polaris.service.catalog.io.FileIOConfiguration;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.context.RealmContextConfiguration;
 import org.apache.polaris.service.context.RealmContextResolver;
 import org.apache.polaris.service.credentials.PolarisCredentialManagerConfiguration;
@@ -91,6 +90,7 @@ import org.apache.polaris.service.storage.aws.S3AccessConfig;
 import org.apache.polaris.service.storage.aws.StsClientsPool;
 import org.apache.polaris.service.task.TaskHandlerConfiguration;
 import org.apache.polaris.service.tracing.RequestIdFilter;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 import org.eclipse.microprofile.context.ManagedExecutor;
 import org.eclipse.microprofile.context.ThreadContext;
@@ -220,9 +220,9 @@ public class ServiceProducers {
 
   @Produces
   @RequestScoped
-  public FileIOFactory fileIOFactory(
-      FileIOConfiguration config, @Any Instance<FileIOFactory> fileIOFactories) {
-    return fileIOFactories.select(Identifier.Literal.of(config.type())).get();
+  public StorageIoProvider storageIoProvider(
+      FileIOConfiguration config, @Any Instance<StorageIoProvider> storageIoProviders) {
+    return storageIoProviders.select(Identifier.Literal.of(config.type())).get();
   }
 
   @Produces

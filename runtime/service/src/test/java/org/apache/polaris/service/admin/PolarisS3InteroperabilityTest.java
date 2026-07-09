@@ -44,7 +44,7 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.PolarisCatalog;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.service.TestServices;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.CsvSource;
 import org.junit.jupiter.params.provider.ValueSource;
@@ -78,8 +78,8 @@ public class PolarisS3InteroperabilityTest {
   }
 
   public PolarisS3InteroperabilityTest() {
-    Supplier<FileIOFactory> fileIOFactorySupplier =
-        () -> (FileIOFactory) (accessConfig, ioImplClassName, properties) -> new InMemoryFileIO();
+    Supplier<StorageIoProvider> fileIOFactorySupplier =
+        () -> (StorageIoProvider) access -> new InMemoryFileIO();
     services =
         TestServices.builder()
             .config(SERVER_CONFIG)

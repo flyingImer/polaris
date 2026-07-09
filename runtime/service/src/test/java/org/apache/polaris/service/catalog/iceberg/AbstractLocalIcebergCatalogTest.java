@@ -129,7 +129,6 @@ import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
-import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageAccessProperty;
 import org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegration;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
@@ -137,7 +136,6 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.io.ExceptionMappingFileIO;
-import org.apache.polaris.service.catalog.io.FileIOFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -158,13 +156,13 @@ import org.apache.polaris.service.test.TestData;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.service.types.TableUpdateNotification;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.AbstractCollectionAssert;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.assertj.core.api.ListAssert;
 import org.assertj.core.api.ThrowableAssert.ThrowingCallable;
 import org.assertj.core.configuration.PreferredAssumptionException;
-import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeAll;
@@ -240,7 +238,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   @Inject RealmContextHolder realmContextHolder;
   @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject FileIOFactory fileIOFactory;
+  @Inject StorageIoProvider fileIOFactory;
   @Inject TaskFileIOSupplier taskFileIOSupplier;
   @Inject PolarisPrincipal authenticatedRoot;
   @Inject PolarisAdminService adminService;
@@ -413,7 +411,9 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   }
 
   protected LocalIcebergCatalog newIcebergCatalog(
-      String catalogName, PolarisMetaStoreManager metaStoreManager, FileIOFactory fileIOFactory) {
+      String catalogName,
+      PolarisMetaStoreManager metaStoreManager,
+      StorageIoProvider fileIOFactory) {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
             resolutionManifestFactory, authenticatedRoot, catalogName);
@@ -1008,7 +1008,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     // filename.
     final String tableLocation = "s3://externally-owned-bucket/validate_table/";
     final String tableMetadataLocation = tableLocation + "metadata/";
-    FileIOFactory fileIOFactory = spy(this.fileIOFactory);
+    StorageIoProvider fileIOFactory = spy(this.fileIOFactory);
     LocalIcebergCatalog catalog =
         newIcebergCatalog(catalog().name(), metaStoreManager, fileIOFactory);
     catalog.initialize(
@@ -1030,7 +1030,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
 
     doThrow(new ForbiddenException("Fake failure applying downscoped credentials"))
         .when(fileIOFactory)
-        .loadFileIO(any(), any(), any());
+        .fileIoFor(any());
     Assertions.assertThatThrownBy(() -> catalog.sendNotification(table, request))
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Fake failure applying downscoped credentials");
@@ -1959,11 +1959,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
         TaskEntity.of(
             new PolarisBaseEntity.Builder(taskEntity).internalPropertiesAsMap(properties).build());
     TaskFileIOSupplier taskFileIOSupplier =
-        new TaskFileIOSupplier(
-            (accessConfig, ioImplClassName, properties1) ->
-                measured.loadFileIO(
-                    accessConfig, "org.apache.iceberg.inmemory.InMemoryFileIO", Map.of()),
-            storageAccessConfigProvider);
+        new TaskFileIOSupplier(measured, storageAccessConfigProvider);
 
     TableCleanupTaskHandler handler =
         new TableCleanupTaskHandler(
@@ -2325,18 +2321,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
         TaskEntity.of(
             new PolarisBaseEntity.Builder(taskEntity).internalPropertiesAsMap(properties).build());
     TaskFileIOSupplier taskFileIOSupplier =
-        new TaskFileIOSupplier(
-            new FileIOFactory() {
-              @Override
-              public FileIO loadFileIO(
-                  @NonNull StorageAccessConfig accessConfig,
-                  @NonNull String ioImplClassName,
-                  @NonNull Map<String, String> properties) {
-                return measured.loadFileIO(
-                    accessConfig, "org.apache.iceberg.inmemory.InMemoryFileIO", Map.of());
-              }
-            },
-            storageAccessConfigProvider);
+        new TaskFileIOSupplier(measured, storageAccessConfigProvider);
 
     TableCleanupTaskHandler handler =
         new TableCleanupTaskHandler(

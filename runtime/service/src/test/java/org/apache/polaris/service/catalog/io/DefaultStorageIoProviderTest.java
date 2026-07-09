@@ -49,6 +49,7 @@ import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.task.TaskFileIOSupplier;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
 import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.AfterEach;
@@ -62,7 +63,13 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
 
-public class FileIOFactoryTest {
+/**
+ * Exercises {@link DefaultStorageIoProvider} directly (via a spy overriding its package-private
+ * {@code fileIoForInternal} hook) through the real call sites that build a {@code
+ * VendedServerStorageAccess} and invoke the {@link StorageIoProvider} seam: {@link
+ * LocalIcebergCatalog} and {@link TaskFileIOSupplier}.
+ */
+public class DefaultStorageIoProviderTest {
 
   public static final String CATALOG_NAME = "polaris-catalog";
   public static final Namespace NS = Namespace.of("newdb");
@@ -101,20 +108,20 @@ public class FileIOFactoryTest {
                         .build())
                 .build());
 
-    // Spy FileIOFactory and check if the credentials are passed to the FileIO
-    Supplier<FileIOFactory> fileIOFactorySupplier =
+    // Spy the DefaultStorageIoProvider and check if the credentials are passed to the FileIO
+    Supplier<StorageIoProvider> fileIOFactorySupplier =
         () ->
             Mockito.spy(
-                new DefaultFileIOFactory() {
+                new DefaultStorageIoProvider() {
                   @Override
-                  FileIO loadFileIOInternal(
+                  FileIO fileIoForInternal(
                       @NonNull String ioImplClassName, @NonNull Map<String, String> properties) {
                     // properties should contain credentials
                     Assertions.assertThat(properties)
                         .containsEntry(S3FileIOProperties.ACCESS_KEY_ID, TEST_ACCESS_KEY)
                         .containsEntry(S3FileIOProperties.SECRET_ACCESS_KEY, SECRET_ACCESS_KEY)
                         .containsEntry(S3FileIOProperties.SESSION_TOKEN, SESSION_TOKEN);
-                    return super.loadFileIOInternal(ioImplClassName, properties);
+                    return super.fileIoForInternal(ioImplClassName, properties);
                   }
                 });
 
@@ -149,8 +156,7 @@ public class FileIOFactoryTest {
     catalog.createTable(TABLE, SCHEMA);
 
     // 1. BasePolarisCatalog:doCommit: for writing the table during the creation
-    Mockito.verify(testServices.fileIOFactory(), Mockito.times(1))
-        .loadFileIO(Mockito.any(), Mockito.any(), Mockito.any());
+    Mockito.verify(testServices.fileIOFactory(), Mockito.times(1)).fileIoFor(Mockito.any());
   }
 
   @ParameterizedTest
@@ -179,8 +185,7 @@ public class FileIOFactoryTest {
     // 1. BasePolarisCatalog:doCommit: for writing the table during the creation
     // 2. BasePolarisCatalog:doRefresh: for reading the table during the drop
     // 3. TaskFileIOSupplier:apply: for clean up metadata files and merge files
-    Mockito.verify(testServices.fileIOFactory(), Mockito.times(3))
-        .loadFileIO(Mockito.any(), Mockito.any(), Mockito.any());
+    Mockito.verify(testServices.fileIOFactory(), Mockito.times(3)).fileIoFor(Mockito.any());
   }
 
   LocalIcebergCatalog createCatalog(TestServices services, String scheme) {
