@@ -39,7 +39,7 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,7 +48,7 @@ import org.mockito.Mockito;
 
 public class PolarisServiceImplTest {
 
-  private ResolutionManifestFactory resolutionManifestFactory;
+  private EntityResolver entityResolver;
   private PolarisMetaStoreManager metaStoreManager;
   private UserSecretsManager userSecretsManager;
   private ServiceIdentityProvider serviceIdentityProvider;
@@ -62,7 +62,7 @@ public class PolarisServiceImplTest {
 
   @BeforeEach
   void setUp() {
-    resolutionManifestFactory = Mockito.mock(ResolutionManifestFactory.class);
+    entityResolver = Mockito.mock(EntityResolver.class);
     metaStoreManager = Mockito.mock(PolarisMetaStoreManager.class);
     userSecretsManager = Mockito.mock(UserSecretsManager.class);
     serviceIdentityProvider = Mockito.mock(ServiceIdentityProvider.class);
@@ -82,7 +82,7 @@ public class PolarisServiceImplTest {
     adminService =
         new PolarisAdminService(
             callContext,
-            resolutionManifestFactory,
+            entityResolver,
             metaStoreManager,
             userSecretsManager,
             serviceIdentityProvider,

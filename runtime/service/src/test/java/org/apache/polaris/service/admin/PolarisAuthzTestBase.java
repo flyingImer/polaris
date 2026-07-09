@@ -68,6 +68,7 @@ import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
@@ -215,8 +216,8 @@ public abstract class PolarisAuthzTestBase {
     QuarkusMock.installMockForType(realmContext, RealmContext.class);
     polarisContext = callContext.getPolarisCallContext();
 
-    polarisAuthorizer =
-        new PolarisAuthorizerImpl(realmConfig, new DefaultEntityResolver(resolverFactory));
+    EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
+    polarisAuthorizer = new PolarisAuthorizerImpl(realmConfig, entityResolver);
 
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
@@ -226,7 +227,7 @@ public abstract class PolarisAuthzTestBase {
     this.adminService =
         new PolarisAdminService(
             callContext,
-            resolutionManifestFactory,
+            entityResolver,
             metaStoreManager,
             userSecretsManager,
             serviceIdentityProvider,

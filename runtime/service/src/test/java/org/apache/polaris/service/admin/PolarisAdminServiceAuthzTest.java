@@ -34,6 +34,7 @@ import org.apache.polaris.core.entity.CatalogRoleEntity;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.service.Profiles;
 import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.TestFactory;
@@ -50,7 +51,7 @@ public class PolarisAdminServiceAuthzTest extends PolarisAuthzTestBase {
         PolarisPrincipal.of(principalEntity, activatedPrincipalRoles);
     return new PolarisAdminService(
         callContext,
-        resolutionManifestFactory,
+        new DefaultEntityResolver(resolverFactory),
         metaStoreManager,
         userSecretsManager,
         serviceIdentityProvider,

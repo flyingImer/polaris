@@ -379,7 +379,7 @@ public class ManagementServiceTest {
             Set.of(PolarisEntityConstants.getNameOfPrincipalServiceAdminRole()));
     return new PolarisAdminService(
         callContext,
-        services.resolutionManifestFactory(),
+        new DefaultEntityResolver(services.resolverFactory()),
         metaStoreManager,
         new UnsafeInMemorySecretsManager(),
         new DefaultServiceIdentityProvider(),

@@ -440,7 +440,7 @@ public record TestServices(
       PolarisAdminService adminService =
           new PolarisAdminService(
               callContext,
-              resolutionManifestFactory,
+              new DefaultEntityResolver(resolverFactory),
               metaStoreManager,
               userSecretsManager,
               serviceIdentityProvider,

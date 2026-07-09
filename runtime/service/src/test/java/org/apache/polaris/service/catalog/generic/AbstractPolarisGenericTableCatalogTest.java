@@ -54,6 +54,7 @@ import org.apache.polaris.core.entity.table.GenericTableEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -154,14 +155,14 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
     authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
     polarisPrincipalHolder.set(authenticatedRoot);
 
-    PolarisAuthorizer authorizer =
-        new PolarisAuthorizerImpl(realmConfig, new DefaultEntityResolver(resolverFactory));
+    EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
+    PolarisAuthorizer authorizer = new PolarisAuthorizerImpl(realmConfig, entityResolver);
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
     adminService =
         new PolarisAdminService(
             polarisContext,
-            resolutionManifestFactory,
+            entityResolver,
             metaStoreManager,
             userSecretsManager,
             serviceIdentityProvider,
