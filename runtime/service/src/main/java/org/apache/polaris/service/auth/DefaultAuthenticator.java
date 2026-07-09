@@ -30,6 +30,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -85,6 +86,7 @@ public class DefaultAuthenticator implements Authenticator {
   private static final Set<String> ALL_ROLES_REQUESTED = Set.of();
 
   @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject PolarisGrantManager grantManager;
   @Inject CallContext callContext;
   @Inject PolarisDiagnostics diagnostics;
 
@@ -234,7 +236,7 @@ public class DefaultAuthenticator implements Authenticator {
   protected LoadGrantsResult loadPrincipalGrants(PrincipalEntity principal) {
     PolarisCallContext polarisContext = callContext.getPolarisCallContext();
     LoadGrantsResult principalGrantResults =
-        metaStoreManager.loadGrantsToGrantee(polarisContext, principal);
+        grantManager.loadGrantsToGrantee(polarisContext, principal);
     diagnostics.check(
         principalGrantResults.isSuccess(),
         "Failed to resolve principal roles for principal name={} id={}",

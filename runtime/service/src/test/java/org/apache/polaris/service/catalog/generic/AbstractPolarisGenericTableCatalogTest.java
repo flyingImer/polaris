@@ -42,7 +42,9 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
@@ -105,6 +107,8 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
   @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject PolarisSecretsManager secretsManager;
+  @Inject PolarisGrantManager grantManager;
   @Inject UserSecretsManager userSecretsManager;
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
@@ -164,6 +168,8 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
             polarisContext,
             entityResolver,
             metaStoreManager,
+            secretsManager,
+            grantManager,
             userSecretsManager,
             serviceIdentityProvider,
             authenticatedRoot,

@@ -25,6 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -33,6 +35,7 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -54,6 +57,7 @@ import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.jspecify.annotations.NonNull;
@@ -74,7 +78,12 @@ import org.jspecify.annotations.Nullable;
  * <p>Not thread-safe; instances should only be used within a single request context and should not
  * be reused between requests.
  */
-public class TransactionWorkspaceMetaStoreManager implements PolarisMetaStoreManager {
+public class TransactionWorkspaceMetaStoreManager
+    implements PolarisMetaStoreManager,
+        PolarisSecretsManager,
+        PolarisGrantManager,
+        PolarisPolicyMappingManager,
+        PolarisEventManager {
   private final PolarisDiagnostics diagnostics;
   private final PolarisMetaStoreManager delegate;
 

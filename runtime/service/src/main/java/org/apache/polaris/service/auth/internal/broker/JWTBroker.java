@@ -28,6 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
@@ -49,6 +50,7 @@ public class JWTBroker implements TokenBroker {
   private static final String CLAIM_KEY_SCOPE = "scope";
 
   private final PolarisMetaStoreManager metaStoreManager;
+  private final PolarisSecretsManager secretsManager;
   private final PolarisCallContext polarisCallContext;
   private final int maxTokenGenerationInSeconds;
   private final Algorithm algorithm;
@@ -56,11 +58,13 @@ public class JWTBroker implements TokenBroker {
 
   JWTBroker(
       PolarisMetaStoreManager metaStoreManager,
+      PolarisSecretsManager secretsManager,
       PolarisCallContext polarisCallContext,
       int maxTokenGenerationInSeconds,
       Algorithm algorithm,
       JWTVerifier verifier) {
     this.metaStoreManager = metaStoreManager;
+    this.secretsManager = secretsManager;
     this.polarisCallContext = polarisCallContext;
     this.maxTokenGenerationInSeconds = maxTokenGenerationInSeconds;
     this.algorithm = algorithm;
@@ -191,7 +195,7 @@ public class JWTBroker implements TokenBroker {
   private Optional<PrincipalEntity> findPrincipalEntity(String clientId, String clientSecret) {
     // Validate the principal is present and secrets match
     PrincipalSecretsResult principalSecrets =
-        metaStoreManager.loadPrincipalSecrets(polarisCallContext, clientId);
+        secretsManager.loadPrincipalSecrets(polarisCallContext, clientId);
     if (!principalSecrets.isSuccess()) {
       return Optional.empty();
     }

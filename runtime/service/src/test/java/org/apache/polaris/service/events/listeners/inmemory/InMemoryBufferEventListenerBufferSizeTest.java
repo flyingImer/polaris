@@ -29,6 +29,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import io.smallrye.mutiny.subscription.BackPressureFailure;
 import java.time.Duration;
+import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.service.Profiles;
 import org.junit.jupiter.api.Test;
@@ -59,14 +60,17 @@ class InMemoryBufferEventListenerBufferSizeTest extends InMemoryBufferEventListe
 
   @Test
   void testFlushFailureRecovery() {
-    var manager = Mockito.mock(PolarisMetaStoreManager.class);
+    var manager =
+        Mockito.mock(
+            PolarisMetaStoreManager.class,
+            Mockito.withSettings().extraInterfaces(PolarisEventManager.class));
     doReturn(manager).when(metaStoreManagerFactory).getOrCreateMetaStoreManager(any());
     RuntimeException error = new RuntimeException("error");
     doThrow(error)
         .doThrow(error) // first batch will give up after 2 attempts
         .doThrow(error)
         .doCallRealMethod() // second batch will succeed on the 2nd attempt
-        .when(manager)
+        .when((PolarisEventManager) manager)
         .writeEvents(any(), any());
     sendAsync("test1", 20);
     assertRows("test1", 10);

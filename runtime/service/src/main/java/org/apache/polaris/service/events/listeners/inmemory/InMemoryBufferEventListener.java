@@ -37,6 +37,7 @@ import java.util.concurrent.locks.ReentrantReadWriteLock;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.EventEntity;
+import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.service.events.listeners.PolarisPersistenceEventListener;
 import org.eclipse.microprofile.faulttolerance.Fallback;
@@ -166,10 +167,13 @@ public class InMemoryBufferEventListener extends PolarisPersistenceEventListener
   @Fallback(fallbackMethod = "onFlushError")
   protected void flush(String realmId, List<EventEntity> events) {
     RealmContext realmContext = () -> realmId;
-    var metaStoreManager = metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    // ADR-0002: writeEvents lives on PolarisEventManager. The factory returns the concrete impl
+    // (not a CDI proxy), which nominally implements PolarisEventManager, so this cast is safe.
+    var eventManager =
+        (PolarisEventManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
     var basePersistence = metaStoreManagerFactory.getOrCreateSession(realmContext);
     var callContext = new PolarisCallContext(realmContext, basePersistence);
-    metaStoreManager.writeEvents(callContext, events);
+    eventManager.writeEvents(callContext, events);
   }
 
   @SuppressWarnings("unused")

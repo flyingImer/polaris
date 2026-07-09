@@ -43,6 +43,7 @@ import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
 import org.apache.polaris.immutables.PolarisImmutable;
@@ -64,10 +65,13 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
   private PolicyCatalog policyCatalog;
 
+  public abstract PolarisPolicyMappingManager policyMappingManager();
+
   @Override
   protected void initializeCatalog() {
     this.policyCatalog =
-        new PolicyCatalog(metaStoreManager(), callContext(), this.resolvedEntityView);
+        new PolicyCatalog(
+            metaStoreManager(), policyMappingManager(), callContext(), this.resolvedEntityView);
   }
 
   public ListPoliciesResponse listPolicies(Namespace parent, @Nullable PolicyType policyType) {

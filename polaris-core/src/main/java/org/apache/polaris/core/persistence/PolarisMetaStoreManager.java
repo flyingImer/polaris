@@ -23,8 +23,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.auth.AuthBootstrapUtil;
-import org.apache.polaris.core.auth.PolarisGrantManager;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -33,7 +31,6 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
-import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -50,7 +47,6 @@ import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -58,11 +54,7 @@ import org.jspecify.annotations.Nullable;
  * Polaris Metastore Manager manages all Polaris entities and associated grant records metadata for
  * authorization. It uses the underlying persistent metastore to store and retrieve Polaris metadata
  */
-public interface PolarisMetaStoreManager
-    extends PolarisSecretsManager,
-        PolarisGrantManager,
-        PolarisPolicyMappingManager,
-        PolarisEventManager {
+public interface PolarisMetaStoreManager {
 
   /**
    * Bootstrap the Polaris service, creating the root catalog, root principal, and associated

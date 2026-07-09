@@ -54,6 +54,7 @@ import org.apache.polaris.core.persistence.dao.entity.LoadPolicyMappingsResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
@@ -77,9 +78,11 @@ public class PolicyCatalog {
   private final CatalogEntity catalogEntity;
   private final long catalogId;
   private final PolarisMetaStoreManager metaStoreManager;
+  private final PolarisPolicyMappingManager policyMappingManager;
 
   public PolicyCatalog(
       PolarisMetaStoreManager metaStoreManager,
+      PolarisPolicyMappingManager policyMappingManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView) {
     this.callContext = callContext;
@@ -87,6 +90,7 @@ public class PolicyCatalog {
     this.catalogEntity = resolvedEntityView.getResolvedCatalogEntity();
     this.catalogId = catalogEntity.getId();
     this.metaStoreManager = metaStoreManager;
+    this.policyMappingManager = policyMappingManager;
   }
 
   public Policy createPolicy(
@@ -302,7 +306,7 @@ public class PolicyCatalog {
     PolicyValidators.validateAttach(policyEntity, targetEntity);
 
     var result =
-        metaStoreManager.attachPolicyToEntity(
+        policyMappingManager.attachPolicyToEntity(
             callContext.getPolarisCallContext(),
             targetCatalogPath,
             targetEntity,
@@ -336,7 +340,7 @@ public class PolicyCatalog {
     var targetEntity = resolvedTargetPath.getRawLeafEntity();
 
     var result =
-        metaStoreManager.detachPolicyFromEntity(
+        policyMappingManager.detachPolicyFromEntity(
             callContext.getPolarisCallContext(),
             targetCatalogPath,
             targetEntity,
@@ -434,10 +438,11 @@ public class PolicyCatalog {
   private List<PolicyEntity> getPolicies(PolarisEntity target, PolicyType policyType) {
     LoadPolicyMappingsResult result;
     if (policyType == null) {
-      result = metaStoreManager.loadPoliciesOnEntity(callContext.getPolarisCallContext(), target);
+      result =
+          policyMappingManager.loadPoliciesOnEntity(callContext.getPolarisCallContext(), target);
     } else {
       result =
-          metaStoreManager.loadPoliciesOnEntityByType(
+          policyMappingManager.loadPoliciesOnEntityByType(
               callContext.getPolarisCallContext(), target, policyType);
     }
 

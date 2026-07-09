@@ -55,7 +55,9 @@ import org.apache.polaris.core.admin.model.PrincipalWithCredentialsCredentials;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
@@ -72,6 +74,7 @@ import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -169,6 +172,9 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected ResolverFactory resolverFactory;
   @Inject protected StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject protected PolarisMetaStoreManager metaStoreManager;
+  @Inject protected PolarisSecretsManager secretsManager;
+  @Inject protected PolarisGrantManager grantManager;
+  @Inject protected PolarisPolicyMappingManager policyMappingManager;
   @Inject protected UserSecretsManager userSecretsManager;
   @Inject protected CallContext callContext;
   @Inject protected RealmConfig realmConfig;
@@ -229,6 +235,8 @@ public abstract class PolarisAuthzTestBase {
             callContext,
             entityResolver,
             metaStoreManager,
+            secretsManager,
+            grantManager,
             userSecretsManager,
             serviceIdentityProvider,
             authenticatedRoot,
@@ -431,7 +439,7 @@ public abstract class PolarisAuthzTestBase {
       PolarisCallContext polarisContext) {
     PrincipalEntity principal =
         metaStoreManager.findPrincipalByName(polarisContext, principalName).orElseThrow();
-    metaStoreManager.rotatePrincipalSecrets(
+    secretsManager.rotatePrincipalSecrets(
         callContext.getPolarisCallContext(),
         credentials.getClientId(),
         principal.getId(),
@@ -477,7 +485,8 @@ public abstract class PolarisAuthzTestBase {
     this.genericTableCatalog =
         new PolarisGenericTableCatalog(metaStoreManager, callContext, passthroughView);
     this.genericTableCatalog.initialize(CATALOG_NAME, ImmutableMap.of());
-    this.policyCatalog = new PolicyCatalog(metaStoreManager, callContext, passthroughView);
+    this.policyCatalog =
+        new PolicyCatalog(metaStoreManager, policyMappingManager, callContext, passthroughView);
   }
 
   @Alternative

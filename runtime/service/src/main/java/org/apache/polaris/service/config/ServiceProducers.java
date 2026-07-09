@@ -40,6 +40,8 @@ import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
+import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
@@ -47,6 +49,7 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
+import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
@@ -59,6 +62,7 @@ import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -240,6 +244,40 @@ public class ServiceProducers {
     return metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
+  // Sibling durable managers (ADR-0002 un-fuse): PolarisMetaStoreManager no longer extends these,
+  // so they are produced as their own beans. CRITICAL: cast the RAW factory result (the concrete
+  // impl, which nominally implements the sibling), NEVER an injected PolarisMetaStoreManager proxy
+  // (a normal-scoped CDI proxy implements only its declared bean type -> ClassCastException).
+  @Produces
+  @RequestScoped
+  public PolarisSecretsManager polarisSecretsManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (PolarisSecretsManager)
+        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
+  @Produces
+  @RequestScoped
+  public PolarisGrantManager polarisGrantManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (PolarisGrantManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
+  @Produces
+  @RequestScoped
+  public PolarisPolicyMappingManager polarisPolicyMappingManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (PolarisPolicyMappingManager)
+        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
+  @Produces
+  @RequestScoped
+  public PolarisEventManager polarisEventManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (PolarisEventManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
   @Produces
   @ApplicationScoped
   public UserSecretsManagerFactory userSecretsManagerFactory(
@@ -381,12 +419,14 @@ public class ServiceProducers {
       AuthenticationRealmConfiguration config,
       @Any Instance<TokenBrokerFactory> tokenBrokerFactories,
       PolarisMetaStoreManager polarisMetaStoreManager,
+      PolarisSecretsManager polarisSecretsManager,
       CallContext callContext) {
     String type =
         config.type() == AuthenticationType.EXTERNAL ? "none" : config.tokenBroker().type();
     TokenBrokerFactory tokenBrokerFactory =
         tokenBrokerFactories.select(Identifier.Literal.of(type)).get();
-    return tokenBrokerFactory.create(polarisMetaStoreManager, callContext.getPolarisCallContext());
+    return tokenBrokerFactory.create(
+        polarisMetaStoreManager, polarisSecretsManager, callContext.getPolarisCallContext());
   }
 
   // other beans

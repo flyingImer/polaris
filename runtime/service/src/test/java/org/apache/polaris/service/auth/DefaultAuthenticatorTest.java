@@ -33,6 +33,7 @@ import java.util.Set;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.admin.model.PrincipalWithCredentialsCredentials;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -66,6 +67,7 @@ public class DefaultAuthenticatorTest {
   @Inject PolarisAdminService adminService;
   @Inject RealmContextHolder realmContextHolder;
   @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject PolarisSecretsManager secretsManager;
   @Inject CallContext callContext;
 
   private PrincipalEntity principalEntity;
@@ -310,7 +312,7 @@ public class DefaultAuthenticatorTest {
             .createPrincipal(new PrincipalEntity.Builder().setName(name).build())
             .getCredentials();
 
-    metaStoreManager.rotatePrincipalSecrets(
+    secretsManager.rotatePrincipalSecrets(
         callContext.getPolarisCallContext(),
         credentials.getClientId(),
         metaStoreManager

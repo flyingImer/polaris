@@ -36,6 +36,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.NamespaceEntity;
@@ -56,6 +57,7 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadPolicyMappingsResult;
 import org.apache.polaris.core.persistence.dao.entity.PolicyAttachmentResult;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.ids.api.MonotonicClock;
@@ -304,13 +306,14 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .isLessThanOrEqualTo(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE);
 
     var attachResult =
-        metaStore.attachPolicyToEntity(
-            callContext,
-            List.of(catalog, namespace),
-            table,
-            List.of(catalog, namespace),
-            policy,
-            parameters);
+        ((PolarisPolicyMappingManager) metaStore)
+            .attachPolicyToEntity(
+                callContext,
+                List.of(catalog, namespace),
+                table,
+                List.of(catalog, namespace),
+                policy,
+                parameters);
 
     assertThat(attachResult.isSuccess()).isTrue();
     assertThat(attachResult.getPolicyMappingRecord()).isNotNull();
@@ -318,8 +321,8 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .containsExactlyEntriesOf(parameters);
 
     var loadResult =
-        metaStore.loadPoliciesOnEntityByType(
-            callContext, table, PredefinedPolicyTypes.DATA_COMPACTION);
+        ((PolarisPolicyMappingManager) metaStore)
+            .loadPoliciesOnEntityByType(callContext, table, PredefinedPolicyTypes.DATA_COMPACTION);
     assertThat(loadResult.isSuccess()).isTrue();
     assertThat(loadResult.getEntities()).hasSize(1);
     assertThat(loadResult.getPolicyMappingRecords())
@@ -379,13 +382,14 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .isGreaterThan(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE);
 
     var attachResult =
-        metaStore.attachPolicyToEntity(
-            callContext,
-            List.of(catalog, namespace),
-            table,
-            List.of(catalog, namespace),
-            policy,
-            parameters);
+        ((PolarisPolicyMappingManager) metaStore)
+            .attachPolicyToEntity(
+                callContext,
+                List.of(catalog, namespace),
+                table,
+                List.of(catalog, namespace),
+                policy,
+                parameters);
 
     assertThat(attachResult)
         .extracting(PolicyAttachmentResult::isSuccess, PolicyAttachmentResult::getReturnStatus)
@@ -394,7 +398,8 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .contains("Serialized policy-mapping index value size")
         .contains(String.valueOf(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE));
 
-    var loadResult = metaStore.loadPoliciesOnEntity(callContext, table);
+    var loadResult =
+        ((PolarisPolicyMappingManager) metaStore).loadPoliciesOnEntity(callContext, table);
     assertThat(loadResult)
         .extracting(
             LoadPolicyMappingsResult::isSuccess,
@@ -520,13 +525,13 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
             .build();
 
     assertThat(
-            metaStore
+            ((PolarisGrantManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            metaStore
+            ((PolarisGrantManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
@@ -539,20 +544,20 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .isTrue();
 
     assertThat(
-            metaStore
+            ((PolarisGrantManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            metaStore
+            ((PolarisGrantManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
 
     LoadGrantsResult grantsOnCatalogRole =
-        metaStore.loadGrantsOnSecurable(callContext, catalogAdminRole);
+        ((PolarisGrantManager) metaStore).loadGrantsOnSecurable(callContext, catalogAdminRole);
     assertThat(grantsOnCatalogRole.isSuccess()).isTrue();
     assertThat(grantsOnCatalogRole.getGrantRecords())
         .noneSatisfy(
@@ -572,12 +577,12 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
             "missingPrincipalRole");
 
     LoadGrantsResult grantsToMissing =
-        metaStore.loadGrantsToGrantee(callContext, missingPrincipalRole);
+        ((PolarisGrantManager) metaStore).loadGrantsToGrantee(callContext, missingPrincipalRole);
     assertThat(grantsToMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
 
     LoadGrantsResult grantsOnMissing =
-        metaStore.loadGrantsOnSecurable(callContext, missingPrincipalRole);
+        ((PolarisGrantManager) metaStore).loadGrantsOnSecurable(callContext, missingPrincipalRole);
     assertThat(grantsOnMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
   }
@@ -599,7 +604,7 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
     assertThat(createdPrincipalRole).isNotNull();
 
     assertThat(
-            metaStore
+            ((PolarisGrantManager) metaStore)
                 .grantPrivilegeOnSecurableToRole(
                     callContext,
                     createdPrincipalRole,
@@ -611,8 +616,10 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
 
     assertThat(
             List.of(
-                metaStore.loadGrantsOnSecurable(callContext, createdPrincipalRole),
-                metaStore.loadGrantsToGrantee(callContext, createdPrincipalRole)))
+                ((PolarisGrantManager) metaStore)
+                    .loadGrantsOnSecurable(callContext, createdPrincipalRole),
+                ((PolarisGrantManager) metaStore)
+                    .loadGrantsToGrantee(callContext, createdPrincipalRole)))
         .extracting(
             LoadGrantsResult::isSuccess,
             LoadGrantsResult::getGrantRecords,

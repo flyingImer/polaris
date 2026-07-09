@@ -39,7 +39,9 @@ import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.config.RealmConfig;
@@ -442,6 +444,8 @@ public record TestServices(
               callContext,
               new DefaultEntityResolver(resolverFactory),
               metaStoreManager,
+              (PolarisSecretsManager) metaStoreManager,
+              (PolarisGrantManager) metaStoreManager,
               userSecretsManager,
               serviceIdentityProvider,
               principal,

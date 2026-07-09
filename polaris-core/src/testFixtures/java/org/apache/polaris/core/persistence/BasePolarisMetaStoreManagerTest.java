@@ -35,6 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -541,8 +542,8 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                metaStoreManager.resetPrincipalSecrets(
-                    callCtx, principalB.getId(), principalAClientId, null))
+                ((PolarisSecretsManager) metaStoreManager)
+                    .resetPrincipalSecrets(callCtx, principalB.getId(), principalAClientId, null))
         .isInstanceOf(AlreadyExistsException.class);
   }
 }

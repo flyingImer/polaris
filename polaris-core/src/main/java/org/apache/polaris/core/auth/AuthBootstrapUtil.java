@@ -52,6 +52,11 @@ public class AuthBootstrapUtil {
   public static PrincipalSecretsResult createPolarisPrincipalForRealm(
       PolarisMetaStoreManager metaStoreManager, PolarisCallContext ctx) {
 
+    // ADR-0002: grant/secrets siblings are no longer on PolarisMetaStoreManager. The concrete impl
+    // still nominally implements them, so narrow the passed manager to reach those methods.
+    PolarisGrantManager grantManager = (PolarisGrantManager) metaStoreManager;
+    PolarisSecretsManager secretsManager = (PolarisSecretsManager) metaStoreManager;
+
     Optional<PrincipalEntity> preliminaryRootPrincipal = metaStoreManager.findRootPrincipal(ctx);
     if (preliminaryRootPrincipal.isPresent()) {
       String overrideMessage =
@@ -93,18 +98,18 @@ public class AuthBootstrapUtil {
     metaStoreManager.createEntityIfNotExists(ctx, null, serviceAdminPrincipalRole);
 
     // we also need to grant usage on the account-admin principal to the principal
-    metaStoreManager.grantPrivilegeOnSecurableToRole(
+    grantManager.grantPrivilegeOnSecurableToRole(
         ctx, rootPrincipal, null, serviceAdminPrincipalRole, PolarisPrivilege.PRINCIPAL_ROLE_USAGE);
 
     // grant SERVICE_MANAGE_ACCESS on the rootContainer to the serviceAdminPrincipalRole
-    metaStoreManager.grantPrivilegeOnSecurableToRole(
+    grantManager.grantPrivilegeOnSecurableToRole(
         ctx,
         serviceAdminPrincipalRole,
         null,
         rootContainer,
         PolarisPrivilege.SERVICE_MANAGE_ACCESS);
 
-    return metaStoreManager.loadPrincipalSecrets(ctx, rootPrincipal.getClientId());
+    return secretsManager.loadPrincipalSecrets(ctx, rootPrincipal.getClientId());
   }
 
   private static long generateId(PolarisMetaStoreManager metaStoreManager, PolarisCallContext ctx) {

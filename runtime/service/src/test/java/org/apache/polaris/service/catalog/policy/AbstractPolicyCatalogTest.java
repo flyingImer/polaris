@@ -49,7 +49,9 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
@@ -64,6 +66,7 @@ import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
 import org.apache.polaris.core.policy.exceptions.PolicyInUseException;
@@ -131,6 +134,9 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject PolarisSecretsManager secretsManager;
+  @Inject PolarisGrantManager grantManager;
+  @Inject PolarisPolicyMappingManager policyMappingManager;
   @Inject UserSecretsManager userSecretsManager;
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
@@ -185,6 +191,8 @@ public abstract class AbstractPolicyCatalogTest {
             polarisContext,
             entityResolver,
             metaStoreManager,
+            secretsManager,
+            grantManager,
             userSecretsManager,
             serviceIdentityProvider,
             authenticatedRoot,
@@ -245,7 +253,8 @@ public abstract class AbstractPolicyCatalogTest {
     when(storageIntegrationProvider.getStorageIntegration(Mockito.anyList()))
         .thenReturn(storageIntegration);
 
-    this.policyCatalog = new PolicyCatalog(metaStoreManager, polarisContext, passthroughView);
+    this.policyCatalog =
+        new PolicyCatalog(metaStoreManager, policyMappingManager, polarisContext, passthroughView);
     this.icebergCatalog =
         new LocalIcebergCatalog(
             diagServices,

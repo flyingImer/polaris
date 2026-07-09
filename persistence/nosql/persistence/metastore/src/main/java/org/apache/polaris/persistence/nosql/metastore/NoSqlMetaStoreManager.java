@@ -33,6 +33,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
@@ -43,6 +45,7 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisPrivilege;
@@ -70,6 +73,7 @@ import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.persistence.nosql.metastore.mutation.GrantsMutation;
@@ -79,7 +83,11 @@ import org.jspecify.annotations.Nullable;
 
 record NoSqlMetaStoreManager(
     Supplier<BaseResult> purgeRealm, RootCredentialsSet rootCredentialsSet, Clock clock)
-    implements PolarisMetaStoreManager {
+    implements PolarisMetaStoreManager,
+        PolarisSecretsManager,
+        PolarisGrantManager,
+        PolarisPolicyMappingManager,
+        PolarisEventManager {
 
   NoSqlMetaStore ms(PolarisCallContext callContext) {
     var existing = callContext.getMetaStore();

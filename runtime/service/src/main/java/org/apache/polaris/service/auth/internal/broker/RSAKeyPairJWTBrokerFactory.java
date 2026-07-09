@@ -29,6 +29,7 @@ import java.time.Duration;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.service.auth.AuthenticationConfiguration;
@@ -51,7 +52,9 @@ public class RSAKeyPairJWTBrokerFactory implements TokenBrokerFactory {
 
   @Override
   public TokenBroker create(
-      PolarisMetaStoreManager metaStoreManager, PolarisCallContext polarisCallContext) {
+      PolarisMetaStoreManager metaStoreManager,
+      PolarisSecretsManager secretsManager,
+      PolarisCallContext polarisCallContext) {
     RealmContext realmContext = polarisCallContext.getRealmContext();
     AuthenticationRealmConfiguration config = authenticationConfiguration.forRealm(realmContext);
     Duration maxTokenGeneration = config.tokenBroker().maxTokenGeneration();
@@ -72,6 +75,7 @@ public class RSAKeyPairJWTBrokerFactory implements TokenBrokerFactory {
             });
     return new JWTBroker(
         metaStoreManager,
+        secretsManager,
         polarisCallContext,
         (int) maxTokenGeneration.toSeconds(),
         algorithmAndVerifier.algorithm(),

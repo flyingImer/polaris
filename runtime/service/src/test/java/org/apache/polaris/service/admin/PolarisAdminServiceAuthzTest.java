@@ -53,6 +53,8 @@ public class PolarisAdminServiceAuthzTest extends PolarisAuthzTestBase {
         callContext,
         new DefaultEntityResolver(resolverFactory),
         metaStoreManager,
+        secretsManager,
+        grantManager,
         userSecretsManager,
         serviceIdentityProvider,
         authenticatedPrincipal,

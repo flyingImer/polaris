@@ -29,6 +29,7 @@ import java.security.interfaces.RSAPrivateKey;
 import java.security.interfaces.RSAPublicKey;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
@@ -49,10 +50,11 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    PolarisSecretsManager secretsManager = Mockito.mock(PolarisSecretsManager.class);
     String mainSecret = "client-secret";
     PolarisPrincipalSecrets principalSecrets =
         new PolarisPrincipalSecrets(principalId, clientId, mainSecret, "otherSecret");
-    Mockito.when(metastoreManager.loadPrincipalSecrets(polarisCallContext, clientId))
+    Mockito.when(secretsManager.loadPrincipalSecrets(polarisCallContext, clientId))
         .thenReturn(new PrincipalSecretsResult(principalSecrets));
     PrincipalEntity principal =
         new PrincipalEntity.Builder().setId(principalId).setName("principal").build();
@@ -65,6 +67,7 @@ public class RSAKeyPairJWTBrokerTest {
     TokenBroker tokenBroker =
         new JWTBroker(
             metastoreManager,
+            secretsManager,
             polarisCallContext,
             420,
             algorithm,
@@ -99,6 +102,7 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    PolarisSecretsManager secretsManager = Mockito.mock(PolarisSecretsManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =
         Algorithm.RSA256(
@@ -106,6 +110,7 @@ public class RSAKeyPairJWTBrokerTest {
     TokenBroker tokenBroker =
         new JWTBroker(
             metastoreManager,
+            secretsManager,
             polarisCallContext,
             420,
             algorithm,
@@ -131,6 +136,7 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    PolarisSecretsManager secretsManager = Mockito.mock(PolarisSecretsManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =
         Algorithm.RSA256(
@@ -138,6 +144,7 @@ public class RSAKeyPairJWTBrokerTest {
     TokenBroker tokenBroker =
         new JWTBroker(
             metastoreManager,
+            secretsManager,
             polarisCallContext,
             420,
             algorithm,

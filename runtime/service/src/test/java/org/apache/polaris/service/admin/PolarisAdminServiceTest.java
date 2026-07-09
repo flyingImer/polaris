@@ -38,7 +38,9 @@ import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
+import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
@@ -77,6 +79,8 @@ public class PolarisAdminServiceTest {
   @Mock private CallContext callContext;
   @Mock private PolarisCallContext polarisCallContext;
   @Mock private PolarisMetaStoreManager metaStoreManager;
+  @Mock private PolarisSecretsManager secretsManager;
+  @Mock private PolarisGrantManager grantManager;
   @Mock private UserSecretsManager userSecretsManager;
   @Mock private ServiceIdentityProvider identityProvider;
   @Mock private PolarisAuthorizer authorizer;
@@ -128,6 +132,8 @@ public class PolarisAdminServiceTest {
             callContext,
             entityResolver,
             metaStoreManager,
+            secretsManager,
+            grantManager,
             userSecretsManager,
             identityProvider,
             authenticatedPrincipal,
@@ -243,7 +249,7 @@ public class PolarisAdminServiceTest {
 
     PrivilegeResult successResult = mock(PrivilegeResult.class);
     when(successResult.isSuccess()).thenReturn(true);
-    when(metaStoreManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
+    when(grantManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
         .thenReturn(successResult);
 
     PrivilegeResult result =
@@ -309,7 +315,7 @@ public class PolarisAdminServiceTest {
 
     PrivilegeResult successResult = mock(PrivilegeResult.class);
     when(successResult.isSuccess()).thenReturn(true);
-    when(metaStoreManager.revokePrivilegeOnSecurableFromRole(any(), any(), any(), any(), any()))
+    when(grantManager.revokePrivilegeOnSecurableFromRole(any(), any(), any(), any(), any()))
         .thenReturn(successResult);
 
     PrivilegeResult result =
@@ -400,7 +406,7 @@ public class PolarisAdminServiceTest {
 
     PrivilegeResult successResult = mock(PrivilegeResult.class);
     when(successResult.isSuccess()).thenReturn(true);
-    when(metaStoreManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
+    when(grantManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
         .thenReturn(successResult);
 
     PrivilegeResult result =
@@ -519,7 +525,7 @@ public class PolarisAdminServiceTest {
 
     PrivilegeResult successResult = mock(PrivilegeResult.class);
     when(successResult.isSuccess()).thenReturn(true);
-    when(metaStoreManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
+    when(grantManager.grantPrivilegeOnSecurableToRole(any(), any(), any(), any(), any()))
         .thenReturn(successResult);
 
     PrivilegeResult result =
