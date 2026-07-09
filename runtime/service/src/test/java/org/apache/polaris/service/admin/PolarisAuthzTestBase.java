@@ -68,7 +68,7 @@ import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
@@ -514,10 +514,10 @@ public abstract class PolarisAuthzTestBase {
     }
 
     @Override
-    public Catalog createCatalog(PolarisResolutionManifest resolvedManifest) {
+    public Catalog createCatalog(PolarisResolutionManifestCatalogView resolvedEntityView) {
       // This depends on the BasePolarisCatalog allowing calling initialize multiple times
       // to override the previous config.
-      Catalog catalog = super.createCatalog(resolvedManifest);
+      Catalog catalog = super.createCatalog(resolvedEntityView);
       catalog.initialize(
           CATALOG_NAME,
           ImmutableMap.of(

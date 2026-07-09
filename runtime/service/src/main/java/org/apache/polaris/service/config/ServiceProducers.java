@@ -54,6 +54,7 @@ import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
@@ -169,9 +170,15 @@ public class ServiceProducers {
 
   @Produces
   @RequestScoped
+  public EntityResolver entityResolver(ResolverFactory resolverFactory) {
+    return new DefaultEntityResolver(resolverFactory);
+  }
+
+  @Produces
+  @RequestScoped
   public PolarisAuthorizer polarisAuthorizer(
-      PolarisAuthorizerFactory factory, RealmConfig realmConfig, ResolverFactory resolverFactory) {
-    return factory.create(realmConfig, new DefaultEntityResolver(resolverFactory));
+      PolarisAuthorizerFactory factory, RealmConfig realmConfig, EntityResolver entityResolver) {
+    return factory.create(realmConfig, entityResolver);
   }
 
   @Produces

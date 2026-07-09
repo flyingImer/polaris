@@ -30,7 +30,7 @@ import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.io.FileIOFactory;
@@ -81,8 +81,8 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
   }
 
   @Override
-  public Catalog createCatalog(final PolarisResolutionManifest resolvedManifest) {
-    CatalogEntity catalog = resolvedManifest.getResolvedCatalogEntity();
+  public Catalog createCatalog(final PolarisResolutionManifestCatalogView resolvedEntityView) {
+    CatalogEntity catalog = resolvedEntityView.getResolvedCatalogEntity();
     String catalogName = catalog.getName();
 
     String realm = callContext.getRealmContext().getRealmIdentifier();
@@ -95,7 +95,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
             resolverFactory,
             metaStoreManager,
             callContext,
-            resolvedManifest,
+            resolvedEntityView,
             principal,
             taskExecutor,
             storageAccessConfigProvider,

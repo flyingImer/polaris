@@ -56,6 +56,7 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
@@ -359,7 +360,7 @@ public record TestServices(
                   .callContext(callContext)
                   .prefixParser(new DefaultCatalogPrefixParser())
                   .resolverFactory(resolverFactory)
-                  .resolutionManifestFactory(resolutionManifestFactory)
+                  .entityResolver(new DefaultEntityResolver(resolverFactory))
                   .metaStoreManager(metaStoreManager)
                   .credentialManager(credentialManager)
                   .localCatalogFactory(localCatalogFactory)
@@ -410,7 +411,7 @@ public record TestServices(
                   .catalogName(catalogName)
                   .polarisPrincipal(principal)
                   .callContext(callContext)
-                  .resolutionManifestFactory(resolutionManifestFactory)
+                  .entityResolver(new DefaultEntityResolver(resolverFactory))
                   .metaStoreManager(metaStoreManager)
                   .authorizer(authorizer)
                   .credentialManager(credentialManager)

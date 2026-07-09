@@ -28,13 +28,13 @@ import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 @RequestScoped
 public class GenericTableCatalogHandlerFactory {
 
   @Inject CallContext callContext;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
+  @Inject EntityResolver entityResolver;
   @Inject PolarisMetaStoreManager metaStoreManager;
   @Inject PolarisAuthorizer authorizer;
   @Inject PolarisCredentialManager credentialManager;
@@ -45,7 +45,7 @@ public class GenericTableCatalogHandlerFactory {
         .catalogName(catalogName)
         .polarisPrincipal(principal)
         .callContext(callContext)
-        .resolutionManifestFactory(resolutionManifestFactory)
+        .entityResolver(entityResolver)
         .metaStoreManager(metaStoreManager)
         .authorizer(authorizer)
         .credentialManager(credentialManager)

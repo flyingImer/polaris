@@ -78,7 +78,7 @@ import org.apache.polaris.core.entity.CatalogRoleEntity;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.apache.polaris.service.context.catalog.PolarisLocalCatalogFactory;
@@ -1872,8 +1872,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         callContext,
         authenticatedRoot) {
       @Override
-      public Catalog createCatalog(PolarisResolutionManifest resolvedManifest) {
-        Catalog catalog = super.createCatalog(resolvedManifest);
+      public Catalog createCatalog(PolarisResolutionManifestCatalogView resolvedEntityView) {
+        Catalog catalog = super.createCatalog(resolvedEntityView);
         String fileIoImpl = "org.apache.iceberg.inmemory.InMemoryFileIO";
         catalog.initialize(
             externalCatalog, ImmutableMap.of(CatalogProperties.FILE_IO_IMPL, fileIoImpl));

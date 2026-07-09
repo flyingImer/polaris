@@ -235,7 +235,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
   private static final String SNAPSHOTS_REFS = "refs";
 
   private CatalogEntity getResolvedCatalogEntity() {
-    CatalogEntity catalogEntity = resolutionManifest.getResolvedCatalogEntity();
+    CatalogEntity catalogEntity = resolvedEntityView.getResolvedCatalogEntity();
     diagnostics().checkNotNull(catalogEntity, "No catalog available");
     return catalogEntity;
   }
@@ -285,7 +285,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
       this.isFederated = true;
     } else {
       LOGGER.debug("Initializing non-federated catalog");
-      this.baseCatalog = localCatalogFactory().createCatalog(resolutionManifest);
+      this.baseCatalog = localCatalogFactory().createCatalog(resolvedEntityView);
       this.isFederated = false;
     }
     this.namespaceCatalog =
@@ -344,7 +344,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
       Map<String, String> filteredProperties =
           reservedProperties()
               .removeReservedProperties(
-                  resolutionManifest
+                  resolvedEntityView
                       .getPassthroughResolvedPath(ResolvedPathKey.ofNamespace(namespace))
                       .getRawLeafEntity()
                       .getPropertiesAsMap());
@@ -691,7 +691,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
 
     // Get the table ID from the resolved path
     PolarisResolvedPathWrapper resolvedTable =
-        resolutionManifest.getResolvedPath(ResolvedPathKey.ofTableLike(identifier));
+        resolvedEntityView.getResolvedPath(ResolvedPathKey.ofTableLike(identifier));
     PolarisEntity tableEntity = resolvedTable.getRawLeafEntity();
     long tableId = tableEntity.getId();
 
@@ -708,7 +708,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
    */
   private @Nullable IcebergTableLikeEntity getTableEntity(TableIdentifier tableIdentifier) {
     PolarisResolvedPathWrapper target =
-        resolutionManifest.getResolvedPath(ResolvedPathKey.ofTableLike(tableIdentifier));
+        resolvedEntityView.getResolvedPath(ResolvedPathKey.ofTableLike(tableIdentifier));
     PolarisEntity rawLeafEntity = target.getRawLeafEntity();
     if (rawLeafEntity.getType() == PolarisEntityType.TABLE_LIKE) {
       return IcebergTableLikeEntity.of(rawLeafEntity);
@@ -993,7 +993,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
     LoadTableResponse.Builder responseBuilder =
         LoadTableResponse.builder().withTableMetadata(tableMetadata);
     PolarisResolvedPathWrapper resolvedStoragePath =
-        CatalogUtils.findResolvedStorageEntity(resolutionManifest, tableIdentifier);
+        CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier);
 
     if (resolvedStoragePath == null) {
       LOGGER.debug(
@@ -1548,7 +1548,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
       Set<PolarisStorageActions> actionsRequested,
       Optional<String> refreshCredentialsEndpoint) {
     PolarisResolvedPathWrapper resolvedStoragePath =
-        CatalogUtils.findResolvedStorageEntity(resolutionManifest, tableIdentifier);
+        CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier);
     if (resolvedStoragePath == null) {
       LOGGER.debug(
           "Unable to find storage configuration information for table {}", tableIdentifier);

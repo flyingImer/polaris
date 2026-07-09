@@ -21,7 +21,6 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
-import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -29,6 +28,7 @@ import static org.mockito.Mockito.when;
 
 import jakarta.enterprise.inject.Instance;
 import java.time.Clock;
+import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
@@ -50,7 +50,6 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
-import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -58,9 +57,12 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
+import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.ResolutionResult;
+import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.catalog.CatalogPrefixParser;
@@ -76,10 +78,7 @@ class IcebergCatalogHandlerTest {
   private static final Namespace NS1 = Namespace.of("ns1");
   private static final TableIdentifier TABLE2 = TableIdentifier.of(NS1, "table2");
 
-  private final PolarisResolutionManifest resolutionManifest =
-      mock(PolarisResolutionManifest.class);
   private final PolarisResolvedPathWrapper resolvedPath = mock(PolarisResolvedPathWrapper.class);
-  private final CatalogEntity catalogEntity = mock(CatalogEntity.class);
   private final CallContext callContext = mock(CallContext.class);
   private final RealmConfig realmConfig = mock(RealmConfig.class);
   private final LocalCatalogFactory localCatalogFactory = mock(LocalCatalogFactory.class);
@@ -93,23 +92,56 @@ class IcebergCatalogHandlerTest {
     when(callContext.getRealmConfig()).thenReturn(realmConfig);
     when(callContext.getRealmContext()).thenReturn(mock(RealmContext.class));
 
-    // Resolution manifest factory always returns our pre-configured manifest mock so we can
-    // observe and stub interactions with it.
-    ResolutionManifestFactory resolutionManifestFactory = mock(ResolutionManifestFactory.class);
-    when(resolutionManifestFactory.createResolutionManifest(any(), any()))
-        .thenReturn(resolutionManifest);
-
-    // Authorization path: any resolved path lookup returns a non-null wrapper so the
-    // "not found" check in CatalogHandler#authorizeBasicTableLikeOperationsOrThrow passes.
-    when(resolutionManifest.getResolvedPath(any(), any(), anyBoolean())).thenReturn(resolvedPath);
-    when(resolutionManifest.getResolvedPath(any(), any())).thenReturn(resolvedPath);
-    when(resolutionManifest.getResolvedPath(any())).thenReturn(resolvedPath);
-    when(resolutionManifest.getAllActivatedCatalogRoleAndPrincipalRoles()).thenReturn(Set.of());
-
-    // initializeCatalog() reads the resolved catalog entity to decide federated vs. local.
-    // Return a CatalogEntity without a connection config so we take the local-catalog path.
-    when(resolutionManifest.getResolvedCatalogEntity()).thenReturn(catalogEntity);
-    when(catalogEntity.getConnectionConfigInfoDpo()).thenReturn(null);
+    // Authorization + operational data path: entityResolver().resolve(...) always returns a
+    // ResolutionResult wrapping resolvedPath's current leaf entity (read now, after any per-test
+    // stub already ran) plus a bare, non-federated catalog entity, so the "not found" check in
+    // CatalogHandler#authorizeBasicTableLikeOperationsOrThrow passes and initializeCatalog() takes
+    // the local (non-federated) catalog path.
+    PolarisDiagnostics diagnostics = mock(PolarisDiagnostics.class);
+    PolarisEntity leafEntity = resolvedPath.getRawLeafEntity();
+    if (leafEntity == null) {
+      leafEntity =
+          new PolarisEntity(
+              new PolarisBaseEntity.Builder()
+                  .typeCode(PolarisEntityType.TABLE_LIKE.getCode())
+                  .subTypeCode(PolarisEntitySubType.ICEBERG_TABLE.getCode())
+                  .name(TABLE2.name())
+                  .build());
+    }
+    ResolvedPolarisEntity resolvedTableEntity =
+        new ResolvedPolarisEntity(diagnostics, leafEntity, List.of(), 0);
+    // The resolved-path list must have one entry per ResolvedPathKey.entityNames() segment (here,
+    // the "ns1" namespace and the "table2" leaf) or the adapter's partial-resolve check (mirroring
+    // the retired manifest's same check) treats it as a not-found optional path.
+    PolarisEntity namespaceEntity =
+        new PolarisEntity(
+            new PolarisBaseEntity.Builder()
+                .typeCode(PolarisEntityType.NAMESPACE.getCode())
+                .name(NS1.levels()[0])
+                .build());
+    ResolvedPolarisEntity resolvedNamespaceEntity =
+        new ResolvedPolarisEntity(diagnostics, namespaceEntity, List.of(), 0);
+    PolarisEntity catalogRawEntity =
+        new PolarisEntity(
+            new PolarisBaseEntity.Builder()
+                .typeCode(PolarisEntityType.CATALOG.getCode())
+                .name(CATALOG_NAME)
+                .build());
+    ResolvedPolarisEntity resolvedCatalogEntity =
+        new ResolvedPolarisEntity(diagnostics, catalogRawEntity, List.of(), 0);
+    ResolutionResult resolutionResult =
+        new ResolutionResult(
+            new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS),
+            null,
+            List.of(),
+            resolvedCatalogEntity,
+            null,
+            Map.of(
+                ResolvedPathKey.ofTableLike(TABLE2),
+                List.of(resolvedNamespaceEntity, resolvedTableEntity)),
+            Map.of());
+    EntityResolver entityResolver = mock(EntityResolver.class);
+    when(entityResolver.resolve(any())).thenReturn(resolutionResult);
 
     // Grant the decision-native per-op check so authorizeLoadTable's write-delegation probe yields
     // a non-null decision; these tests exercise credential loading, not the authz outcome.
@@ -122,9 +154,9 @@ class IcebergCatalogHandlerTest {
         .polarisPrincipal(PolarisPrincipal.of("test", Map.of(), Set.of()))
         .callContext(callContext)
         .metaStoreManager(mock(PolarisMetaStoreManager.class))
-        .resolutionManifestFactory(resolutionManifestFactory)
+        .entityResolver(entityResolver)
         .authorizer(authorizer)
-        .diagnostics(mock(PolarisDiagnostics.class))
+        .diagnostics(diagnostics)
         .credentialManager(mock(PolarisCredentialManager.class))
         .federatedCatalogFactories(mock(Instance.class))
         .prefixParser(mock(CatalogPrefixParser.class))

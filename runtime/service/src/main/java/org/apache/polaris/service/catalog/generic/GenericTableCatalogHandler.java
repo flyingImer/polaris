@@ -55,7 +55,7 @@ public abstract class GenericTableCatalogHandler extends CatalogHandler {
 
   @Override
   protected void initializeCatalog() {
-    CatalogEntity resolvedCatalogEntity = resolutionManifest.getResolvedCatalogEntity();
+    CatalogEntity resolvedCatalogEntity = resolvedEntityView.getResolvedCatalogEntity();
     ConnectionConfigInfoDpo connectionConfigInfoDpo =
         resolvedCatalogEntity.getConnectionConfigInfoDpo();
     if (connectionConfigInfoDpo != null) {
@@ -91,7 +91,7 @@ public abstract class GenericTableCatalogHandler extends CatalogHandler {
       LOGGER.atInfo().log("Initializing non-federated catalog");
       this.genericTableCatalog =
           new PolarisGenericTableCatalog(
-              metaStoreManager(), callContext(), this.resolutionManifest);
+              metaStoreManager(), callContext(), this.resolvedEntityView);
       this.genericTableCatalog.initialize(catalogName(), Map.of());
     }
   }

@@ -24,13 +24,13 @@ import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 @RequestScoped
 public class PolicyCatalogHandlerFactory {
 
   @Inject CallContext callContext;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
+  @Inject EntityResolver entityResolver;
   @Inject PolarisMetaStoreManager metaStoreManager;
   @Inject PolarisAuthorizer authorizer;
 
@@ -39,7 +39,7 @@ public class PolicyCatalogHandlerFactory {
         .catalogName(catalogName)
         .polarisPrincipal(principal)
         .callContext(callContext)
-        .resolutionManifestFactory(resolutionManifestFactory)
+        .entityResolver(entityResolver)
         .metaStoreManager(metaStoreManager)
         .authorizer(authorizer)
         .build();
