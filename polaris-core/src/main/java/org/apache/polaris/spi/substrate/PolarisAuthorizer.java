@@ -16,11 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.spi.substrate;
 
 import java.util.List;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.polaris.core.auth.AuthorizationDecision;
+import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
+import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.jspecify.annotations.NonNull;

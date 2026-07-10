@@ -35,7 +35,6 @@ import org.apache.polaris.core.auth.AuthorizationIntent;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.auth.RenameAuthorizationIntent;
@@ -57,6 +56,7 @@ import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.immutables.value.Value;
 
 /**

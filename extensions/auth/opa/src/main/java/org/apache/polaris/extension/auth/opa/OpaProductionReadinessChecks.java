@@ -24,9 +24,9 @@ import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.config.ProductionReadinessCheck;
 import org.apache.polaris.core.config.ProductionReadinessCheck.Error;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @ApplicationScoped

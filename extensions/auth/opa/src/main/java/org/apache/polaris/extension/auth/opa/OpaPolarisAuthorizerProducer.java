@@ -32,11 +32,11 @@ import java.time.Clock;
 import java.time.Duration;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.extension.auth.opa.token.BearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.FileBearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.StaticBearerTokenProvider;
 import org.apache.polaris.nosql.async.AsyncExec;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

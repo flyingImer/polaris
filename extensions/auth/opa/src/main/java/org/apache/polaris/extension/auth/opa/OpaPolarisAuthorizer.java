@@ -44,7 +44,6 @@ import org.apache.polaris.core.auth.AuthorizationIntent;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.auth.PolicyAttachmentAuthorizationIntent;
@@ -65,6 +64,7 @@ import org.apache.polaris.extension.auth.opa.model.ImmutableResource;
 import org.apache.polaris.extension.auth.opa.model.ImmutableResourceEntity;
 import org.apache.polaris.extension.auth.opa.model.ResourceEntity;
 import org.apache.polaris.extension.auth.opa.token.BearerTokenProvider;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

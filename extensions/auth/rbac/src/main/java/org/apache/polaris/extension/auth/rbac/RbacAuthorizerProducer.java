@@ -22,9 +22,9 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.inject.Produces;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 
 /**
  * Produces the built-in RBAC Polaris authorizer under the {@code "internal"} identifier.

@@ -43,7 +43,6 @@ import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationRequest;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.config.RealmConfig;
@@ -70,6 +69,7 @@ import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.junit.jupiter.api.Test;
 
 class IcebergCatalogHandlerTest {

@@ -22,13 +22,13 @@ import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
-import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 
 @RequestScoped
 public class GenericTableCatalogHandlerFactory {
