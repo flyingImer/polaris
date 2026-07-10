@@ -19,7 +19,6 @@
 package org.apache.polaris.extension.auth.opa;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.Mockito.mock;
 
 import java.io.IOException;
 import java.net.URI;
@@ -27,19 +26,17 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.time.Clock;
 import java.time.Duration;
-import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.extension.auth.opa.token.FileBearerTokenProvider;
 import org.apache.polaris.nosql.async.java.JavaPoolAsyncExec;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 
-public class OpaPolarisAuthorizerFactoryTest {
+public class OpaPolarisAuthorizerProducerTest {
 
   @TempDir Path tempDir;
 
   @Test
-  public void testFactoryWithStaticTokenConfiguration() {
+  public void testProducerWithStaticTokenConfiguration() {
     // Build configuration for static token
     OpaAuthorizationConfig opaConfig =
         ImmutableOpaAuthorizationConfig.builder()
@@ -63,20 +60,18 @@ public class OpaPolarisAuthorizerFactoryTest {
             .build();
 
     try (JavaPoolAsyncExec asyncExec = new JavaPoolAsyncExec()) {
-      OpaPolarisAuthorizerFactory factory =
-          new OpaPolarisAuthorizerFactory(opaConfig, Clock.systemUTC(), asyncExec);
+      OpaPolarisAuthorizerProducer producer =
+          new OpaPolarisAuthorizerProducer(opaConfig, Clock.systemUTC(), asyncExec);
 
       // Create authorizer
-      RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer =
-          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
+      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) producer.opaAuthorizer();
 
       assertThat(authorizer).isNotNull();
     }
   }
 
   @Test
-  public void testFactoryWithFileBasedTokenConfiguration() throws IOException {
+  public void testProducerWithFileBasedTokenConfiguration() throws IOException {
     // Create a temporary token file
     Path tokenFile = tempDir.resolve("bearer-token.txt");
     String tokenValue = "file-based-token-value";
@@ -108,13 +103,11 @@ public class OpaPolarisAuthorizerFactoryTest {
             .build();
 
     try (JavaPoolAsyncExec asyncExec = new JavaPoolAsyncExec()) {
-      OpaPolarisAuthorizerFactory factory =
-          new OpaPolarisAuthorizerFactory(opaConfig, Clock.systemUTC(), asyncExec);
+      OpaPolarisAuthorizerProducer producer =
+          new OpaPolarisAuthorizerProducer(opaConfig, Clock.systemUTC(), asyncExec);
 
       // Create authorizer
-      RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer =
-          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
+      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) producer.opaAuthorizer();
 
       assertThat(authorizer).isNotNull();
 
@@ -136,7 +129,7 @@ public class OpaPolarisAuthorizerFactoryTest {
   }
 
   @Test
-  public void testFactoryWithNoTokenConfiguration() {
+  public void testProducerWithNoTokenConfiguration() {
     // Build configuration with no authentication
     OpaAuthorizationConfig opaConfig =
         ImmutableOpaAuthorizationConfig.builder()
@@ -153,13 +146,11 @@ public class OpaPolarisAuthorizerFactoryTest {
             .build();
 
     try (JavaPoolAsyncExec asyncExec = new JavaPoolAsyncExec()) {
-      OpaPolarisAuthorizerFactory factory =
-          new OpaPolarisAuthorizerFactory(opaConfig, Clock.systemUTC(), asyncExec);
+      OpaPolarisAuthorizerProducer producer =
+          new OpaPolarisAuthorizerProducer(opaConfig, Clock.systemUTC(), asyncExec);
 
       // Create authorizer
-      RealmConfig realmConfig = mock(RealmConfig.class);
-      OpaPolarisAuthorizer authorizer =
-          (OpaPolarisAuthorizer) factory.create(realmConfig, mock(EntityResolver.class));
+      OpaPolarisAuthorizer authorizer = (OpaPolarisAuthorizer) producer.opaAuthorizer();
 
       assertThat(authorizer).isNotNull();
     }

@@ -40,7 +40,6 @@ import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigImpl;
@@ -164,16 +163,6 @@ public class ServiceProducers {
   }
 
   @Produces
-  @ApplicationScoped
-  public PolarisAuthorizerFactory polarisAuthorizerFactory(
-      AuthorizationConfiguration authorizationConfig,
-      @Any Instance<PolarisAuthorizerFactory> authorizerFactories) {
-    PolarisAuthorizerFactory factory =
-        authorizerFactories.select(Identifier.Literal.of(authorizationConfig.type())).get();
-    return factory;
-  }
-
-  @Produces
   @RequestScoped
   public EntityResolver entityResolver(ResolverFactory resolverFactory) {
     return new DefaultEntityResolver(resolverFactory);
@@ -182,8 +171,11 @@ public class ServiceProducers {
   @Produces
   @RequestScoped
   public PolarisAuthorizer polarisAuthorizer(
-      PolarisAuthorizerFactory factory, RealmConfig realmConfig, EntityResolver entityResolver) {
-    return factory.create(realmConfig, entityResolver);
+      AuthorizationConfiguration authorizationConfig,
+      @Any Instance<PolarisAuthorizer> authorizers) {
+    // Select the active authorizer from the @Identifier-annotated PolarisAuthorizer producer beans
+    // (internal / opa / ranger). Return the selected bean directly; do not cast an injected proxy.
+    return authorizers.select(Identifier.Literal.of(authorizationConfig.type())).get();
   }
 
   @Produces

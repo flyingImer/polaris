@@ -20,25 +20,38 @@ package org.apache.polaris.extension.auth.ranger;
 
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import java.util.Properties;
 import org.apache.commons.lang3.StringUtils;
-import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.ranger.authz.api.RangerAuthzException;
 import org.apache.ranger.authz.embedded.RangerEmbeddedAuthorizer;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+/**
+ * Produces the Apache Ranger-based Polaris authorizer under the {@code "ranger"} identifier.
+ *
+ * <p>The heavy, once-per-application setup (config validation and embedded Ranger authorizer
+ * initialization) runs eagerly in this {@link ApplicationScoped} bean's constructor and fails fast
+ * if Ranger cannot be initialized, exactly as the former {@code RangerPolarisAuthorizerFactory}
+ * constructor did. The produced authorizer carries per-request realm state ({@link RealmConfig} and
+ * {@link RealmContext}), so it is produced {@link RequestScoped} from the pre-initialized embedded
+ * authorizer.
+ *
+ * <p>Boot-time fail-fast is preserved by {@code RangerProductionReadinessChecks}, which eagerly
+ * resolves this producer bean at startup when Ranger is the active authorization type, forcing the
+ * constructor initialization at boot.
+ */
 @ApplicationScoped
-@Identifier("ranger")
-public class RangerPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
-  private static final Logger LOG = LoggerFactory.getLogger(RangerPolarisAuthorizerFactory.class);
+public class RangerPolarisAuthorizerProducer {
+  private static final Logger LOG = LoggerFactory.getLogger(RangerPolarisAuthorizerProducer.class);
 
   private static final String ERR_AUTHORIZER_FACTORY_NOT_INITIALIZED =
-      "Ranger authorizer factory was not initialized successfully";
+      "Ranger authorizer was not initialized successfully";
 
   private final RangerPolarisAuthorizerConfig config;
   private RangerEmbeddedAuthorizer authorizer;
@@ -46,7 +59,7 @@ public class RangerPolarisAuthorizerFactory implements PolarisAuthorizerFactory 
   @Inject private RealmContext realmContext;
 
   @Inject
-  RangerPolarisAuthorizerFactory(RangerPolarisAuthorizerConfig config) {
+  RangerPolarisAuthorizerProducer(RangerPolarisAuthorizerConfig config) {
     this.config = config;
     config.validate();
     LOG.info("Initializing RangerAuthorizer");
@@ -60,12 +73,14 @@ public class RangerPolarisAuthorizerFactory implements PolarisAuthorizerFactory 
       throw new RuntimeException("Failed to initialize RangerPolarisAuthorizer", t);
     }
     LOG.info("RangerAuthorizer initialized successfully");
-    LOG.debug("RangerPolarisAuthorizerFactory has been activated.");
+    LOG.debug("RangerPolarisAuthorizerProducer has been activated.");
   }
 
-  @Override
-  public RangerPolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
-    // Ranger evaluates against its own policy store, so the EntityResolver is unused here.
+  @Produces
+  @RequestScoped
+  @Identifier("ranger")
+  public RangerPolarisAuthorizer rangerAuthorizer(RealmConfig realmConfig) {
+    // Ranger evaluates against its own policy store, so no EntityResolver is composed here.
     LOG.debug("Creating RangerPolarisAuthorizer");
 
     if (authorizer == null || StringUtils.isBlank(serviceName)) {

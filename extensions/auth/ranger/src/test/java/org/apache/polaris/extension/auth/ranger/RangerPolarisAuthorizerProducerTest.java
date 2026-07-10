@@ -24,18 +24,15 @@ import static org.apache.polaris.extension.auth.ranger.RangerTestUtils.createRea
 import static org.apache.polaris.extension.auth.ranger.RangerTestUtils.createRealmContext;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
-import static org.mockito.Mockito.mock;
 
 import java.util.Collections;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.junit.jupiter.api.Test;
 
-public class RangerPolarisAuthorizerFactoryTest {
+public class RangerPolarisAuthorizerProducerTest {
   @Test
   public void testAuthorizerInstantiation() {
-    RangerPolarisAuthorizerFactory factory = new RangerPolarisAuthorizerFactory(createConfig());
-    RangerPolarisAuthorizer authorizer =
-        factory.create(createRealmConfig(), mock(EntityResolver.class));
+    RangerPolarisAuthorizerProducer producer = new RangerPolarisAuthorizerProducer(createConfig());
+    RangerPolarisAuthorizer authorizer = producer.rangerAuthorizer(createRealmConfig());
     assertNotNull(authorizer);
     authorizer.setRealmContext(createRealmContext());
   }

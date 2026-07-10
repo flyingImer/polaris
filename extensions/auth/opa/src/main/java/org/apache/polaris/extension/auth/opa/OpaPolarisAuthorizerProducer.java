@@ -24,6 +24,7 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.annotation.PostConstruct;
 import jakarta.annotation.PreDestroy;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Produces;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.net.URI;
@@ -32,9 +33,6 @@ import java.time.Duration;
 import org.apache.hc.client5.http.impl.classic.CloseableHttpClient;
 import org.apache.hc.client5.http.impl.classic.HttpClients;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
-import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.extension.auth.opa.token.BearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.FileBearerTokenProvider;
 import org.apache.polaris.extension.auth.opa.token.StaticBearerTokenProvider;
@@ -42,12 +40,25 @@ import org.apache.polaris.nosql.async.AsyncExec;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-/** Factory for creating OPA-based Polaris authorizer implementations. */
+/**
+ * Produces the OPA-based Polaris authorizer under the {@code "opa"} identifier.
+ *
+ * <p>The heavy, once-per-application setup (config validation, HTTP client creation, bearer-token
+ * provider wiring) lives on this {@link ApplicationScoped} bean and runs in {@link
+ * #initialize() @PostConstruct}, so it happens exactly once and fails fast when the bean is first
+ * realized. The produced authorizer carries no request state (OPA forwards the request's names to
+ * the policy server), so it is itself {@link ApplicationScoped} and built once from the
+ * pre-initialized resources. Resource cleanup runs in {@link #cleanup() @PreDestroy}.
+ *
+ * <p>Boot-time fail-fast is preserved by {@code OpaProductionReadinessChecks}, which eagerly
+ * resolves the {@code @Identifier("opa")} authorizer at startup when OPA is the active
+ * authorization type, forcing this bean's {@code @PostConstruct} validation at boot exactly as the
+ * former {@code OpaPolarisAuthorizerFactory} did.
+ */
 @ApplicationScoped
-@Identifier("opa")
-class OpaPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
+public class OpaPolarisAuthorizerProducer {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(OpaPolarisAuthorizerFactory.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(OpaPolarisAuthorizerProducer.class);
 
   private final OpaAuthorizationConfig opaConfig;
   private final Clock clock;
@@ -57,21 +68,12 @@ class OpaPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
   private BearerTokenProvider bearerTokenProvider;
 
   @Inject
-  public OpaPolarisAuthorizerFactory(
+  public OpaPolarisAuthorizerProducer(
       OpaAuthorizationConfig opaConfig, Clock clock, AsyncExec asyncExec) {
     this.opaConfig = opaConfig;
     this.clock = clock;
     this.asyncExec = asyncExec;
     this.objectMapper = JsonMapper.builder().build();
-  }
-
-  /**
-   * Gets the OPA authorization configuration. Used by OpaProductionReadinessCheck
-   *
-   * @return the OPA configuration
-   */
-  OpaAuthorizationConfig getConfig() {
-    return opaConfig;
   }
 
   @PostConstruct
@@ -86,10 +88,12 @@ class OpaPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
     setupAuthentication(opaConfig.auth());
   }
 
-  @Override
-  public PolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
-    // OPA forwards the request's names to the policy server, so the EntityResolver is unused here.
-    // All components are now pre-initialized, just create the authorizer
+  @Produces
+  @ApplicationScoped
+  @Identifier("opa")
+  public PolarisAuthorizer opaAuthorizer() {
+    // OPA forwards the request's names to the policy server, so there is no per-request state.
+    // All components are pre-initialized in @PostConstruct; just create the authorizer.
     URI policyUri =
         opaConfig
             .policyUri()

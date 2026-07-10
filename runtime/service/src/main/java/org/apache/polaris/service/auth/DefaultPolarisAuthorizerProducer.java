@@ -20,19 +20,29 @@ package org.apache.polaris.service.auth;
 
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.context.RequestScoped;
+import jakarta.enterprise.inject.Produces;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
 import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
-/** Factory for creating the default Polaris authorizer implementation. */
+/**
+ * Produces the default in-process Polaris authorizer under the {@code "internal"} identifier.
+ *
+ * <p>The default authorizer composes the request-scoped {@link RealmConfig} and {@link
+ * EntityResolver} directly, so it is produced per request. It has no heavy initialization and no
+ * boot-time readiness requirement (the previous {@code DefaultPolarisAuthorizerFactory} had a
+ * trivial constructor with no validation).
+ */
 @ApplicationScoped
-@Identifier("internal")
-class DefaultPolarisAuthorizerFactory implements PolarisAuthorizerFactory {
+public class DefaultPolarisAuthorizerProducer {
 
-  @Override
-  public PolarisAuthorizer create(RealmConfig realmConfig, EntityResolver entityResolver) {
+  @Produces
+  @RequestScoped
+  @Identifier("internal")
+  public PolarisAuthorizer internalAuthorizer(
+      RealmConfig realmConfig, EntityResolver entityResolver) {
     return new PolarisAuthorizerImpl(realmConfig, entityResolver);
   }
 }
