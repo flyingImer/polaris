@@ -102,7 +102,7 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
 
   /**
    * A version of BaseMetaStoreManager::persistNewEntity but instead of calling the one-shot
-   * immediate-peristence APIs of BasePersistence, expects to be run under an outer
+   * immediate-peristence APIs of DurablePrimitives, expects to be run under an outer
    * runInTransaction, and calls through to analogous versions of * methods of
    * TransactionalPersistence.
    *
@@ -124,7 +124,7 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
 
   /**
    * A version of BaseMetaStoreManager::persistEntityAfterChange but instead of calling the one-shot
-   * immediate-peristence APIs of BasePersistence, expects to be run under an outer
+   * immediate-peristence APIs of DurablePrimitives, expects to be run under an outer
    * runInTransaction, and calls through to analogous versions of * methods of
    * TransactionalPersistence.
    *

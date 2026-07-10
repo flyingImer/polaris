@@ -65,7 +65,7 @@ The repository is organized into the following groups of Gradle modules. Each le
   - `polaris-runtime-common`, `polaris-runtime-test-common` - shared runtime and test utilities
   - `polaris-runtime-spark-tests` - integration tests for the Spark plugin
 - **Persistence**
-  - `polaris-relational-jdbc` - JDBC implementation of `BasePersistence`
+  - `polaris-relational-jdbc` - JDBC implementation of `DurablePrimitives`
 - **Extensions**
   - [`polaris-extensions-federation-hive`](./extensions/federation/hive/README.md), `polaris-extensions-federation-hadoop`, `polaris-extensions-federation-bigquery` - catalog federation
   - `polaris-extensions-auth-opa`, `polaris-extensions-auth-ranger` (plus `*-tests`) - external authorization

@@ -21,13 +21,13 @@ package org.apache.polaris.core.entity;
 
 import java.util.List;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.jspecify.annotations.NonNull;
 
 public interface PolarisEventManager {
   default void writeEvents(
       @NonNull PolarisCallContext callCtx, @NonNull List<EventEntity> polarisEvents) {
-    BasePersistence ms = callCtx.getMetaStore();
+    DurablePrimitives ms = callCtx.getMetaStore();
     ms.writeEvents(polarisEvents);
   }
 }

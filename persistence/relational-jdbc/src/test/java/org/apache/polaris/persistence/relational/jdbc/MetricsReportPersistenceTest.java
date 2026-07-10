@@ -34,12 +34,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Integration tests for metrics report persistence using JdbcBasePersistenceImpl. Tests the
+ * Integration tests for metrics report persistence using JdbcDurablePrimitivesImpl. Tests the
  * SPI-level write operations for scan and commit metrics reports.
  */
 class MetricsReportPersistenceTest {
 
-  private JdbcBasePersistenceImpl metricsPersistence;
+  private JdbcDurablePrimitivesImpl metricsPersistence;
   private DataSource dataSource;
 
   @BeforeEach
@@ -59,7 +59,7 @@ class MetricsReportPersistenceTest {
     PolarisDiagnostics diagnostics = new PolarisDefaultDiagServiceImpl();
 
     metricsPersistence =
-        new JdbcBasePersistenceImpl(
+        new JdbcDurablePrimitivesImpl(
             diagnostics,
             datasourceOperations,
             PrincipalSecretsGenerator.RANDOM_SECRETS,

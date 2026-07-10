@@ -76,7 +76,7 @@ public abstract class BaseMetaStoreManager
    */
   protected PolarisBaseEntity prepareToPersistNewEntity(
       @NonNull PolarisCallContext callCtx,
-      @NonNull BasePersistence ms,
+      @NonNull DurablePrimitives ms,
       @NonNull PolarisBaseEntity entity) {
 
     // validate the entity type and subtype
@@ -134,7 +134,7 @@ public abstract class BaseMetaStoreManager
    */
   protected @NonNull PolarisBaseEntity prepareToPersistEntityAfterChange(
       @NonNull PolarisCallContext callCtx,
-      @NonNull BasePersistence ms,
+      @NonNull DurablePrimitives ms,
       @NonNull PolarisBaseEntity entity,
       boolean nameOrParentChanged,
       @NonNull PolarisBaseEntity originalEntity) {
@@ -177,7 +177,7 @@ public abstract class BaseMetaStoreManager
   @Override
   public @NonNull GenerateEntityIdResult generateNewEntityId(@NonNull PolarisCallContext callCtx) {
     // get meta store we should be using
-    BasePersistence ms = callCtx.getMetaStore();
+    DurablePrimitives ms = callCtx.getMetaStore();
 
     return new GenerateEntityIdResult(ms.generateNewId(callCtx));
   }

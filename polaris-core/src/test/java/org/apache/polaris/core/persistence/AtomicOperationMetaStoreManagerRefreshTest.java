@@ -49,14 +49,14 @@ public class AtomicOperationMetaStoreManagerRefreshTest {
   private static final String ENTITY_NAME = "catalog_admin";
 
   private PolarisDiagnostics diagnostics;
-  private BasePersistence metaStore;
+  private DurablePrimitives metaStore;
   private PolarisCallContext callCtx;
   private AtomicOperationMetaStoreManager manager;
 
   @BeforeEach
   public void setUp() {
     diagnostics = new PolarisDefaultDiagServiceImpl();
-    metaStore = Mockito.mock(BasePersistence.class);
+    metaStore = Mockito.mock(DurablePrimitives.class);
     callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
     manager = new AtomicOperationMetaStoreManager(Clock.systemUTC(), diagnostics);
   }

@@ -69,8 +69,8 @@ class JdbcGrantRecordsIdempotencyTest {
       throw new RuntimeException(e);
     }
 
-    JdbcBasePersistenceImpl basePersistence =
-        new JdbcBasePersistenceImpl(
+    JdbcDurablePrimitivesImpl basePersistence =
+        new JdbcDurablePrimitivesImpl(
             new PolarisDefaultDiagServiceImpl(),
             datasourceOperations,
             RANDOM_SECRETS,
@@ -111,8 +111,8 @@ class JdbcGrantRecordsIdempotencyTest {
         .isUniquenessConstraintViolation(any(SQLException.class));
 
     int schemaVersion = 4;
-    JdbcBasePersistenceImpl basePersistence =
-        new JdbcBasePersistenceImpl(
+    JdbcDurablePrimitivesImpl basePersistence =
+        new JdbcDurablePrimitivesImpl(
             new PolarisDefaultDiagServiceImpl(),
             datasourceOperations,
             RANDOM_SECRETS,

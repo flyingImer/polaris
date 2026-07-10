@@ -37,7 +37,7 @@ public interface Obj {
 
   // Note on the JsonView annotations used here:
   //
-  // BasePersistence.serializeObj() does not serialize the attributes type, id, createdAtMicros,
+  // DurablePrimitives.serializeObj() does not serialize the attributes type, id, createdAtMicros,
   // versionToken, because those are either part of the key in the database or available via
   // distinct database columns/attributes, so it is unnecessary to serialize those again.
 

@@ -51,7 +51,7 @@ import org.apache.polaris.core.entity.PolarisEntityUtils;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
 import org.apache.polaris.core.persistence.IntegrationPersistence;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
@@ -83,10 +83,10 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class JdbcBasePersistenceImpl
-    implements BasePersistence, IntegrationPersistence, MetricsPersistence {
+public class JdbcDurablePrimitivesImpl
+    implements DurablePrimitives, IntegrationPersistence, MetricsPersistence {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(JdbcBasePersistenceImpl.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(JdbcDurablePrimitivesImpl.class);
 
   private final PolarisDiagnostics diagnostics;
   private final DatasourceOperations datasourceOperations;
@@ -97,7 +97,7 @@ public class JdbcBasePersistenceImpl
   // The max number of components a location can have before the optimized sibling check is not used
   private static final int MAX_LOCATION_COMPONENTS = 40;
 
-  public JdbcBasePersistenceImpl(
+  public JdbcDurablePrimitivesImpl(
       PolarisDiagnostics diagnostics,
       DatasourceOperations databaseOperations,
       PrincipalSecretsGenerator secretsGenerator,

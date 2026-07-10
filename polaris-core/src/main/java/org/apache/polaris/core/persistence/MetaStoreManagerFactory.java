@@ -28,11 +28,11 @@ public interface MetaStoreManagerFactory {
 
   PolarisMetaStoreManager getOrCreateMetaStoreManager(RealmContext realmContext);
 
-  BasePersistence getOrCreateSession(RealmContext realmContext);
+  DurablePrimitives getOrCreateSession(RealmContext realmContext);
 
   /**
    * Returns the per-realm {@link MetricsPersistence}. This SPI is decoupled from {@link
-   * BasePersistence} so backends that do not implement metrics persistence can simply return a
+   * DurablePrimitives} so backends that do not implement metrics persistence can simply return a
    * no-op instance.
    */
   MetricsPersistence getOrCreateMetricsPersistence(RealmContext realmContext);

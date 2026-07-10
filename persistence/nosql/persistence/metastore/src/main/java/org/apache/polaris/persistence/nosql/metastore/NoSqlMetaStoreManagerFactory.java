@@ -42,7 +42,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
@@ -130,7 +130,7 @@ class NoSqlMetaStoreManagerFactory implements MetaStoreManagerFactory, RealmProv
   }
 
   @Override
-  public BasePersistence getOrCreateSession(RealmContext realmContext) {
+  public DurablePrimitives getOrCreateSession(RealmContext realmContext) {
     return newPersistenceMetaStore(initializedRealmPersistence(realmContext.getRealmIdentifier()));
   }
 

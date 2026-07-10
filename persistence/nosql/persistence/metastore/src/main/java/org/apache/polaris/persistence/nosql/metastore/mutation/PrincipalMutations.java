@@ -262,7 +262,7 @@ public abstract class PrincipalMutations<RESULT> implements PrincipalsChangeComm
   }
 
   // TODO remove this?
-  //  The code is not accessible via PolarisMetaStoreManager, would only be via BasePersistence.
+  //  The code is not accessible via PolarisMetaStoreManager, would only be via DurablePrimitives.
   public static final class GenerateNewSecrets extends PrincipalMutations<PolarisPrincipalSecrets> {
     private final String principalName;
     private final long principalId;

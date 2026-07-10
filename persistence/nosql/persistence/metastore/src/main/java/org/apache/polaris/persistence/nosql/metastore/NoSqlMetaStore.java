@@ -137,7 +137,7 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-class NoSqlMetaStore extends NonFunctionalBasePersistence {
+class NoSqlMetaStore extends NonFunctionalDurablePrimitives {
   private static final Logger LOGGER = LoggerFactory.getLogger(NoSqlMetaStore.class);
 
   private final Persistence persistence;

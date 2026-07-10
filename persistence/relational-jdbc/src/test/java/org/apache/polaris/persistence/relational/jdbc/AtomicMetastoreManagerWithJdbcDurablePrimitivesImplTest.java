@@ -45,7 +45,7 @@ import org.assertj.core.api.Assumptions;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.jupiter.api.Test;
 
-public abstract class AtomicMetastoreManagerWithJdbcBasePersistenceImplTest
+public abstract class AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest
     extends BasePolarisMetaStoreManagerTest {
 
   protected DatabaseType databaseType() {
@@ -95,8 +95,8 @@ public abstract class AtomicMetastoreManagerWithJdbcBasePersistenceImplTest
     }
 
     RealmContext realmContext = () -> "REALM";
-    JdbcBasePersistenceImpl basePersistence =
-        new JdbcBasePersistenceImpl(
+    JdbcDurablePrimitivesImpl basePersistence =
+        new JdbcDurablePrimitivesImpl(
             diagServices,
             datasourceOperations,
             RANDOM_SECRETS,

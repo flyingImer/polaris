@@ -33,7 +33,7 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.IntegrationPersistence;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -45,8 +45,9 @@ import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-abstract class NonFunctionalBasePersistence implements BasePersistence, IntegrationPersistence {
-  private static final Logger LOGGER = LoggerFactory.getLogger(NonFunctionalBasePersistence.class);
+abstract class NonFunctionalDurablePrimitives implements DurablePrimitives, IntegrationPersistence {
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(NonFunctionalDurablePrimitives.class);
 
   @Override
   public long generateNewId(@NonNull PolarisCallContext callCtx) {
@@ -339,7 +340,7 @@ abstract class NonFunctionalBasePersistence implements BasePersistence, Integrat
   }
 
   @Override
-  public BasePersistence detach() {
+  public DurablePrimitives detach() {
     throw unimplemented();
   }
 

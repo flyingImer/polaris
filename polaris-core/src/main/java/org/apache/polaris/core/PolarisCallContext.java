@@ -24,14 +24,14 @@ import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.jspecify.annotations.NonNull;
 
 /**
  * The Call context is allocated each time a new REST request is processed. It contains instances of
  * low-level services required to process that request.
  *
- * <p>{@link BasePersistence} carries the bulk of the metastore SPI surface (and still extends
+ * <p>{@link DurablePrimitives} carries the bulk of the metastore SPI surface (and still extends
  * {@code PolicyMappingPersistence} / acts as the {@code IntegrationPersistence} via a runtime cast
  * for now). {@link org.apache.polaris.core.persistence.metrics.MetricsPersistence} is intentionally
  * kept out of this context; service code that needs metrics persistence should depend on that SPI
@@ -40,27 +40,27 @@ import org.jspecify.annotations.NonNull;
 public class PolarisCallContext implements CallContext {
 
   // meta store which is used to persist Polaris entity metadata
-  private final BasePersistence metaStore;
+  private final DurablePrimitives metaStore;
   private final RealmConfigurationSource configurationSource;
   private final RealmContext realmContext;
   private final RealmConfig realmConfig;
 
   /**
-   * @deprecated Use {@link PolarisCallContext#PolarisCallContext(RealmContext, BasePersistence,
+   * @deprecated Use {@link PolarisCallContext#PolarisCallContext(RealmContext, DurablePrimitives,
    *     RealmConfigurationSource)}.
    */
   @SuppressWarnings("removal")
   @Deprecated(forRemoval = true)
   public PolarisCallContext(
       @NonNull RealmContext realmContext,
-      @NonNull BasePersistence metaStore,
+      @NonNull DurablePrimitives metaStore,
       @NonNull PolarisConfigurationStore configurationStore) {
     this(realmContext, metaStore, configurationStore::getConfiguration);
   }
 
   public PolarisCallContext(
       @NonNull RealmContext realmContext,
-      @NonNull BasePersistence metaStore,
+      @NonNull DurablePrimitives metaStore,
       @NonNull RealmConfigurationSource configurationSource) {
     this.realmContext = realmContext;
     this.metaStore = metaStore;
@@ -70,11 +70,11 @@ public class PolarisCallContext implements CallContext {
 
   /** Convenience constructor that defaults to {@link RealmConfigurationSource#EMPTY_CONFIG}. */
   public PolarisCallContext(
-      @NonNull RealmContext realmContext, @NonNull BasePersistence metaStore) {
+      @NonNull RealmContext realmContext, @NonNull DurablePrimitives metaStore) {
     this(realmContext, metaStore, RealmConfigurationSource.EMPTY_CONFIG);
   }
 
-  public BasePersistence getMetaStore() {
+  public DurablePrimitives getMetaStore() {
     return metaStore;
   }
 

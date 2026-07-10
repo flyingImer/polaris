@@ -49,4 +49,4 @@ This ensures that each realm's data is stored separately.
 **Authentication and Authorization:** For example, in `DefaultAuthenticator`, `RealmContext` is used to provide context about the current security domain, which is used to retrieve the correct `PolarisMetastoreManager` that manages all Polaris entities and associated grant records metadata for
 authorization.
 
-**Isolation:** In classes like `JdbcBasePersistenceImpl`, the realm id from the realm context is part of the primary key to manage entities of realms in isolation (within the same database instance).
+**Isolation:** In classes like `JdbcDurablePrimitivesImpl`, the realm id from the realm context is part of the primary key to manage entities of realms in isolation (within the same database instance).

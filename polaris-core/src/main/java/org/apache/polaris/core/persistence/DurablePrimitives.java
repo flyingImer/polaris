@@ -56,9 +56,9 @@ import org.jspecify.annotations.Nullable;
  * <p>Metrics-related persistence is intentionally decoupled and lives in {@code
  * MetricsPersistence}. A concrete backend may implement both SPIs on the same class, but callers
  * that only need metrics persistence should depend on {@code MetricsPersistence} directly rather
- * than on {@link BasePersistence}.
+ * than on {@link DurablePrimitives}.
  */
-public interface BasePersistence extends PolicyMappingPersistence {
+public interface DurablePrimitives extends PolicyMappingPersistence {
   /**
    * The returned id must be fully unique within a realm and never reused once generated, whether or
    * not anything ends up committing an entity with the generated id.
@@ -414,13 +414,13 @@ public interface BasePersistence extends PolicyMappingPersistence {
   }
 
   /**
-   * Performs operations necessary to isolate the state of {@code this} {@link BasePersistence}
+   * Performs operations necessary to isolate the state of {@code this} {@link DurablePrimitives}
    * instance from the state of the returned instance as far as multithreaded usage is concerned. If
    * the implementation has state that is not supposed to be accessed or modified by multiple
    * threads, it may return a copy from this method. If the implementation is thread-safe, it may
    * return {@code this}.
    */
-  default BasePersistence detach() {
+  default DurablePrimitives detach() {
     return this;
   }
 }

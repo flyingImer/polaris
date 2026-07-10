@@ -101,7 +101,7 @@ public class TestCachingInMemoryPersist extends AbstractPersistenceTests {
       verify(cachedPersist).fetch(id, SimpleTestObj.class);
       verify(backing).fetch(id, SimpleTestObj.class);
       verify(backing).fetchMany(same(SimpleTestObj.class), any());
-      // BasePersistence calls 'doFetch()', which is protected and not accessible from this test
+      // DurablePrimitives calls 'doFetch()', which is protected and not accessible from this test
       // verifyNoMoreInteractions(backing);
       verifyNoMoreInteractions(cachedPersist);
       reset(backing, cachedPersist);
@@ -111,7 +111,7 @@ public class TestCachingInMemoryPersist extends AbstractPersistenceTests {
       verify(cachedPersist).fetch(id, SimpleTestObj.class);
       verify(backing).fetch(id, SimpleTestObj.class);
       verify(backing).fetchMany(same(SimpleTestObj.class), any());
-      // BasePersistence calls 'doFetch()', which is protected and not accessible from this test
+      // DurablePrimitives calls 'doFetch()', which is protected and not accessible from this test
       // verifyNoMoreInteractions(backing);
       verifyNoMoreInteractions(cachedPersist);
       reset(backing, cachedPersist);

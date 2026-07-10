@@ -50,7 +50,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.entity.PolarisEventManager;
-import org.apache.polaris.core.persistence.BasePersistence;
+import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
@@ -145,7 +145,7 @@ public class ServiceProducers {
       RealmContext realmContext,
       RealmConfigurationSource configurationSource,
       MetaStoreManagerFactory metaStoreManagerFactory) {
-    BasePersistence metaStore = metaStoreManagerFactory.getOrCreateSession(realmContext);
+    DurablePrimitives metaStore = metaStoreManagerFactory.getOrCreateSession(realmContext);
     return new PolarisCallContext(realmContext, metaStore, configurationSource);
   }
 

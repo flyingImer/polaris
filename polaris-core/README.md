@@ -38,7 +38,7 @@ Polaris has several different entities defined in `PolarisEntityType`. You can f
 Polaris uses a role-based access control (RBAC) model. `PolarisPrivilege` defines the available privileges. The RBAC model is implemented in `PolarisAuthorizer`. For more information on authorization, see the package `org.apache.polaris.core.auth`.
 
 ### Common Persistence Logic
-To store entities, Polaris provides a persistence layer built upon the `BasePersistence` interface. Common persistence logic is handled in the `org.apache.polaris.core.persistence` package. Implementations are found within [the persistence folder](../persistence).
+To store entities, Polaris provides a persistence layer built upon the `DurablePrimitives` interface. Common persistence logic is handled in the `org.apache.polaris.core.persistence` package. Implementations are found within [the persistence folder](../persistence).
 
 ### Object Storage Integration
 Polaris supports multiple object storage providers. `PolarisStorageIntegration` provides an interface for accessing and managing data in object stores. For more information, see the package `org.apache.polaris.core.storage`.

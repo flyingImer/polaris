@@ -42,8 +42,8 @@ import org.testcontainers.postgresql.PostgreSQLContainer;
 @Testcontainers
 @ParameterizedClass
 @MethodSource("schemaVersions")
-public class AtomicMetastoreManagerWithJdbcBasePersistenceImplPostgresSchemaIT
-    extends AtomicMetastoreManagerWithJdbcBasePersistenceImplTest {
+public class AtomicMetastoreManagerWithJdbcDurablePrimitivesImplPostgresSchemaIT
+    extends AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest {
 
   @Container
   private static final PostgreSQLContainer POSTGRES =

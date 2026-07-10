@@ -48,9 +48,10 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Extends BasePersistence to express a more "transaction-oriented" control flow for backing stores
- * which can support a runInTransaction semantic, while providing default implementations of some of
- * the BasePersistence methods in terms of lower-level methods that subclasses must implement.
+ * Extends DurablePrimitives to express a more "transaction-oriented" control flow for backing
+ * stores which can support a runInTransaction semantic, while providing default implementations of
+ * some of the DurablePrimitives methods in terms of lower-level methods that subclasses must
+ * implement.
  */
 public abstract class AbstractTransactionalPersistence implements TransactionalPersistence {
 
@@ -141,7 +142,7 @@ public abstract class AbstractTransactionalPersistence implements TransactionalP
       @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore entity);
 
   //
-  // Implementations of the one-shot atomic BasePersistence methods which explicitly run
+  // Implementations of the one-shot atomic DurablePrimitives methods which explicitly run
   // the in-transaction variants of methods in a new transaction.
   //
 
