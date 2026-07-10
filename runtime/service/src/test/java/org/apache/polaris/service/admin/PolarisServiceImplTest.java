@@ -32,10 +32,10 @@ import org.apache.polaris.core.admin.model.ExternalCatalog;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.PolarisCatalog;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
@@ -52,8 +52,8 @@ public class PolarisServiceImplTest {
 
   private EntityResolver entityResolver;
   private PolarisMetaStoreManager metaStoreManager;
-  private PolarisSecretsManager secretsManager;
-  private PolarisGrantManager grantManager;
+  private SecretsManager secretsManager;
+  private GrantManager grantManager;
   private UserSecretsManager userSecretsManager;
   private ServiceIdentityProvider serviceIdentityProvider;
   private PolarisAuthorizer polarisAuthorizer;
@@ -68,8 +68,8 @@ public class PolarisServiceImplTest {
   void setUp() {
     entityResolver = Mockito.mock(EntityResolver.class);
     metaStoreManager = Mockito.mock(PolarisMetaStoreManager.class);
-    secretsManager = Mockito.mock(PolarisSecretsManager.class);
-    grantManager = Mockito.mock(PolarisGrantManager.class);
+    secretsManager = Mockito.mock(SecretsManager.class);
+    grantManager = Mockito.mock(GrantManager.class);
     userSecretsManager = Mockito.mock(UserSecretsManager.class);
     serviceIdentityProvider = Mockito.mock(ServiceIdentityProvider.class);
     polarisAuthorizer = Mockito.mock(PolarisAuthorizer.class);

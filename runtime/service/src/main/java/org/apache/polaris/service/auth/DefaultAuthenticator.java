@@ -30,7 +30,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.iceberg.exceptions.ServiceFailureException;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntityType;
@@ -86,7 +86,7 @@ public class DefaultAuthenticator implements Authenticator {
   private static final Set<String> ALL_ROLES_REQUESTED = Set.of();
 
   @Inject PolarisMetaStoreManager metaStoreManager;
-  @Inject PolarisGrantManager grantManager;
+  @Inject GrantManager grantManager;
   @Inject CallContext callContext;
   @Inject PolarisDiagnostics diagnostics;
 

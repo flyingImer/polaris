@@ -36,7 +36,7 @@ import java.util.UUID;
 import java.util.stream.IntStream;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.NamespaceEntity;
@@ -530,13 +530,13 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
             .build();
 
     assertThat(
-            ((PolarisGrantManager) metaStore)
+            ((GrantManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            ((PolarisGrantManager) metaStore)
+            ((GrantManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
@@ -549,20 +549,20 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
         .isTrue();
 
     assertThat(
-            ((PolarisGrantManager) metaStore)
+            ((GrantManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            ((PolarisGrantManager) metaStore)
+            ((GrantManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
 
     LoadGrantsResult grantsOnCatalogRole =
-        ((PolarisGrantManager) metaStore).loadGrantsOnSecurable(callContext, catalogAdminRole);
+        ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, catalogAdminRole);
     assertThat(grantsOnCatalogRole.isSuccess()).isTrue();
     assertThat(grantsOnCatalogRole.getGrantRecords())
         .noneSatisfy(
@@ -582,12 +582,12 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
             "missingPrincipalRole");
 
     LoadGrantsResult grantsToMissing =
-        ((PolarisGrantManager) metaStore).loadGrantsToGrantee(callContext, missingPrincipalRole);
+        ((GrantManager) metaStore).loadGrantsToGrantee(callContext, missingPrincipalRole);
     assertThat(grantsToMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
 
     LoadGrantsResult grantsOnMissing =
-        ((PolarisGrantManager) metaStore).loadGrantsOnSecurable(callContext, missingPrincipalRole);
+        ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, missingPrincipalRole);
     assertThat(grantsOnMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
   }
@@ -609,7 +609,7 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
     assertThat(createdPrincipalRole).isNotNull();
 
     assertThat(
-            ((PolarisGrantManager) metaStore)
+            ((GrantManager) metaStore)
                 .grantPrivilegeOnSecurableToRole(
                     callContext,
                     createdPrincipalRole,
@@ -621,10 +621,8 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
 
     assertThat(
             List.of(
-                ((PolarisGrantManager) metaStore)
-                    .loadGrantsOnSecurable(callContext, createdPrincipalRole),
-                ((PolarisGrantManager) metaStore)
-                    .loadGrantsToGrantee(callContext, createdPrincipalRole)))
+                ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, createdPrincipalRole),
+                ((GrantManager) metaStore).loadGrantsToGrantee(callContext, createdPrincipalRole)))
         .extracting(
             LoadGrantsResult::isSuccess,
             LoadGrantsResult::getGrantRecords,

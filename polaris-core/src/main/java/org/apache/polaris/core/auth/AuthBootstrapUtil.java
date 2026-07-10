@@ -54,8 +54,8 @@ public class AuthBootstrapUtil {
 
     // ADR-0002: grant/secrets siblings are no longer on PolarisMetaStoreManager. The concrete impl
     // still nominally implements them, so narrow the passed manager to reach those methods.
-    PolarisGrantManager grantManager = (PolarisGrantManager) metaStoreManager;
-    PolarisSecretsManager secretsManager = (PolarisSecretsManager) metaStoreManager;
+    GrantManager grantManager = (GrantManager) metaStoreManager;
+    SecretsManager secretsManager = (SecretsManager) metaStoreManager;
 
     Optional<PrincipalEntity> preliminaryRootPrincipal = metaStoreManager.findRootPrincipal(ctx);
     if (preliminaryRootPrincipal.isPresent()) {

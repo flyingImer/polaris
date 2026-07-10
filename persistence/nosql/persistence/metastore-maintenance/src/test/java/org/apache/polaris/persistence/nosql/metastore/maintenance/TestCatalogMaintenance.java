@@ -58,7 +58,7 @@ import java.util.UUID;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisGrantManager;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
@@ -464,7 +464,7 @@ public class TestCatalogMaintenance {
 
     for (var table : tables) {
       assertThat(
-              ((PolarisGrantManager) manager)
+              ((GrantManager) manager)
                   .grantPrivilegeOnSecurableToRole(
                       callCtx,
                       catalogRole,
@@ -486,8 +486,7 @@ public class TestCatalogMaintenance {
 
     assertThat(countGrantAclHeads(persistence, staleAclNames)).isEqualTo(tables.size() + 1L);
 
-    var staleGrants =
-        ((PolarisGrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
+    var staleGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
     assertThat(staleGrants.isSuccess()).isTrue();
     assertThat(staleGrants.getGrantRecords()).isEmpty();
     assertThat(staleGrants.getEntities()).isEmpty();
@@ -498,8 +497,7 @@ public class TestCatalogMaintenance {
 
     assertThat(countGrantAclHeads(persistence, staleAclNames)).isZero();
 
-    var cleanedGrants =
-        ((PolarisGrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
+    var cleanedGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
     assertThat(cleanedGrants.isSuccess()).isTrue();
     assertThat(cleanedGrants.getGrantRecords()).isEmpty();
     assertThat(cleanedGrants.getEntities()).isEmpty();
@@ -528,7 +526,7 @@ public class TestCatalogMaintenance {
             "stale-role-");
 
     assertThat(
-            ((PolarisGrantManager) manager)
+            ((GrantManager) manager)
                 .grantPrivilegeOnSecurableToRole(
                     callCtx,
                     liveRole,
@@ -539,7 +537,7 @@ public class TestCatalogMaintenance {
         .isEqualTo(true);
     for (var staleRole : staleRoles) {
       assertThat(
-              ((PolarisGrantManager) manager)
+              ((GrantManager) manager)
                   .grantPrivilegeOnSecurableToRole(
                       callCtx,
                       staleRole,
@@ -563,7 +561,7 @@ public class TestCatalogMaintenance {
           .isEqualTo(true);
     }
 
-    var staleGrants = ((PolarisGrantManager) manager).loadGrantsOnSecurable(callCtx, table);
+    var staleGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, table);
     assertThat(staleGrants.isSuccess()).isTrue();
     assertThat(staleGrants.getGrantRecords()).hasSize(1);
     assertThat(staleGrants.getEntities()).hasSize(1);
@@ -576,7 +574,7 @@ public class TestCatalogMaintenance {
     assertThat(grantAclRoleIds(persistence, grantAclName(table)))
         .containsExactly(grantEntryName(liveRole));
 
-    var cleanedGrants = ((PolarisGrantManager) manager).loadGrantsOnSecurable(callCtx, table);
+    var cleanedGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, table);
     assertThat(cleanedGrants.isSuccess()).isTrue();
     assertThat(cleanedGrants.getGrantRecords()).hasSize(1);
     assertThat(cleanedGrants.getEntities()).hasSize(1);

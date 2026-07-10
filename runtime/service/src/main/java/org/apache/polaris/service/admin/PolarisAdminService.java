@@ -75,16 +75,16 @@ import org.apache.polaris.core.admin.model.ViewGrant;
 import org.apache.polaris.core.admin.model.ViewPrivilege;
 import org.apache.polaris.core.auth.AuthorizationChain;
 import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PathSegment;
 import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisGrantManager;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.auth.PolarisSecurable;
 import org.apache.polaris.core.auth.PrivilegeGrantAuthorizationIntent;
 import org.apache.polaris.core.auth.RoleAssignmentAuthorizationIntent;
 import org.apache.polaris.core.auth.RootPrivilegeGrantAuthorizationIntent;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.auth.SingleTargetAuthorizationIntent;
 import org.apache.polaris.core.auth.TargetlessAuthorizationIntent;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
@@ -164,8 +164,8 @@ public class PolarisAdminService {
   private final PolarisPrincipal polarisPrincipal;
   private final PolarisAuthorizer authorizer;
   private final PolarisMetaStoreManager metaStoreManager;
-  private final PolarisSecretsManager secretsManager;
-  private final PolarisGrantManager grantManager;
+  private final SecretsManager secretsManager;
+  private final GrantManager grantManager;
   private final UserSecretsManager userSecretsManager;
   private final ServiceIdentityProvider serviceIdentityProvider;
   private final ReservedProperties reservedProperties;
@@ -175,8 +175,8 @@ public class PolarisAdminService {
       @NonNull CallContext callContext,
       @NonNull EntityResolver entityResolver,
       @NonNull PolarisMetaStoreManager metaStoreManager,
-      @NonNull PolarisSecretsManager secretsManager,
-      @NonNull PolarisGrantManager grantManager,
+      @NonNull SecretsManager secretsManager,
+      @NonNull GrantManager grantManager,
       @NonNull UserSecretsManager userSecretsManager,
       @NonNull ServiceIdentityProvider serviceIdentityProvider,
       @NonNull PolarisPrincipal principal,

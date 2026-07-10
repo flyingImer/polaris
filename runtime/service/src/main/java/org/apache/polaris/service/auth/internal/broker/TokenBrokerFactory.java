@@ -19,7 +19,7 @@
 package org.apache.polaris.service.auth.internal.broker;
 
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 
 /**
@@ -29,6 +29,6 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 public interface TokenBrokerFactory {
   TokenBroker create(
       PolarisMetaStoreManager metaStoreManager,
-      PolarisSecretsManager secretsManager,
+      SecretsManager secretsManager,
       PolarisCallContext polarisCallContext);
 }

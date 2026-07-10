@@ -28,7 +28,7 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /** Manage grants for Polaris entities. */
-public interface PolarisGrantManager {
+public interface GrantManager {
   /**
    * Grant usage on a role to a grantee, for example granting usage on a catalog role to a principal
    * role or granting a principal role to a principal.

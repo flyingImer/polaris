@@ -26,8 +26,8 @@ import java.util.Objects;
 import org.apache.commons.lang3.tuple.ImmutablePair;
 import org.apache.commons.lang3.tuple.Pair;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisGrantManager;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.GrantManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.EntityNameLookupRecord;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
@@ -73,8 +73,8 @@ public class PolarisTestMetaStoreManager {
 
   // ADR-0002: sibling managers are no longer on PolarisMetaStoreManager. The concrete impl passed
   // to this fixture nominally implements them, so narrow it once for the sibling call sites.
-  final PolarisSecretsManager polarisSecretsManager;
-  final PolarisGrantManager polarisGrantManager;
+  final SecretsManager polarisSecretsManager;
+  final GrantManager polarisGrantManager;
   final PolarisPolicyMappingManager polarisPolicyMappingManager;
 
   // the start time
@@ -103,8 +103,8 @@ public class PolarisTestMetaStoreManager {
     this.testStartTime = testStartTime;
     this.polarisCallContext = polarisCallContext;
     this.polarisMetaStoreManager = polarisMetaStoreManager;
-    this.polarisSecretsManager = (PolarisSecretsManager) polarisMetaStoreManager;
-    this.polarisGrantManager = (PolarisGrantManager) polarisMetaStoreManager;
+    this.polarisSecretsManager = (SecretsManager) polarisMetaStoreManager;
+    this.polarisGrantManager = (GrantManager) polarisMetaStoreManager;
     this.polarisPolicyMappingManager = (PolarisPolicyMappingManager) polarisMetaStoreManager;
     this.supportsChangeTracking = supportsChangeTracking;
     this.doRetry = false;

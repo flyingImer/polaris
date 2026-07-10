@@ -23,7 +23,7 @@ import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.jspecify.annotations.NonNull;
 
 /** Manages secrets for Polaris principals. */
-public interface PolarisSecretsManager {
+public interface SecretsManager {
   /**
    * Load the principal secrets given the client_id.
    *

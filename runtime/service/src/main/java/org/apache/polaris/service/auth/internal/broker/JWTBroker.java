@@ -28,7 +28,7 @@ import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
@@ -50,7 +50,7 @@ public class JWTBroker implements TokenBroker {
   private static final String CLAIM_KEY_SCOPE = "scope";
 
   private final PolarisMetaStoreManager metaStoreManager;
-  private final PolarisSecretsManager secretsManager;
+  private final SecretsManager secretsManager;
   private final PolarisCallContext polarisCallContext;
   private final int maxTokenGenerationInSeconds;
   private final Algorithm algorithm;
@@ -58,7 +58,7 @@ public class JWTBroker implements TokenBroker {
 
   JWTBroker(
       PolarisMetaStoreManager metaStoreManager,
-      PolarisSecretsManager secretsManager,
+      SecretsManager secretsManager,
       PolarisCallContext polarisCallContext,
       int maxTokenGenerationInSeconds,
       Algorithm algorithm,

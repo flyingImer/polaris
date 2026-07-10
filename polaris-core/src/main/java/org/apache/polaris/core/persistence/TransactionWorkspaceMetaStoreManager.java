@@ -25,8 +25,8 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.PolarisGrantManager;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.GrantManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -80,8 +80,8 @@ import org.jspecify.annotations.Nullable;
  */
 public class TransactionWorkspaceMetaStoreManager
     implements PolarisMetaStoreManager,
-        PolarisSecretsManager,
-        PolarisGrantManager,
+        SecretsManager,
+        GrantManager,
         PolarisPolicyMappingManager,
         PolarisEventManager {
   private final PolarisDiagnostics diagnostics;

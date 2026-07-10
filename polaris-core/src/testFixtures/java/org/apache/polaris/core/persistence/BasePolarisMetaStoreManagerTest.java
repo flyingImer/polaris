@@ -35,7 +35,7 @@ import java.util.function.Function;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -238,7 +238,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
   @Test
   protected void testCreatePrincipalNeverWithoutSecretsInvariant() {
     PolarisMetaStoreManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
-    PolarisSecretsManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
+    SecretsManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
     CreatePrincipalResult result =
@@ -635,7 +635,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                ((PolarisSecretsManager) metaStoreManager)
+                ((SecretsManager) metaStoreManager)
                     .resetPrincipalSecrets(callCtx, principalB.getId(), principalAClientId, null))
         .isInstanceOf(AlreadyExistsException.class);
   }

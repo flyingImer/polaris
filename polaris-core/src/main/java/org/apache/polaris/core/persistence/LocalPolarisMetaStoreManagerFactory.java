@@ -25,7 +25,7 @@ import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PrincipalEntity;
@@ -207,7 +207,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
 
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
-    return ((PolarisSecretsManager) metaStoreManager)
+    return ((SecretsManager) metaStoreManager)
         .loadPrincipalSecrets(polarisContext, rootPrincipal.getClientId());
   }
 

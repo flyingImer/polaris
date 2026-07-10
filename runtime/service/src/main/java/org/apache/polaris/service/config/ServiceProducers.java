@@ -38,10 +38,10 @@ import java.util.stream.Collectors;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisAuthorizerFactory;
-import org.apache.polaris.core.auth.PolarisGrantManager;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
@@ -265,17 +265,16 @@ public class ServiceProducers {
   // (a normal-scoped CDI proxy implements only its declared bean type -> ClassCastException).
   @Produces
   @RequestScoped
-  public PolarisSecretsManager polarisSecretsManager(
+  public SecretsManager polarisSecretsManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (PolarisSecretsManager)
-        metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    return (SecretsManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
   @Produces
   @RequestScoped
-  public PolarisGrantManager polarisGrantManager(
+  public GrantManager polarisGrantManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (PolarisGrantManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    return (GrantManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
   @Produces
@@ -434,7 +433,7 @@ public class ServiceProducers {
       AuthenticationRealmConfiguration config,
       @Any Instance<TokenBrokerFactory> tokenBrokerFactories,
       PolarisMetaStoreManager polarisMetaStoreManager,
-      PolarisSecretsManager polarisSecretsManager,
+      SecretsManager polarisSecretsManager,
       CallContext callContext) {
     String type =
         config.type() == AuthenticationType.EXTERNAL ? "none" : config.tokenBroker().type();

@@ -33,8 +33,8 @@ import java.util.Optional;
 import java.util.function.Function;
 import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.PolarisGrantManager;
-import org.apache.polaris.core.auth.PolarisSecretsManager;
+import org.apache.polaris.core.auth.GrantManager;
+import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
@@ -84,8 +84,8 @@ import org.jspecify.annotations.Nullable;
 record NoSqlMetaStoreManager(
     Supplier<BaseResult> purgeRealm, RootCredentialsSet rootCredentialsSet, Clock clock)
     implements PolarisMetaStoreManager,
-        PolarisSecretsManager,
-        PolarisGrantManager,
+        SecretsManager,
+        GrantManager,
         PolarisPolicyMappingManager,
         PolarisEventManager {
 
@@ -576,7 +576,7 @@ record NoSqlMetaStoreManager(
             target.getType(), target.getCatalogId(), target.getId(), Optional.of(policyType));
   }
 
-  // Principals & PolarisSecretsManager
+  // Principals & SecretsManager
 
   @NonNull
   @Override
