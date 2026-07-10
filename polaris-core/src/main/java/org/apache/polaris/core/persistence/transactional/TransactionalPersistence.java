@@ -33,7 +33,6 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.IntegrationPersistence;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 import org.apache.polaris.core.persistence.pagination.Page;
@@ -41,6 +40,7 @@ import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.TransactionalPolicyMappingPersistence;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.spi.durable.DurablePrimitives;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -125,11 +125,11 @@ public interface TransactionalPersistence
   // expected to occur within these *InCurrentTxn methods.
   //
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#generateNewId} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#generateNewId} */
   long generateNewIdInCurrentTxn(@NonNull PolarisCallContext callCtx);
 
   /**
-   * See {@link org.apache.polaris.core.persistence.DurablePrimitives#writeEntity}
+   * See {@link org.apache.polaris.spi.durable.DurablePrimitives#writeEntity}
    *
    * <p>NOTE: By virtue of the way callers of these *InCurrentTxn methods organize entity-state
    * checks interspersed between different persistence actions, the basic compare-and-swap
@@ -145,41 +145,39 @@ public interface TransactionalPersistence
       boolean nameOrParentChanged,
       @Nullable PolarisBaseEntity originalEntity);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#writeEntities} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#writeEntities} */
   void writeEntitiesInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       @NonNull List<PolarisBaseEntity> entities,
       @Nullable List<PolarisBaseEntity> originalEntities);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#writeToGrantRecords} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#writeToGrantRecords} */
   void writeToGrantRecordsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#deleteEntity} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#deleteEntity} */
   void deleteEntityInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisBaseEntity entity);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#deleteFromGrantRecords} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#deleteFromGrantRecords} */
   void deleteFromGrantRecordsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec);
 
-  /**
-   * See {@link org.apache.polaris.core.persistence.DurablePrimitives#deleteAllEntityGrantRecords}
-   */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#deleteAllEntityGrantRecords} */
   void deleteAllEntityGrantRecordsInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityCore entity,
       @NonNull List<PolarisGrantRecord> grantsOnGrantee,
       @NonNull List<PolarisGrantRecord> grantsOnSecurable);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#deleteAll} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#deleteAll} */
   void deleteAllInCurrentTxn(@NonNull PolarisCallContext callCtx);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#lookupEntity} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntity} */
   @Nullable PolarisBaseEntity lookupEntityInCurrentTxn(
       @NonNull PolarisCallContext callCtx, long catalogId, long entityId, int typeCode);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#lookupEntityByName} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntityByName} */
   @Nullable PolarisBaseEntity lookupEntityByNameInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
@@ -187,10 +185,7 @@ public interface TransactionalPersistence
       int typeCode,
       @NonNull String name);
 
-  /**
-   * See {@link
-   * org.apache.polaris.core.persistence.DurablePrimitives#lookupEntityIdAndSubTypeByName}
-   */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntityIdAndSubTypeByName} */
   @Nullable EntityNameLookupRecord lookupEntityIdAndSubTypeByNameInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
@@ -198,18 +193,18 @@ public interface TransactionalPersistence
       int typeCode,
       @NonNull String name);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#lookupEntities} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntities} */
   @NonNull List<PolarisBaseEntity> lookupEntitiesInCurrentTxn(
       @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#lookupEntityVersions} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntityVersions} */
   @NonNull List<PolarisChangeTrackingVersions> lookupEntityVersionsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds);
 
   /**
-   * See {@link org.apache.polaris.core.persistence.DurablePrimitives#listEntities}. Implementations
-   * may choose to override this method for performance reasons (to only load the required subset of
-   * the entity properties to build the EntityNameLookupRecord).
+   * See {@link org.apache.polaris.spi.durable.DurablePrimitives#listEntities}. Implementations may
+   * choose to override this method for performance reasons (to only load the required subset of the
+   * entity properties to build the EntityNameLookupRecord).
    */
   default @NonNull Page<EntityNameLookupRecord> listEntitiesInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
@@ -229,7 +224,7 @@ public interface TransactionalPersistence
         pageToken);
   }
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#listFullEntities} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#listFullEntities} */
   @NonNull <T> Page<T> loadEntitiesInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
@@ -241,13 +236,12 @@ public interface TransactionalPersistence
       @NonNull PageToken pageToken);
 
   /**
-   * See {@link
-   * org.apache.polaris.core.persistence.DurablePrimitives#lookupEntityGrantRecordsVersion}
+   * See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupEntityGrantRecordsVersion}
    */
   int lookupEntityGrantRecordsVersionInCurrentTxn(
       @NonNull PolarisCallContext callCtx, long catalogId, long entityId);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#lookupGrantRecord} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#lookupGrantRecord} */
   @Nullable PolarisGrantRecord lookupGrantRecordInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       long securableCatalogId,
@@ -256,20 +250,15 @@ public interface TransactionalPersistence
       long granteeId,
       int privilegeCode);
 
-  /**
-   * See {@link
-   * org.apache.polaris.core.persistence.DurablePrimitives#loadAllGrantRecordsOnSecurable}
-   */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#loadAllGrantRecordsOnSecurable} */
   @NonNull List<PolarisGrantRecord> loadAllGrantRecordsOnSecurableInCurrentTxn(
       @NonNull PolarisCallContext callCtx, long securableCatalogId, long securableId);
 
-  /**
-   * See {@link org.apache.polaris.core.persistence.DurablePrimitives#loadAllGrantRecordsOnGrantee}
-   */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#loadAllGrantRecordsOnGrantee} */
   @NonNull List<PolarisGrantRecord> loadAllGrantRecordsOnGranteeInCurrentTxn(
       @NonNull PolarisCallContext callCtx, long granteeCatalogId, long granteeId);
 
-  /** See {@link org.apache.polaris.core.persistence.DurablePrimitives#hasChildren} */
+  /** See {@link org.apache.polaris.spi.durable.DurablePrimitives#hasChildren} */
   boolean hasChildrenInCurrentTxn(
       @NonNull PolarisCallContext callContext,
       @Nullable PolarisEntityType optionalEntityType,

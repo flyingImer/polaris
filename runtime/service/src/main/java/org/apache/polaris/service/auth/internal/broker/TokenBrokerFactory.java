@@ -19,8 +19,8 @@
 package org.apache.polaris.service.auth.internal.broker;
 
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.SecretsManager;
-import org.apache.polaris.core.persistence.DurableManager;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.SecretsManager;
 
 /**
  * Factory that creates a {@link TokenBroker} for generating and parsing. The {@link TokenBroker} is

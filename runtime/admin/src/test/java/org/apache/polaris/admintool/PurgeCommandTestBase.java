@@ -26,8 +26,8 @@ import io.quarkus.test.junit.main.LaunchResult;
 import io.quarkus.test.junit.main.QuarkusMainTest;
 import jakarta.enterprise.event.Observes;
 import java.util.List;
-import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
+import org.apache.polaris.spi.durable.RealmProvisioner;
 import org.junit.jupiter.api.Test;
 
 @QuarkusMainTest

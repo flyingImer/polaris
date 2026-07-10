@@ -22,9 +22,9 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import java.util.List;
-import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.service.Profiles;
+import org.apache.polaris.spi.durable.RealmProvisioner;
 
 @QuarkusTest
 @TestProfile(Profiles.DefaultNoSqlProfile.class)

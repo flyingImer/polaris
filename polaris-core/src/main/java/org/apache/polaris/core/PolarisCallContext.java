@@ -24,7 +24,7 @@ import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.DurablePrimitives;
+import org.apache.polaris.spi.durable.DurablePrimitives;
 import org.jspecify.annotations.NonNull;
 
 /**

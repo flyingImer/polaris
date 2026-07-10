@@ -85,7 +85,7 @@ public interface EntityCache {
    *
    * <p>Cached entity versions and grant versions must be verified against the versions returned by
    * the {@link
-   * org.apache.polaris.core.persistence.DurableManager#loadEntitiesChangeTracking(PolarisCallContext,
+   * org.apache.polaris.spi.durable.DurableManager#loadEntitiesChangeTracking(PolarisCallContext,
    * List)} API to ensure the returned entities are consistent with the current state of the
    * metastore. Cache implementations must never return a mix of stale entities and fresh entities,
    * as authorization or table conflict decisions could be made based on inconsistent data. For
@@ -99,7 +99,7 @@ public interface EntityCache {
    * @param entityIds the list of entity ids to load
    * @return the list of resolved entities, in the same order as the requested entity ids. As in
    *     {@link
-   *     org.apache.polaris.core.persistence.DurableManager#loadResolvedEntities(PolarisCallContext,
+   *     org.apache.polaris.spi.durable.DurableManager#loadResolvedEntities(PolarisCallContext,
    *     PolarisEntityType, List)}, elements in the returned list may be null if the corresponding
    *     entity id does not exist.
    */

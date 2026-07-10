@@ -25,15 +25,15 @@ import java.io.StringWriter;
 import java.util.Map;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.DurableManager;
-import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.RealmProvisioner;
 import org.junit.jupiter.api.Test;
 import picocli.CommandLine;
 

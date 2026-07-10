@@ -32,12 +32,12 @@ import java.util.Objects;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.ConcurrentMap;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.service.auth.AuthenticationConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration.TokenBrokerConfiguration.SymmetricKeyConfiguration;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.SecretsManager;
 
 @ApplicationScoped
 @Identifier("symmetric-key")

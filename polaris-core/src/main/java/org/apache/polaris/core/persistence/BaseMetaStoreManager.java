@@ -21,16 +21,18 @@ package org.apache.polaris.core.persistence;
 import java.util.Map;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.auth.GrantManager;
-import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
-import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
-import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.GrantManager;
+import org.apache.polaris.spi.durable.PolarisEventManager;
+import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.SecretsManager;
 import org.jspecify.annotations.NonNull;
 
 /** Shared basic DurableManager logic for transactional and non-transactional impls. */

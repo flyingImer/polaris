@@ -29,10 +29,10 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
+import org.apache.polaris.spi.durable.RealmProvisioner;
 
 /** Utility class for running per-realm bootstrap tasks each in a fresh Request Context. */
 @ApplicationScoped

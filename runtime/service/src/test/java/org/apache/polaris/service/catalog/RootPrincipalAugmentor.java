@@ -30,7 +30,7 @@ import java.util.Set;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.DurableManager;
+import org.apache.polaris.spi.durable.DurableManager;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @RequestScoped

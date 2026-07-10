@@ -20,7 +20,7 @@ package org.apache.polaris.admintool;
 
 import jakarta.inject.Inject;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.RealmProvisioner;
+import org.apache.polaris.spi.durable.RealmProvisioner;
 
 public abstract class BaseMetaStoreCommand extends BaseCommand {
   @Inject protected MetaStoreManagerFactory metaStoreManagerFactory;

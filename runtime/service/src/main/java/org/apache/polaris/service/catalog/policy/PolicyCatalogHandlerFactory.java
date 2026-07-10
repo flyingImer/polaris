@@ -23,9 +23,9 @@ import jakarta.inject.Inject;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
-import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
 
 @RequestScoped
 public class PolicyCatalogHandlerFactory {

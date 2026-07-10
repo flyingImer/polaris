@@ -24,9 +24,9 @@ import jakarta.inject.Inject;
 import java.time.Clock;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
-import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
+import org.apache.polaris.spi.durable.DurableManager;
 
 /**
  * Uses a PolarisTreeMapStore for the underlying persistence layer but uses it to initialize an

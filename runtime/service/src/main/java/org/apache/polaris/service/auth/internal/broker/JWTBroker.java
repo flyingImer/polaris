@@ -28,14 +28,14 @@ import java.util.Optional;
 import java.util.UUID;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.auth.DefaultAuthenticator;
 import org.apache.polaris.service.auth.PolarisCredential;
 import org.apache.polaris.service.auth.internal.service.OAuthError;
 import org.apache.polaris.service.types.TokenType;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.SecretsManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

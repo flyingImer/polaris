@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence;
+package org.apache.polaris.spi.durable;
 
 import java.util.Map;
 import org.apache.polaris.core.persistence.bootstrap.BootstrapOptions;

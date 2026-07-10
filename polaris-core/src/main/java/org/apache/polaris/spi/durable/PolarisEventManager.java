@@ -17,11 +17,11 @@
  * under the License.
  */
 
-package org.apache.polaris.core.entity;
+package org.apache.polaris.spi.durable;
 
 import java.util.List;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.persistence.DurablePrimitives;
+import org.apache.polaris.core.entity.EventEntity;
 import org.jspecify.annotations.NonNull;
 
 public interface PolarisEventManager {

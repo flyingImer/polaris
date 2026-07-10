@@ -22,7 +22,6 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.TaskEntity;
-import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -31,6 +30,7 @@ import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventMetadata;
 import org.apache.polaris.service.events.PolarisEventType;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
+import org.apache.polaris.spi.durable.DurableManager;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

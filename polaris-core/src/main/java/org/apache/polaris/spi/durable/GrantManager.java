@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.spi.durable;
 
 import java.util.List;
 import org.apache.polaris.core.PolarisCallContext;
