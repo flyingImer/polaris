@@ -39,12 +39,16 @@ import org.apache.polaris.core.auth.PolarisSecretsManager;
 import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
+import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -169,6 +173,95 @@ public abstract class BasePolarisMetaStoreManagerTest {
             .getEntity();
 
     Assertions.assertThat(principalEntity).isEqualTo(fetchedPrincipal);
+  }
+
+  /**
+   * ADR-0002 durable-parity invariant (HARD): {@code createCatalog} atomically yields BOTH the
+   * catalog and its admin {@code CatalogRole} (both, or neither). Runs against every
+   * durable-manager impl this fixture is subclassed by (transactional, atomic/CAS, JDBC, nosql), so
+   * each impl must satisfy the guarantee with its own mechanism. Asserts both facets are present in
+   * the result and both are durably persisted (read back by their own ids, which is impl-agnostic).
+   */
+  @Test
+  protected void testCreateCatalogAtomicityInvariant() {
+    PolarisMetaStoreManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
+    PolarisBaseEntity catalog =
+        new PolarisBaseEntity(
+            PolarisEntityConstants.getNullId(),
+            mgr.generateNewEntityId(callCtx).getId(),
+            PolarisEntityType.CATALOG,
+            PolarisEntitySubType.NULL_SUBTYPE,
+            PolarisEntityConstants.getRootEntityId(),
+            "atomicity_invariant_catalog");
+
+    CreateCatalogResult result = mgr.createCatalog(callCtx, catalog, List.of());
+
+    Assertions.assertThat(result.isSuccess()).isTrue();
+    Assertions.assertThat(result.getCatalog()).isNotNull();
+    PolarisBaseEntity adminRole = result.getCatalogAdminRole();
+    Assertions.assertThat(adminRole)
+        .as("createCatalog must create the catalog admin role (ADR-0002 atomicity invariant)")
+        .isNotNull();
+    Assertions.assertThat(adminRole.getName())
+        .isEqualTo(PolarisEntityConstants.getNameOfCatalogAdminRole());
+    Assertions.assertThat(adminRole.getTypeCode())
+        .isEqualTo(PolarisEntityType.CATALOG_ROLE.getCode());
+
+    // Both facets are durably persisted, not just returned. Read back by the persisted entities'
+    // own ids so the assertion holds regardless of the impl's id/path conventions.
+    Assertions.assertThat(
+            mgr.loadEntity(
+                    callCtx,
+                    result.getCatalog().getCatalogId(),
+                    result.getCatalog().getId(),
+                    PolarisEntityType.CATALOG)
+                .getEntity())
+        .as("catalog must be durably persisted")
+        .isNotNull();
+    Assertions.assertThat(
+            mgr.loadEntity(
+                    callCtx,
+                    adminRole.getCatalogId(),
+                    adminRole.getId(),
+                    PolarisEntityType.CATALOG_ROLE)
+                .getEntity())
+        .as("catalog admin role must be durably persisted")
+        .isNotNull();
+  }
+
+  /**
+   * ADR-0002 durable-parity invariant (HARD): {@code createPrincipal} never yields a principal
+   * without its secrets. Runs against every durable-manager impl this fixture is subclassed by.
+   * Asserts the result carries both, and the secrets are durably retrievable via the secrets SPI.
+   */
+  @Test
+  protected void testCreatePrincipalNeverWithoutSecretsInvariant() {
+    PolarisMetaStoreManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    PolarisSecretsManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
+    PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
+
+    CreatePrincipalResult result =
+        mgr.createPrincipal(
+            callCtx,
+            new PrincipalEntity.Builder()
+                .setId(mgr.generateNewEntityId(callCtx).getId())
+                .setName("secrets_invariant_principal")
+                .setCreateTimestamp(100L)
+                .build());
+
+    Assertions.assertThat(result.isSuccess()).isTrue();
+    Assertions.assertThat(result.getPrincipal()).isNotNull();
+    PolarisPrincipalSecrets secrets = result.getPrincipalSecrets();
+    Assertions.assertThat(secrets)
+        .as("createPrincipal must never persist a principal without its secrets (ADR-0002)")
+        .isNotNull();
+    Assertions.assertThat(
+            secretsMgr
+                .loadPrincipalSecrets(callCtx, secrets.getPrincipalClientId())
+                .getPrincipalSecrets())
+        .as("principal secrets must be durably retrievable")
+        .isNotNull();
   }
 
   @Test
