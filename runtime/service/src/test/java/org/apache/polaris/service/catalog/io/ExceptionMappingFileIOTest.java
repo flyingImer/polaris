@@ -22,6 +22,7 @@ import java.net.UnknownHostException;
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;
 import org.apache.polaris.core.exceptions.FileIOUnknownHostException;
+import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;

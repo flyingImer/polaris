@@ -25,6 +25,7 @@ import java.util.List;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.extension.io.DefaultStorageIoProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.storage.model.VendedServerStorageAccess;
 

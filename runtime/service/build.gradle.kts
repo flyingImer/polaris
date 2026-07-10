@@ -31,6 +31,10 @@ dependencies {
   implementation(project(":polaris-api-iceberg-service"))
   implementation(project(":polaris-api-catalog-service"))
 
+  // OSS default storage-IO impl (@Identifier("default"/"wasb")) relocated to an extensions module;
+  // kept on the serving runtime classpath so its CDI beans are jandex-discovered here.
+  implementation(project(":polaris-extensions-io-default"))
+
   runtimeOnly(project(":polaris-relational-jdbc"))
 
   implementation(project(":polaris-runtime-defaults"))
@@ -171,6 +175,7 @@ dependencies {
   testImplementation(project(":polaris-persistence-nosql-impl"))
 
   testFixturesImplementation(project(":polaris-core"))
+  testFixturesImplementation(project(":polaris-extensions-io-default"))
   testFixturesImplementation(project(":polaris-api-management-model"))
   testFixturesImplementation(project(":polaris-api-management-service"))
   testFixturesImplementation(project(":polaris-api-iceberg-service"))

@@ -45,6 +45,8 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.extension.io.DefaultStorageIoProvider;
+import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
@@ -114,7 +116,7 @@ public class DefaultStorageIoProviderTest {
             Mockito.spy(
                 new DefaultStorageIoProvider() {
                   @Override
-                  FileIO fileIoForInternal(
+                  protected FileIO fileIoForInternal(
                       @NonNull String ioImplClassName, @NonNull Map<String, String> properties) {
                     // properties should contain credentials
                     Assertions.assertThat(properties)

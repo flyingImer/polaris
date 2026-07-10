@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.io;
+package org.apache.polaris.extension.io;
 
 import java.util.Map;
 import org.apache.iceberg.io.FileIO;

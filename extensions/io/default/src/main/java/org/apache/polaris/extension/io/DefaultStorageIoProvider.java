@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.io;
+package org.apache.polaris.extension.io;
 
 import com.google.common.annotations.VisibleForTesting;
 import io.smallrye.common.annotation.Identifier;
@@ -51,7 +51,7 @@ public class DefaultStorageIoProvider implements StorageIoProvider {
   }
 
   @VisibleForTesting
-  FileIO fileIoForInternal(
+  protected FileIO fileIoForInternal(
       @NonNull String ioImplClassName, @NonNull Map<String, String> properties) {
     return new ExceptionMappingFileIO(CatalogUtil.loadFileIO(ioImplClassName, properties, null));
   }
