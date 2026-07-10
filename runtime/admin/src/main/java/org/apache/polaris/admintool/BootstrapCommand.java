@@ -151,7 +151,7 @@ public class BootstrapCommand extends BaseMetaStoreCommand {
 
       // Execute the bootstrap
       Map<String, PrincipalSecretsResult> results =
-          metaStoreManagerFactory.bootstrapRealms(bootstrapOptions);
+          realmProvisioner.bootstrapRealms(bootstrapOptions);
 
       // Log any errors:
       boolean success = true;

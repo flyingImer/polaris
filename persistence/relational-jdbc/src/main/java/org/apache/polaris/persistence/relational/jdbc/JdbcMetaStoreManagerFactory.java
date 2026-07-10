@@ -46,6 +46,7 @@ import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.BootstrapOptions;
 import org.apache.polaris.core.persistence.bootstrap.ImmutableBootstrapOptions;
 import org.apache.polaris.core.persistence.bootstrap.ImmutableSchemaOptions;
@@ -70,7 +71,7 @@ import org.slf4j.LoggerFactory;
  */
 @ApplicationScoped
 @Identifier("relational-jdbc")
-public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory {
+public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, RealmProvisioner {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(JdbcMetaStoreManagerFactory.class);
 

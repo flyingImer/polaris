@@ -18,14 +18,9 @@
  */
 package org.apache.polaris.core.persistence;
 
-import java.util.Map;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.bootstrap.BootstrapOptions;
-import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
-import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 
 /** Configuration interface for configuring the {@link PolarisMetaStoreManager}. */
@@ -43,14 +38,4 @@ public interface MetaStoreManagerFactory {
   MetricsPersistence getOrCreateMetricsPersistence(RealmContext realmContext);
 
   EntityCache getOrCreateEntityCache(RealmContext realmContext, RealmConfig realmConfig);
-
-  Map<String, PrincipalSecretsResult> bootstrapRealms(
-      Iterable<String> realms, RootCredentialsSet rootCredentialsSet);
-
-  default Map<String, PrincipalSecretsResult> bootstrapRealms(BootstrapOptions bootstrapOptions) {
-    return bootstrapRealms(bootstrapOptions.realms(), bootstrapOptions.rootCredentialsSet());
-  }
-
-  /** Purge all metadata for the realms provided */
-  Map<String, BaseResult> purgeRealms(Iterable<String> realms);
 }

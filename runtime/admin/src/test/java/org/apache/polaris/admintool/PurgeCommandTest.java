@@ -28,6 +28,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -42,7 +43,7 @@ class PurgeCommandTest {
   void testPurgeFailure() {
     String realm = "missing-realm";
     PurgeCommand command = new PurgeCommand();
-    command.metaStoreManagerFactory =
+    command.realmProvisioner =
         new FakeMetaStoreManagerFactory(
             Map.of(
                 realm,
@@ -74,7 +75,7 @@ class PurgeCommandTest {
   void testPurgeFailurePrintsStackTrace() {
     String failureMessage = "simulated database connection failure";
     PurgeCommand command = new PurgeCommand();
-    command.metaStoreManagerFactory =
+    command.realmProvisioner =
         new FakeMetaStoreManagerFactory(new RuntimeException(failureMessage));
 
     CommandLine commandLine = new CommandLine(command);
@@ -91,7 +92,8 @@ class PurgeCommandTest {
   }
 
   /** Minimal {@link MetaStoreManagerFactory} for testing purge command results and failures. */
-  private static final class FakeMetaStoreManagerFactory implements MetaStoreManagerFactory {
+  private static final class FakeMetaStoreManagerFactory
+      implements MetaStoreManagerFactory, RealmProvisioner {
     private final Map<String, BaseResult> results;
     private final RuntimeException failure;
 

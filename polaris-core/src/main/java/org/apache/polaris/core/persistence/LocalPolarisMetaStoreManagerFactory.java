@@ -48,7 +48,7 @@ import org.slf4j.LoggerFactory;
  * metadata.
  */
 public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
-    implements MetaStoreManagerFactory {
+    implements MetaStoreManagerFactory, RealmProvisioner {
 
   final Map<String, PolarisMetaStoreManager> metaStoreManagerMap = new HashMap<>();
   final Map<String, EntityCache> entityCacheMap = new HashMap<>();

@@ -68,6 +68,7 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadPolicyMappingsResult;
@@ -127,6 +128,10 @@ public class TestCatalogMaintenance {
   @Inject
   @Identifier("nosql")
   MetaStoreManagerFactory metaStoreManagerFactory;
+
+  @Inject
+  @Identifier("nosql")
+  RealmProvisioner realmProvisioner;
 
   @BeforeEach
   protected void setup() {
@@ -578,7 +583,7 @@ public class TestCatalogMaintenance {
   }
 
   private TestSetup bootstrapRealm() {
-    metaStoreManagerFactory.bootstrapRealms(List.of(realmId), RootCredentialsSet.fromEnvironment());
+    realmProvisioner.bootstrapRealms(List.of(realmId), RootCredentialsSet.fromEnvironment());
 
     var manager = metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
     var session = metaStoreManagerFactory.getOrCreateSession(realmContext);

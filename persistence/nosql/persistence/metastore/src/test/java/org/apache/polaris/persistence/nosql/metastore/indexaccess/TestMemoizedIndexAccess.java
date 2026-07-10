@@ -46,6 +46,7 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.persistence.nosql.api.Persistence;
 import org.apache.polaris.persistence.nosql.api.RealmPersistenceFactory;
@@ -76,6 +77,10 @@ public class TestMemoizedIndexAccess {
   @Identifier("nosql")
   MetaStoreManagerFactory metaStoreManagerFactory;
 
+  @Inject
+  @Identifier("nosql")
+  RealmProvisioner realmProvisioner;
+
   PolarisCallContext callContext;
   PolarisMetaStoreManager metaStoreManager;
 
@@ -87,7 +92,7 @@ public class TestMemoizedIndexAccess {
     var realmId = testInfo.getTestMethod().orElseThrow().getName();
     persistence = realmPersistenceFactory.newBuilder().realmId(realmId).build();
 
-    metaStoreManagerFactory.bootstrapRealms(List.of(realmId), RootCredentialsSet.EMPTY);
+    realmProvisioner.bootstrapRealms(List.of(realmId), RootCredentialsSet.EMPTY);
 
     var realmContext = (RealmContext) () -> realmId;
     callContext =

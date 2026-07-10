@@ -26,7 +26,7 @@ import io.quarkus.test.junit.main.LaunchResult;
 import io.quarkus.test.junit.main.QuarkusMainTest;
 import jakarta.enterprise.event.Observes;
 import java.util.List;
-import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.junit.jupiter.api.Test;
 
@@ -35,8 +35,8 @@ public abstract class PurgeCommandTestBase {
   private static final String REALM1 = "purge-test-realm1";
   private static final String REALM2 = "purge-test-realm2";
 
-  void preBootstrap(@Observes StartupEvent event, MetaStoreManagerFactory metaStoreManagerFactory) {
-    metaStoreManagerFactory.bootstrapRealms(List.of(REALM1, REALM2), RootCredentialsSet.EMPTY);
+  void preBootstrap(@Observes StartupEvent event, RealmProvisioner realmProvisioner) {
+    realmProvisioner.bootstrapRealms(List.of(REALM1, REALM2), RootCredentialsSet.EMPTY);
   }
 
   @Test

@@ -32,6 +32,7 @@ import org.apache.polaris.core.persistence.BaseResolverTest;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.ids.api.MonotonicClock;
 import org.jboss.weld.junit5.EnableWeld;
@@ -47,6 +48,10 @@ public class TestNoSqlResolver extends BaseResolverTest {
   @Inject
   @Identifier("nosql")
   MetaStoreManagerFactory metaStoreManagerFactory;
+
+  @Inject
+  @Identifier("nosql")
+  RealmProvisioner realmProvisioner;
 
   @Inject RealmConfigurationSource configurationSource;
   @Inject MonotonicClock monotonicClock;
@@ -67,8 +72,7 @@ public class TestNoSqlResolver extends BaseResolverTest {
 
       var startTime = monotonicClock.currentTimeMillis();
 
-      metaStoreManagerFactory.bootstrapRealms(
-          List.of(realmId), RootCredentialsSet.fromEnvironment());
+      realmProvisioner.bootstrapRealms(List.of(realmId), RootCredentialsSet.fromEnvironment());
 
       metaStoreManager = metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
       var session = metaStoreManagerFactory.getOrCreateSession(realmContext);

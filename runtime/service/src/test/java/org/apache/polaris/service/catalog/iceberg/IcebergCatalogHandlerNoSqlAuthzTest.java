@@ -22,7 +22,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import java.util.List;
-import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.service.Profiles;
 
@@ -30,10 +30,10 @@ import org.apache.polaris.service.Profiles;
 @TestProfile(Profiles.IcebergCatalogHandlerNoSqlAuthzProfile.class)
 public class IcebergCatalogHandlerNoSqlAuthzTest extends AbstractIcebergCatalogHandlerAuthzTest {
 
-  @Inject MetaStoreManagerFactory metaStoreManagerFactory;
+  @Inject RealmProvisioner realmProvisioner;
 
   @Override
   protected void bootstrapRealm(String realmIdentifier) {
-    metaStoreManagerFactory.bootstrapRealms(List.of(realmIdentifier), RootCredentialsSet.EMPTY);
+    realmProvisioner.bootstrapRealms(List.of(realmIdentifier), RootCredentialsSet.EMPTY);
   }
 }

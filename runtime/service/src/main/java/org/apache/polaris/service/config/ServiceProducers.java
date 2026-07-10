@@ -53,6 +53,7 @@ import org.apache.polaris.core.entity.PolarisEventManager;
 import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
@@ -235,6 +236,20 @@ public class ServiceProducers {
       PersistenceConfiguration config,
       @Any Instance<MetaStoreManagerFactory> metaStoreManagerFactories) {
     return metaStoreManagerFactories.select(Identifier.Literal.of(config.type())).get();
+  }
+
+  // RealmProvisioner (ADR-0006 extract): the concrete metastore factory also implements
+  // RealmProvisioner. CRITICAL: select and cast the RAW factory instance the same way
+  // metaStoreManagerFactory() does, NEVER inject a MetaStoreManagerFactory and cast the injected
+  // proxy — a normal-scoped CDI client proxy for a producer-defined MetaStoreManagerFactory bean
+  // implements ONLY MetaStoreManagerFactory, so casting it to RealmProvisioner throws CCE.
+  @Produces
+  @Singleton
+  public RealmProvisioner realmProvisioner(
+      PersistenceConfiguration config,
+      @Any Instance<MetaStoreManagerFactory> metaStoreManagerFactories) {
+    return (RealmProvisioner)
+        metaStoreManagerFactories.select(Identifier.Literal.of(config.type())).get();
   }
 
   @Produces

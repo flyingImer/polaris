@@ -33,6 +33,7 @@ import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.storage.PolarisStorageIntegration;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 import org.jspecify.annotations.NonNull;
@@ -48,6 +49,21 @@ public class AdminToolProducers {
     return metaStoreManagerFactories
         .select(Identifier.Literal.of(persistenceConfiguration.type()))
         .get();
+  }
+
+  // RealmProvisioner (ADR-0006 extract): select and cast the RAW factory instance the same way
+  // metaStoreManagerFactory() does. Do NOT cast an injected MetaStoreManagerFactory proxy — the
+  // producer-defined bean's client proxy implements ONLY MetaStoreManagerFactory, so the cast
+  // would throw ClassCastException.
+  @Produces
+  @ApplicationScoped
+  public RealmProvisioner realmProvisioner(
+      QuarkusPersistenceConfiguration persistenceConfiguration,
+      @Any Instance<MetaStoreManagerFactory> metaStoreManagerFactories) {
+    return (RealmProvisioner)
+        metaStoreManagerFactories
+            .select(Identifier.Literal.of(persistenceConfiguration.type()))
+            .get();
   }
 
   @Produces

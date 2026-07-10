@@ -38,7 +38,7 @@ public class PurgeCommand extends BaseMetaStoreCommand {
   @Override
   public Integer call() {
     try {
-      var result = metaStoreManagerFactory.purgeRealms(realms);
+      var result = realmProvisioner.purgeRealms(realms);
       var failed =
           result.entrySet().stream()
               .filter(e -> !e.getValue().isSuccess())

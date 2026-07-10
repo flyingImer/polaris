@@ -29,7 +29,7 @@ import java.util.Map;
 import java.util.concurrent.Callable;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.TimeUnit;
-import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -39,24 +39,24 @@ import org.apache.polaris.service.context.catalog.RealmContextHolder;
 class Bootstrapper {
   private final ExecutorService executor;
   private final RealmContextHolder realmContextHolder;
-  private final MetaStoreManagerFactory factory;
+  private final RealmProvisioner realmProvisioner;
 
   @Inject
   Bootstrapper(
       // Note: this executor is expected to NOT propagate CDI contexts to tasks.
       @Identifier("task-executor") ExecutorService executor,
       RealmContextHolder realmContextHolder,
-      MetaStoreManagerFactory factory) {
+      RealmProvisioner realmProvisioner) {
     this.executor = executor;
     this.realmContextHolder = realmContextHolder;
-    this.factory = factory;
+    this.realmProvisioner = realmProvisioner;
   }
 
   Map<String, PrincipalSecretsResult> bootstrapRealms(
       Iterable<String> realmIds, RootCredentialsSet rootCredentialsSet) {
     HashMap<String, PrincipalSecretsResult> result = new HashMap<>();
     for (String realmId : realmIds) {
-      Task t = new Task(realmContextHolder, realmId, rootCredentialsSet, factory);
+      Task t = new Task(realmContextHolder, realmId, rootCredentialsSet, realmProvisioner);
       try {
         // Submit an async task per realm to ensure it runs in a fresh RequestContext.
         // Note: simultaneous bootstrap of multiple realms is an edge case - no need
@@ -74,7 +74,7 @@ class Bootstrapper {
       RealmContextHolder realmContextHolder,
       String realmId,
       RootCredentialsSet rootCredentialsSet,
-      MetaStoreManagerFactory factory)
+      RealmProvisioner realmProvisioner)
       implements Callable<Map<String, PrincipalSecretsResult>> {
 
     @Override
@@ -83,7 +83,7 @@ class Bootstrapper {
       // Note: each call to this method runs in a new CDI request context.
       // Make the realm ID effective in the current request context.
       realmContextHolder.set(() -> realmId);
-      return factory.bootstrapRealms(Collections.singleton(realmId), rootCredentialsSet);
+      return realmProvisioner.bootstrapRealms(Collections.singleton(realmId), rootCredentialsSet);
     }
   }
 }

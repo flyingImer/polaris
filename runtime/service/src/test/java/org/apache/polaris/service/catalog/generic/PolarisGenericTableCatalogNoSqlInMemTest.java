@@ -22,7 +22,7 @@ import io.quarkus.test.junit.QuarkusTest;
 import io.quarkus.test.junit.TestProfile;
 import jakarta.inject.Inject;
 import java.util.List;
-import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.service.Profiles;
 
@@ -31,11 +31,11 @@ import org.apache.polaris.service.Profiles;
 public class PolarisGenericTableCatalogNoSqlInMemTest
     extends AbstractPolarisGenericTableCatalogTest {
 
-  @Inject MetaStoreManagerFactory metaStoreManagerFactory;
+  @Inject RealmProvisioner realmProvisioner;
 
   @Override
   protected void bootstrapRealm(String realmName) {
-    metaStoreManagerFactory
+    realmProvisioner
         .bootstrapRealms(
             List.of(realmName),
             RootCredentialsSet.fromList(List.of(realmName + ",aClientId,aSecret")))

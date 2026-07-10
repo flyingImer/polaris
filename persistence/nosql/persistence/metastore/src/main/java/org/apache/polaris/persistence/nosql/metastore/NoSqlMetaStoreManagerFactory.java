@@ -45,6 +45,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.BasePersistence;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -60,7 +61,7 @@ import org.slf4j.LoggerFactory;
 
 @ApplicationScoped
 @Identifier("nosql")
-class NoSqlMetaStoreManagerFactory implements MetaStoreManagerFactory {
+class NoSqlMetaStoreManagerFactory implements MetaStoreManagerFactory, RealmProvisioner {
   private static final Logger LOGGER = LoggerFactory.getLogger(NoSqlMetaStoreManagerFactory.class);
 
   // Stateless no-op; reused for every realm since NoSQL does not implement metrics persistence.
