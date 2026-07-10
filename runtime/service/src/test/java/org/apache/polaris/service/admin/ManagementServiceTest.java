@@ -44,7 +44,6 @@ import org.apache.polaris.core.admin.model.PolarisCatalog;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.admin.model.UpdateCatalogRequest;
 import org.apache.polaris.core.auth.GrantManager;
-import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -59,6 +58,7 @@ import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.secrets.UnsafeInMemorySecretsManager;
+import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.identity.provider.DefaultServiceIdentityProvider;
@@ -388,7 +388,7 @@ public class ManagementServiceTest {
         new UnsafeInMemorySecretsManager(),
         new DefaultServiceIdentityProvider(),
         principal,
-        new PolarisAuthorizerImpl(
+        new RbacAuthorizer(
             services.realmConfig(), new DefaultEntityResolver(services.resolverFactory())),
         ReservedProperties.NONE);
   }

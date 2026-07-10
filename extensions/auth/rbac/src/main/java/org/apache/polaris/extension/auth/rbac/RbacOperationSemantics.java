@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.extension.auth.rbac;
 
 import static org.apache.polaris.core.auth.PolarisAuthorizableOperation.ADD_CATALOG_GRANT_TO_CATALOG_ROLE;
 import static org.apache.polaris.core.auth.PolarisAuthorizableOperation.ADD_NAMESPACE_GRANT_TO_CATALOG_ROLE;
@@ -219,6 +219,7 @@ import com.google.common.base.Preconditions;
 import java.util.EnumMap;
 import java.util.EnumSet;
 import java.util.Set;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.jspecify.annotations.Nullable;
 

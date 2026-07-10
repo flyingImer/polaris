@@ -35,6 +35,12 @@ dependencies {
   // kept on the serving runtime classpath so its CDI beans are jandex-discovered here.
   implementation(project(":polaris-extensions-io-default"))
 
+  // Built-in RBAC authorizer (@Identifier("internal")) relocated to an extensions module as a peer
+  // of the OPA/Ranger authorizers; kept on the serving runtime classpath so the
+  // RbacAuthorizerProducer
+  // bean is jandex-discovered here.
+  implementation(project(":polaris-extensions-auth-rbac"))
+
   runtimeOnly(project(":polaris-relational-jdbc"))
 
   implementation(project(":polaris-runtime-defaults"))

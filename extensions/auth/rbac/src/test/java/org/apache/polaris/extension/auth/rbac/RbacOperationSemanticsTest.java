@@ -16,14 +16,15 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.extension.auth.rbac;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.EnumSet;
-import org.apache.polaris.core.auth.RbacOperationSemantics.ResolvedPathRooting;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.extension.auth.rbac.RbacOperationSemantics.ResolvedPathRooting;
 import org.junit.jupiter.api.Test;
 
 public class RbacOperationSemanticsTest {

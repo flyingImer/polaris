@@ -55,7 +55,6 @@ import org.apache.polaris.core.admin.model.PrincipalWithCredentialsCredentials;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.RealmConfig;
@@ -78,6 +77,7 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
+import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalog;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
@@ -223,7 +223,7 @@ public abstract class PolarisAuthzTestBase {
     polarisContext = callContext.getPolarisCallContext();
 
     EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
-    polarisAuthorizer = new PolarisAuthorizerImpl(realmConfig, entityResolver);
+    polarisAuthorizer = new RbacAuthorizer(realmConfig, entityResolver);
 
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();

@@ -16,33 +16,38 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.auth;
+package org.apache.polaris.extension.auth.rbac;
 
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.inject.Produces;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 /**
- * Produces the default in-process Polaris authorizer under the {@code "internal"} identifier.
+ * Produces the built-in RBAC Polaris authorizer under the {@code "internal"} identifier.
  *
- * <p>The default authorizer composes the request-scoped {@link RealmConfig} and {@link
- * EntityResolver} directly, so it is produced per request. It has no heavy initialization and no
- * boot-time readiness requirement (the previous {@code DefaultPolarisAuthorizerFactory} had a
- * trivial constructor with no validation).
+ * <p>The {@code "internal"} identifier is the config selector value that {@code
+ * polaris.authorization.type} matches to select the built-in role-based authorizer; it is kept
+ * unchanged so existing deployments keep resolving this bean. Only the class moved to the {@code
+ * extensions/auth/rbac} peer module (alongside the OPA and Ranger authorizers) so the default RBAC
+ * authorizer is a swappable peer rather than a privileged core type.
+ *
+ * <p>The RBAC authorizer composes the request-scoped {@link RealmConfig} and {@link EntityResolver}
+ * directly, so it is produced per request. It has no heavy initialization and no boot-time
+ * readiness requirement (the previous {@code DefaultPolarisAuthorizerFactory} had a trivial
+ * constructor with no validation).
  */
 @ApplicationScoped
-public class DefaultPolarisAuthorizerProducer {
+public class RbacAuthorizerProducer {
 
   @Produces
   @RequestScoped
   @Identifier("internal")
   public PolarisAuthorizer internalAuthorizer(
       RealmConfig realmConfig, EntityResolver entityResolver) {
-    return new PolarisAuthorizerImpl(realmConfig, entityResolver);
+    return new RbacAuthorizer(realmConfig, entityResolver);
   }
 }

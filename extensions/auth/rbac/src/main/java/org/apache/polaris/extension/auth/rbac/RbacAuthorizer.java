@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.extension.auth.rbac;
 
 import static org.apache.polaris.core.entity.PolarisEntityConstants.getRootPrincipalName;
 import static org.apache.polaris.core.entity.PolarisPrivilege.CATALOG_ATTACH_POLICY;
@@ -132,7 +132,22 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.iceberg.exceptions.ForbiddenException;
-import org.apache.polaris.core.auth.RbacOperationSemantics.ResolvedPathRooting;
+import org.apache.polaris.core.auth.AuthorizationChain;
+import org.apache.polaris.core.auth.AuthorizationDecision;
+import org.apache.polaris.core.auth.AuthorizationIntent;
+import org.apache.polaris.core.auth.AuthorizationPreConditions;
+import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
+import org.apache.polaris.core.auth.PolarisAuthorizer;
+import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecurable;
+import org.apache.polaris.core.auth.PolicyAttachmentAuthorizationIntent;
+import org.apache.polaris.core.auth.PrivilegeGrantAuthorizationIntent;
+import org.apache.polaris.core.auth.RenameAuthorizationIntent;
+import org.apache.polaris.core.auth.RoleAssignmentAuthorizationIntent;
+import org.apache.polaris.core.auth.RootPrivilegeGrantAuthorizationIntent;
+import org.apache.polaris.core.auth.SingleTargetAuthorizationIntent;
+import org.apache.polaris.core.auth.TargetlessAuthorizationIntent;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityCore;
@@ -142,6 +157,7 @@ import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
+import org.apache.polaris.extension.auth.rbac.RbacOperationSemantics.ResolvedPathRooting;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -156,8 +172,8 @@ import org.slf4j.LoggerFactory;
  * the expanded roles of the calling Principal hold SERVICE_MANAGE_ACCESS on the "root" catalog,
  * which translates into a cross-catalog permission.
  */
-public class PolarisAuthorizerImpl implements PolarisAuthorizer {
-  private static final Logger LOGGER = LoggerFactory.getLogger(PolarisAuthorizerImpl.class);
+public class RbacAuthorizer implements PolarisAuthorizer {
+  private static final Logger LOGGER = LoggerFactory.getLogger(RbacAuthorizer.class);
 
   @VisibleForTesting
   static final SetMultimap<PolarisPrivilege, PolarisPrivilege> SUPER_PRIVILEGES =
@@ -743,7 +759,7 @@ public class PolarisAuthorizerImpl implements PolarisAuthorizer {
   private final RealmConfig realmConfig;
   private final EntityResolver entityResolver;
 
-  public PolarisAuthorizerImpl(RealmConfig realmConfig, EntityResolver entityResolver) {
+  public RbacAuthorizer(RealmConfig realmConfig, EntityResolver entityResolver) {
     this.realmConfig = realmConfig;
     this.entityResolver = entityResolver;
   }

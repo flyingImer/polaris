@@ -40,7 +40,6 @@ import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.GrantManager;
 import org.apache.polaris.core.auth.PolarisAuthorizer;
-import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.config.FeatureConfiguration;
@@ -57,6 +56,7 @@ import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
+import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
@@ -161,7 +161,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
     PolarisPrincipal authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
 
     EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
-    PolarisAuthorizer authorizer = new PolarisAuthorizerImpl(realmConfig, entityResolver);
+    PolarisAuthorizer authorizer = new RbacAuthorizer(realmConfig, entityResolver);
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
     PolarisAdminService adminService =

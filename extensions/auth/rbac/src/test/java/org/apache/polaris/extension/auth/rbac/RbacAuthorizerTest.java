@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.auth;
+package org.apache.polaris.extension.auth.rbac;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
@@ -35,6 +35,17 @@ import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.ForbiddenException;
+import org.apache.polaris.core.auth.AuthorizationChain;
+import org.apache.polaris.core.auth.AuthorizationDecision;
+import org.apache.polaris.core.auth.AuthorizationRequest;
+import org.apache.polaris.core.auth.PathSegment;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
+import org.apache.polaris.core.auth.PolarisAuthorizer;
+import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisSecurable;
+import org.apache.polaris.core.auth.RootPrivilegeGrantAuthorizationIntent;
+import org.apache.polaris.core.auth.SingleTargetAuthorizationIntent;
+import org.apache.polaris.core.auth.TargetlessAuthorizationIntent;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -63,18 +74,18 @@ import org.mockito.ArgumentMatchers;
  * {@code EntityResolver} and assert the {@code decide} inputs, including the composed chain content
  * so the rooting behavior the old manifest performed internally is verified directly.
  */
-public class PolarisAuthorizerImplTest {
+public class RbacAuthorizerTest {
 
   private static final String ROOT_NAME = PolarisEntityConstants.getRootContainerName();
 
   @ParameterizedTest
   @EnumSource(PolarisPrivilege.class)
   void subsumingPrivilegesOf(PolarisPrivilege privilege) {
-    Set<PolarisPrivilege> actual = PolarisAuthorizerImpl.subsumingPrivilegesOf(privilege);
+    Set<PolarisPrivilege> actual = RbacAuthorizer.subsumingPrivilegesOf(privilege);
     assertThat(actual).isNotEmpty().contains(privilege);
     Set<PolarisPrivilege> expected =
-        PolarisAuthorizerImpl.SUPER_PRIVILEGES.containsKey(privilege)
-            ? PolarisAuthorizerImpl.SUPER_PRIVILEGES.get(privilege)
+        RbacAuthorizer.SUPER_PRIVILEGES.containsKey(privilege)
+            ? RbacAuthorizer.SUPER_PRIVILEGES.get(privilege)
             : EnumSet.of(privilege);
     assertThat(actual).isEqualTo(expected);
   }
@@ -84,8 +95,7 @@ public class PolarisAuthorizerImplTest {
     // authorize is names-only: it builds a ResolutionRequest from the intents' securables (plus the
     // root container as an optional top-level) and resolves it through the EntityResolver SPI.
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity catalogEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity nsEntity = mock(ResolvedPolarisEntity.class);
@@ -138,8 +148,7 @@ public class PolarisAuthorizerImplTest {
     // A root-grant request has no primary target: the root container is the target chain, and the
     // grantee principal role is the secondary chain (rooted).
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity principalRoleEntity = mock(ResolvedPolarisEntity.class);
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
@@ -189,8 +198,7 @@ public class PolarisAuthorizerImplTest {
   void authorizeUsesRootTargetForListCatalogsRequestWithoutPrimaryTarget() {
     // A targetless root-rooted op (LIST_CATALOGS) authorizes against the root container as target.
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
 
@@ -227,8 +235,7 @@ public class PolarisAuthorizerImplTest {
     // A namespace target resolves within the reference catalog; the authz chain prepends the root
     // container and the reference catalog to the resolved path.
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity catalogEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity nsEntity = mock(ResolvedPolarisEntity.class);
@@ -276,8 +283,7 @@ public class PolarisAuthorizerImplTest {
   @Test
   void authorizeSingleOperationMultiIntentRequestEvaluatesSequentially() {
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity firstCatalogEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity secondCatalogEntity = mock(ResolvedPolarisEntity.class);
@@ -338,8 +344,7 @@ public class PolarisAuthorizerImplTest {
   @Test
   void authorizeUpdateTableMultiIntentRequestEvaluatesSequentially() {
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity catalogEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity tableEntity = mock(ResolvedPolarisEntity.class);
@@ -408,8 +413,7 @@ public class PolarisAuthorizerImplTest {
   @Test
   void authorizeReturnsDenyDecision() {
     EntityResolver entityResolver = mock(EntityResolver.class);
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), entityResolver));
+    RbacAuthorizer authorizer = spy(new RbacAuthorizer(mock(RealmConfig.class), entityResolver));
     ResolvedPolarisEntity rootEntity = mock(ResolvedPolarisEntity.class);
     ResolvedPolarisEntity catalogEntity = mock(ResolvedPolarisEntity.class);
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
@@ -462,9 +466,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void decideDeniesWhenCredentialRotationRequired() {
-    PolarisAuthorizerImpl authorizer =
-        new PolarisAuthorizerImpl(
-            realmConfigWithRotationEnforcement(true), mock(EntityResolver.class));
+    RbacAuthorizer authorizer =
+        new RbacAuthorizer(realmConfigWithRotationEnforcement(true), mock(EntityResolver.class));
     PolarisPrincipal principal =
         PolarisPrincipal.of(
             "alice",
@@ -483,9 +486,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void decideDeniesResetCredentialsForNonRootPrincipal() {
-    PolarisAuthorizerImpl authorizer =
-        new PolarisAuthorizerImpl(
-            realmConfigWithRotationEnforcement(false), mock(EntityResolver.class));
+    RbacAuthorizer authorizer =
+        new RbacAuthorizer(realmConfigWithRotationEnforcement(false), mock(EntityResolver.class));
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
 
     AuthorizationDecision decision =
@@ -499,9 +501,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void decideAllowsResetCredentialsForRootPrincipal() {
-    PolarisAuthorizerImpl authorizer =
-        new PolarisAuthorizerImpl(
-            realmConfigWithRotationEnforcement(false), mock(EntityResolver.class));
+    RbacAuthorizer authorizer =
+        new RbacAuthorizer(realmConfigWithRotationEnforcement(false), mock(EntityResolver.class));
     PolarisPrincipal root =
         PolarisPrincipal.of(
             PolarisEntityConstants.getRootPrincipalName(), Map.of(), Set.of("role"));
@@ -515,8 +516,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void authorizeOrThrowThrowsWithDecisionMessageWhenDenied() {
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), mock(EntityResolver.class)));
+    RbacAuthorizer authorizer =
+        spy(new RbacAuthorizer(mock(RealmConfig.class), mock(EntityResolver.class)));
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
     doReturn(AuthorizationDecision.deny("nope"))
         .when(authorizer)
@@ -541,8 +542,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void authorizeOrThrowDoesNotThrowWhenAllowed() {
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), mock(EntityResolver.class)));
+    RbacAuthorizer authorizer =
+        spy(new RbacAuthorizer(mock(RealmConfig.class), mock(EntityResolver.class)));
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
     doReturn(AuthorizationDecision.allow())
         .when(authorizer)
@@ -570,8 +571,8 @@ public class PolarisAuthorizerImplTest {
 
   @Test
   void perOpAuthorizeDelegatesToDecideNatively() {
-    PolarisAuthorizerImpl authorizer =
-        spy(new PolarisAuthorizerImpl(mock(RealmConfig.class), mock(EntityResolver.class)));
+    RbacAuthorizer authorizer =
+        spy(new RbacAuthorizer(mock(RealmConfig.class), mock(EntityResolver.class)));
     PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of("role"));
     PolarisResolvedPathWrapper target = mock(PolarisResolvedPathWrapper.class);
     doReturn(AuthorizationDecision.deny("no"))
