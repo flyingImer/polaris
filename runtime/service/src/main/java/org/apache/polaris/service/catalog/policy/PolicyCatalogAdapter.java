@@ -30,7 +30,6 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.rest.NamespaceUtils;
-import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.PolarisCatalogPolicyApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.types.AttachPolicyRequest;
@@ -41,6 +40,7 @@ import org.apache.polaris.service.types.ListPoliciesResponse;
 import org.apache.polaris.service.types.LoadPolicyResponse;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.service.types.UpdatePolicyRequest;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
 
 @RequestScoped
 public class PolicyCatalogAdapter implements PolarisCatalogPolicyApiService, CatalogAdapter {

@@ -27,6 +27,7 @@ import jakarta.ws.rs.core.Response;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.polaris.service.config.FilterPriorities;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
+import org.apache.polaris.spi.substrate.RealmContextResolver;
 import org.jboss.resteasy.reactive.server.ServerRequestFilter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;

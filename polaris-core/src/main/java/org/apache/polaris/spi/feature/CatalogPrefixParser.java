@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog;
+package org.apache.polaris.spi.feature;
 
 /** An extension point for converting Iceberg REST API "prefix" values to Polaris Catalog names. */
 public interface CatalogPrefixParser {

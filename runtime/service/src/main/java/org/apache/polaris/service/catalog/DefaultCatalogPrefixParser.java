@@ -19,6 +19,7 @@
 package org.apache.polaris.service.catalog;
 
 import jakarta.enterprise.context.ApplicationScoped;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
 
 @ApplicationScoped
 public class DefaultCatalogPrefixParser implements CatalogPrefixParser {

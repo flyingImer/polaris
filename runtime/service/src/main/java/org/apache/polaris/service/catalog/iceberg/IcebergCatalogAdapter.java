@@ -55,7 +55,6 @@ import org.apache.polaris.core.rest.PolarisResourcePaths;
 import org.apache.polaris.operation.model.ConditionalLoadOutcome;
 import org.apache.polaris.operation.model.OperationMetadata;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
-import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
@@ -66,6 +65,7 @@ import org.apache.polaris.service.http.IfNoneMatch;
 import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
 import org.apache.polaris.service.types.NotificationRequest;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

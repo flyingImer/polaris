@@ -45,6 +45,7 @@ import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

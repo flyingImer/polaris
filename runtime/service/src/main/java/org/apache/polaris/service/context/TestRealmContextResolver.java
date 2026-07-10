@@ -28,6 +28,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionStage;
 import java.util.function.Function;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.spi.substrate.RealmContextResolver;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

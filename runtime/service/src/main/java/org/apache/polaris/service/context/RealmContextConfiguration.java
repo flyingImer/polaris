@@ -51,7 +51,7 @@ public interface RealmContextConfiguration {
 
   /**
    * The type of the realm context resolver. Must be a registered {@link
-   * org.apache.polaris.service.context.RealmContextResolver} identifier.
+   * org.apache.polaris.spi.substrate.RealmContextResolver} identifier.
    */
   String type();
 }

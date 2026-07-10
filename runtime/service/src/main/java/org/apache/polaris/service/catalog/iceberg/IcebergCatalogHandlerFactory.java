@@ -34,11 +34,11 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
-import org.apache.polaris.service.catalog.CatalogPrefixParser;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
 
 @RequestScoped
 public class IcebergCatalogHandlerFactory {

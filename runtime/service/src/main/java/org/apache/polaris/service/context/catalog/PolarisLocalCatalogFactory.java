@@ -36,8 +36,8 @@ import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
-import org.apache.polaris.service.task.TaskExecutor;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
