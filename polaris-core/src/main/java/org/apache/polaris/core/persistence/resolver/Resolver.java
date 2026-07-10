@@ -39,7 +39,7 @@ import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.cache.EntityCacheByNameKey;
@@ -62,7 +62,7 @@ public class Resolver {
   private final @NonNull PolarisDiagnostics diagnostics;
 
   // the polaris metastore manager
-  private final @NonNull PolarisMetaStoreManager polarisMetaStoreManager;
+  private final @NonNull DurableManager polarisMetaStoreManager;
 
   // the cache of entities
   @Nullable private final EntityCache cache;
@@ -128,7 +128,7 @@ public class Resolver {
   public Resolver(
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull PolarisCallContext polarisCallContext,
-      @NonNull PolarisMetaStoreManager polarisMetaStoreManager,
+      @NonNull DurableManager polarisMetaStoreManager,
       @NonNull PolarisPrincipal principal,
       @Nullable EntityCache cache,
       @Nullable String referenceCatalogName) {
@@ -567,7 +567,7 @@ public class Resolver {
       // TODO: Provide configurable option to enforce bulk validation of *all* entities in a
       // resolution pass, instead of only validating ones on "cache hit"; this would allow the same
       // semantics as the transactional validation performed for methods like readEntityByName
-      // when PolarisMetaStoreManagerImpl uses PolarisEntityResolver in a read transaction.
+      // when DurableManagerImpl uses PolarisEntityResolver in a read transaction.
       List<PolarisEntityId> entityIds =
           toValidate.stream()
               .map(

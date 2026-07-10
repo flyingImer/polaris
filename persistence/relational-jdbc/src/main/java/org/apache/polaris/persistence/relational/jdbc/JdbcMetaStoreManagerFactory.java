@@ -42,9 +42,9 @@ import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.BootstrapOptions;
@@ -63,7 +63,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * JDBC-based implementation of {@link MetaStoreManagerFactory} that creates and manages {@link
- * PolarisMetaStoreManager} instances backed by a relational SQL metastore.
+ * DurableManager} instances backed by a relational SQL metastore.
  *
  * <p>This factory is responsible for: - Bootstrapping realms - Managing per-realm persistence
  * sessions - Caching schema versions and bootstrap state - Providing entity caches for runtime
@@ -108,7 +108,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
     }
   }
 
-  protected PolarisMetaStoreManager createNewMetaStoreManager() {
+  protected DurableManager createNewMetaStoreManager() {
     return new AtomicOperationMetaStoreManager(clock, diagnostics);
   }
 
@@ -193,7 +193,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
         // Cache the effective schema version for this realm
         schemaVersionCache.put(realm, effectiveSchemaVersion);
 
-        PolarisMetaStoreManager metaStoreManager = createNewMetaStoreManager();
+        DurableManager metaStoreManager = createNewMetaStoreManager();
         JdbcDurablePrimitivesImpl metaStore =
             createSession(realm, bootstrapOptions.rootCredentialsSet(), true);
         PolarisCallContext polarisContext = new PolarisCallContext(realmContext, metaStore);
@@ -214,7 +214,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
 
     for (String realm : realms) {
       RealmContext realmContext = () -> realm;
-      PolarisMetaStoreManager metaStoreManager = createNewMetaStoreManager();
+      DurableManager metaStoreManager = createNewMetaStoreManager();
       JdbcDurablePrimitivesImpl session = createSession(realm, null, true);
 
       PolarisCallContext callContext = new PolarisCallContext(realmContext, session);
@@ -241,7 +241,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
   }
 
   @Override
-  public PolarisMetaStoreManager getOrCreateMetaStoreManager(RealmContext realmContext) {
+  public DurableManager getOrCreateMetaStoreManager(RealmContext realmContext) {
     // Stateless — create a fresh instance on every call, no caching needed
     return createNewMetaStoreManager();
   }
@@ -264,7 +264,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
     return entityCacheMap.computeIfAbsent(
         realmId,
         k -> {
-          PolarisMetaStoreManager metaStoreManager = createNewMetaStoreManager();
+          DurableManager metaStoreManager = createNewMetaStoreManager();
           return new InMemoryEntityCache(diagnostics, realmConfig, metaStoreManager);
         });
   }
@@ -279,7 +279,7 @@ public class JdbcMetaStoreManagerFactory implements MetaStoreManagerFactory, Rea
   private void checkPolarisServiceBootstrappedForRealm(
       RealmContext realmContext, boolean fallbackOnDne) {
     String realmId = realmContext.getRealmIdentifier();
-    PolarisMetaStoreManager metaStoreManager = createNewMetaStoreManager();
+    DurableManager metaStoreManager = createNewMetaStoreManager();
     JdbcDurablePrimitivesImpl metaStore = createSession(realmId, null, fallbackOnDne);
     PolarisCallContext polarisContext = new PolarisCallContext(realmContext, metaStore);
 

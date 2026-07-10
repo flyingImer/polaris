@@ -111,7 +111,7 @@ import org.apache.polaris.core.entity.table.federated.FederatedEntities;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.identity.dpo.ServiceIdentityInfoDpo;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -163,7 +163,7 @@ public class PolarisAdminService {
   private final EntityResolver entityResolver;
   private final PolarisPrincipal polarisPrincipal;
   private final PolarisAuthorizer authorizer;
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
   private final SecretsManager secretsManager;
   private final GrantManager grantManager;
   private final UserSecretsManager userSecretsManager;
@@ -174,7 +174,7 @@ public class PolarisAdminService {
   public PolarisAdminService(
       @NonNull CallContext callContext,
       @NonNull EntityResolver entityResolver,
-      @NonNull PolarisMetaStoreManager metaStoreManager,
+      @NonNull DurableManager metaStoreManager,
       @NonNull SecretsManager secretsManager,
       @NonNull GrantManager grantManager,
       @NonNull UserSecretsManager userSecretsManager,

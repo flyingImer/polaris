@@ -51,7 +51,7 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.BaseMetaStoreManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
@@ -605,7 +605,7 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
   }
 
   /**
-   * See {@link PolarisMetaStoreManager#listEntities(PolarisCallContext, List, PolarisEntityType,
+   * See {@link DurableManager#listEntities(PolarisCallContext, List, PolarisEntityType,
    * PolarisEntitySubType, PageToken)}
    */
   private @NonNull ListEntitiesResult listEntities(
@@ -655,8 +655,8 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
   }
 
   /**
-   * See {@link PolarisMetaStoreManager#listFullEntities(PolarisCallContext, List,
-   * PolarisEntityType, PolarisEntitySubType, PageToken)}
+   * See {@link DurableManager#listFullEntities(PolarisCallContext, List, PolarisEntityType,
+   * PolarisEntitySubType, PageToken)}
    */
   private @NonNull Page<PolarisBaseEntity> listFullEntities(
       @NonNull PolarisCallContext callCtx,
@@ -1173,8 +1173,8 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
   }
 
   /**
-   * See {@link PolarisMetaStoreManager#renameEntity(PolarisCallContext, List, PolarisBaseEntity,
-   * List, PolarisEntity)}
+   * See {@link DurableManager#renameEntity(PolarisCallContext, List, PolarisBaseEntity, List,
+   * PolarisEntity)}
    */
   private @NonNull EntityResult renameEntity(
       @NonNull PolarisCallContext callCtx,
@@ -1885,7 +1885,7 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
         callCtx, () -> this.loadGrantsToGrantee(callCtx, ms, granteeCatalogId, granteeId));
   }
 
-  /** {@link PolarisMetaStoreManager#loadEntitiesChangeTracking(PolarisCallContext, List)} */
+  /** {@link DurableManager#loadEntitiesChangeTracking(PolarisCallContext, List)} */
   private @NonNull ChangeTrackingResult loadEntitiesChangeTracking(
       @NonNull PolarisCallContext callCtx,
       @NonNull TransactionalPersistence ms,

@@ -353,7 +353,7 @@ abstract class NonFunctionalDurablePrimitives implements DurablePrimitives, Inte
   static UnsupportedOperationException useMetaStoreManager(String function) {
     var ex =
         new UnsupportedOperationException(
-            "Operation not supported - use PolarisMetaStoreManager." + function + "()");
+            "Operation not supported - use DurableManager." + function + "()");
     LOGGER.error("Unsupported function call", ex);
     return ex;
   }

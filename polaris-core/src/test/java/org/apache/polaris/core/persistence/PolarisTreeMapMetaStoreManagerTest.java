@@ -28,7 +28,7 @@ import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
 import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
 import org.mockito.Mockito;
 
-public class PolarisTreeMapMetaStoreManagerTest extends BasePolarisMetaStoreManagerTest {
+public class PolarisTreeMapMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();

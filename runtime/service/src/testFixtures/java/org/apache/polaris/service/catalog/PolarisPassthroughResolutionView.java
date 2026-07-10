@@ -31,7 +31,7 @@ import org.apache.polaris.core.persistence.resolver.ResolverPath;
 
 /**
  * For test purposes or for elevated-privilege scenarios where entity resolution is allowed to
- * directly access a PolarisEntityManager/PolarisMetaStoreManager without being part of an
+ * directly access a PolarisEntityManager/DurableManager without being part of an
  * authorization-gated PolarisResolutionManifest, this class delegates entity resolution directly to
  * new single-use PolarisResolutionManifests for each desired resolved path without defining a fixed
  * set of resolved entities that need to be checked against authorizable operations.

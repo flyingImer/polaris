@@ -40,7 +40,7 @@ import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.service.config.ReservedProperties;
@@ -51,7 +51,7 @@ import org.mockito.Mockito;
 public class PolarisServiceImplTest {
 
   private EntityResolver entityResolver;
-  private PolarisMetaStoreManager metaStoreManager;
+  private DurableManager metaStoreManager;
   private SecretsManager secretsManager;
   private GrantManager grantManager;
   private UserSecretsManager userSecretsManager;
@@ -67,7 +67,7 @@ public class PolarisServiceImplTest {
   @BeforeEach
   void setUp() {
     entityResolver = Mockito.mock(EntityResolver.class);
-    metaStoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    metaStoreManager = Mockito.mock(DurableManager.class);
     secretsManager = Mockito.mock(SecretsManager.class);
     grantManager = Mockito.mock(GrantManager.class);
     userSecretsManager = Mockito.mock(UserSecretsManager.class);

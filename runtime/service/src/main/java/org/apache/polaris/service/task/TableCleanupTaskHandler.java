@@ -43,8 +43,8 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -118,7 +118,7 @@ public class TableCleanupTaskHandler implements TaskHandler {
       TableMetadata tableMetadata =
           TableMetadataParser.read(fileIO, tableEntity.getMetadataLocation());
 
-      PolarisMetaStoreManager metaStoreManager =
+      DurableManager metaStoreManager =
           metaStoreManagerFactory.getOrCreateMetaStoreManager(callContext.getRealmContext());
       PolarisCallContext polarisCallContext = callContext.getPolarisCallContext();
 
@@ -195,7 +195,7 @@ public class TableCleanupTaskHandler implements TaskHandler {
       TableMetadata tableMetadata,
       FileIO fileIO,
       IcebergTableLikeEntity tableEntity,
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       PolarisCallContext polarisCallContext) {
     // read the manifest list for each snapshot. dedupe the manifest files and schedule a
     // cleanupTask
@@ -244,7 +244,7 @@ public class TableCleanupTaskHandler implements TaskHandler {
       TaskEntity cleanupTask,
       TableMetadata tableMetadata,
       IcebergTableLikeEntity tableEntity,
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       CallContext callContext) {
     PolarisCallContext polarisCallContext = callContext.getPolarisCallContext();
     int batchSize = callContext.getRealmConfig().getConfig(TABLE_METADATA_CLEANUP_BATCH_SIZE);

@@ -24,7 +24,7 @@ import jakarta.inject.Inject;
 import java.time.Clock;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 
@@ -52,8 +52,7 @@ public class InMemoryAtomicOperationMetaStoreManagerFactory
   }
 
   @Override
-  protected PolarisMetaStoreManager createNewMetaStoreManager(
-      Clock clock, PolarisDiagnostics diagnostics) {
+  protected DurableManager createNewMetaStoreManager(Clock clock, PolarisDiagnostics diagnostics) {
     return new AtomicOperationMetaStoreManager(clock, diagnostics);
   }
 }

@@ -27,7 +27,7 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 
 @RequestScoped
@@ -35,7 +35,7 @@ public class GenericTableCatalogHandlerFactory {
 
   @Inject CallContext callContext;
   @Inject EntityResolver entityResolver;
-  @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject DurableManager metaStoreManager;
   @Inject PolarisAuthorizer authorizer;
   @Inject PolarisCredentialManager credentialManager;
   @Inject @Any Instance<FederatedCatalogFactory> federatedCatalogFactories;

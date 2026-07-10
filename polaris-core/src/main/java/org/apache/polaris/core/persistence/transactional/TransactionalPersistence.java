@@ -117,7 +117,7 @@ public interface TransactionalPersistence
 
   //
   // Every method of DurablePrimitives will have a related * method here; the semantics
-  // being that transactional implementations of a PolarisMetaStoreManager may choose to
+  // being that transactional implementations of a DurableManager may choose to
   // self-manage outer transactions to perform all the persistence calls within that provided
   // transaction, while the basic implementation will only use the "durable in a single-shot"
   // methods from DurablePrimitives. Condition-checks for atomic compare-and-swap behaviors are

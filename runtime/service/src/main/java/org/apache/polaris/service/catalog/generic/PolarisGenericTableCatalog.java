@@ -34,7 +34,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.table.GenericTableEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
@@ -51,10 +51,10 @@ public class PolarisGenericTableCatalog implements GenericTableCatalog {
   private final CallContext callContext;
   private final PolarisResolutionManifestCatalogView resolvedEntityView;
   private final long catalogId;
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
 
   public PolarisGenericTableCatalog(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView) {
     this.callContext = callContext;

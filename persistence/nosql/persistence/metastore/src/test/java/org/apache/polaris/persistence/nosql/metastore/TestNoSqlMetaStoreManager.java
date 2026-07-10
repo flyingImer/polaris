@@ -46,9 +46,9 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
-import org.apache.polaris.core.persistence.BasePolarisMetaStoreManagerTest;
+import org.apache.polaris.core.persistence.BaseDurableManagerTest;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
@@ -77,7 +77,7 @@ import org.junit.jupiter.api.extension.ExtendWith;
 @SuppressWarnings("CdiInjectionPointsInspection")
 @EnableWeld
 @ExtendWith(SoftAssertionsExtension.class)
-public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
+public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
   @SuppressWarnings("unused")
   @WeldSetup
   WeldInitiator weld = WeldInitiator.performDefaultDiscovery();
@@ -98,7 +98,7 @@ public class TestNoSqlMetaStoreManager extends BasePolarisMetaStoreManagerTest {
   String realmId;
   RealmContext realmContext;
 
-  PolarisMetaStoreManager metaStore;
+  DurableManager metaStore;
   PolarisCallContext callContext;
 
   @Override

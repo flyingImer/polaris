@@ -44,8 +44,8 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.persistence.nosql.api.Persistence;
@@ -82,7 +82,7 @@ public class TestMemoizedIndexAccess {
   RealmProvisioner realmProvisioner;
 
   PolarisCallContext callContext;
-  PolarisMetaStoreManager metaStoreManager;
+  DurableManager metaStoreManager;
 
   Persistence persistence;
   MemoizedIndexedAccess memoized;

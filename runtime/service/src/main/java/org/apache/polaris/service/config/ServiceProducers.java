@@ -50,9 +50,9 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.entity.PolarisEventManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
@@ -194,7 +194,7 @@ public class ServiceProducers {
       RealmConfig realmConfig,
       MetaStoreManagerFactory metaStoreManagerFactory,
       CallContext callContext,
-      PolarisMetaStoreManager polarisMetaStoreManager) {
+      DurableManager polarisMetaStoreManager) {
     EntityCache entityCache =
         metaStoreManagerFactory.getOrCreateEntityCache(realmContext, realmConfig);
     return (principal, referenceCatalogName) ->
@@ -254,14 +254,14 @@ public class ServiceProducers {
 
   @Produces
   @RequestScoped
-  public PolarisMetaStoreManager polarisMetaStoreManager(
+  public DurableManager polarisMetaStoreManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
     return metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
-  // Sibling durable managers (ADR-0002 un-fuse): PolarisMetaStoreManager no longer extends these,
+  // Sibling durable managers (ADR-0002 un-fuse): DurableManager no longer extends these,
   // so they are produced as their own beans. CRITICAL: cast the RAW factory result (the concrete
-  // impl, which nominally implements the sibling), NEVER an injected PolarisMetaStoreManager proxy
+  // impl, which nominally implements the sibling), NEVER an injected DurableManager proxy
   // (a normal-scoped CDI proxy implements only its declared bean type -> ClassCastException).
   @Produces
   @RequestScoped
@@ -432,7 +432,7 @@ public class ServiceProducers {
   public TokenBroker tokenBroker(
       AuthenticationRealmConfiguration config,
       @Any Instance<TokenBrokerFactory> tokenBrokerFactories,
-      PolarisMetaStoreManager polarisMetaStoreManager,
+      DurableManager polarisMetaStoreManager,
       SecretsManager polarisSecretsManager,
       CallContext callContext) {
     String type =

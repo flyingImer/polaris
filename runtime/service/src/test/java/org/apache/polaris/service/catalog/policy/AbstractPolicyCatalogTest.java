@@ -60,7 +60,7 @@ import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
@@ -133,7 +133,7 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject ResolverFactory resolverFactory;
   @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
-  @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject DurableManager metaStoreManager;
   @Inject SecretsManager secretsManager;
   @Inject GrantManager grantManager;
   @Inject PolarisPolicyMappingManager policyMappingManager;

@@ -32,7 +32,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.types.TokenType;
 import org.junit.jupiter.api.Test;
@@ -49,7 +49,7 @@ public class RSAKeyPairJWTBrokerTest {
     final String scope = "PRINCIPAL_ROLE:TEST";
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
-    PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    DurableManager metastoreManager = Mockito.mock(DurableManager.class);
     SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
     String mainSecret = "client-secret";
     PolarisPrincipalSecrets principalSecrets =
@@ -101,7 +101,7 @@ public class RSAKeyPairJWTBrokerTest {
     var keyPair = PemUtils.generateKeyPair();
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
-    PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    DurableManager metastoreManager = Mockito.mock(DurableManager.class);
     SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =
@@ -135,7 +135,7 @@ public class RSAKeyPairJWTBrokerTest {
     var keyPair = PemUtils.generateKeyPair();
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
-    PolarisMetaStoreManager metastoreManager = Mockito.mock(PolarisMetaStoreManager.class);
+    DurableManager metastoreManager = Mockito.mock(DurableManager.class);
     SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =

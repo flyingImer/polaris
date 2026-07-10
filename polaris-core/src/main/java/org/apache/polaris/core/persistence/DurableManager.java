@@ -54,7 +54,7 @@ import org.jspecify.annotations.Nullable;
  * Polaris Metastore Manager manages all Polaris entities and associated grant records metadata for
  * authorization. It uses the underlying persistent metastore to store and retrieve Polaris metadata
  */
-public interface PolarisMetaStoreManager {
+public interface DurableManager {
 
   /**
    * Bootstrap the Polaris service, creating the root catalog, root principal, and associated

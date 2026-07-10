@@ -213,7 +213,7 @@ class NoSqlMetaStore extends NonFunctionalDurablePrimitives {
 
           // if found, probably a retry, simply return the previously created catalog
           // TODO not sure how a "retry" could happen with the same ID though (see
-          //  PolarisMetaStoreManagerImpl.createCatalog())...
+          //  DurableManagerImpl.createCatalog())...
           if (catalogObj != null && catalogObj.stableId() != catalog.getId()) {
             // A catalog with the same name already exists (different ID)
             return new ChangeResult.NoChange<>(

@@ -81,7 +81,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Implementation of PolarisMetaStoreManager which only relies on one-shot atomic operations into a
+ * Implementation of DurableManager which only relies on one-shot atomic operations into a
  * DurablePrimitives implementation without any kind of open-ended multi-statement transactions.
  */
 public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
@@ -1514,10 +1514,10 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
     // hitting concurrency errors, we need to just throw a concurrency exception rather than
     // returning an empty list.
     if (loadedTasks.isEmpty() && failedLeaseCount.get() > 0) {
-      // TODO: Currently the contract defined by BasePolarisMetaStoreManagerTest expects either
+      // TODO: Currently the contract defined by BaseDurableManagerTest expects either
       // a thrown RetryOnConcurrencyException or else a successful EntitiesResult in the face
       // of concurrent loadTasks calls; this is inconsistent with the rest of the
-      // PolarisMetaStoreManager interface where everything is supposed to encapsulate errors
+      // DurableManager interface where everything is supposed to encapsulate errors
       // in the Result type instead of throwing. But for now, we'll throw.
       throw new RetryOnConcurrencyException(
           "Failed to lease any of %s tasks due to concurrent leases", failedLeaseCount.get());

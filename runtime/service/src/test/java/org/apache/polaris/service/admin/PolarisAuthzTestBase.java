@@ -67,7 +67,7 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
@@ -171,7 +171,7 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected StorageCredentialCache storageCredentialCache;
   @Inject protected ResolverFactory resolverFactory;
   @Inject protected StorageAccessConfigProvider storageAccessConfigProvider;
-  @Inject protected PolarisMetaStoreManager metaStoreManager;
+  @Inject protected DurableManager metaStoreManager;
   @Inject protected SecretsManager secretsManager;
   @Inject protected GrantManager grantManager;
   @Inject protected PolarisPolicyMappingManager policyMappingManager;
@@ -433,7 +433,7 @@ public abstract class PolarisAuthzTestBase {
   }
 
   protected @NonNull PrincipalEntity rotateAndRefreshPrincipal(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       String principalName,
       PrincipalWithCredentialsCredentials credentials,
       PolarisCallContext polarisContext) {
@@ -507,7 +507,7 @@ public abstract class PolarisAuthzTestBase {
         StorageIoProvider fileIOFactory,
         PolarisEventDispatcher polarisEventDispatcher,
         PolarisEventMetadataFactory eventMetadataFactory,
-        PolarisMetaStoreManager metaStoreManager,
+        DurableManager metaStoreManager,
         CallContext callContext,
         PolarisPrincipal principal) {
       super(

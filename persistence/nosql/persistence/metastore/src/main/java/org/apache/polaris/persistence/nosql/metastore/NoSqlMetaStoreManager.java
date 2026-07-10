@@ -51,7 +51,7 @@ import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -83,7 +83,7 @@ import org.jspecify.annotations.Nullable;
 
 record NoSqlMetaStoreManager(
     Supplier<BaseResult> purgeRealm, RootCredentialsSet rootCredentialsSet, Clock clock)
-    implements PolarisMetaStoreManager,
+    implements DurableManager,
         SecretsManager,
         GrantManager,
         PolarisPolicyMappingManager,
@@ -163,7 +163,7 @@ record NoSqlMetaStoreManager(
       @NonNull PolarisEntity renamedEntity) {
     if (newCatalogPath != null && !newCatalogPath.isEmpty()) {
       var last = newCatalogPath.getLast();
-      // At least BasePolarisMetaStoreManagerTest comes with the wrong parentId in renamedEntity
+      // At least BaseDurableManagerTest comes with the wrong parentId in renamedEntity
       if (renamedEntity.getParentId() != last.getId()) {
         renamedEntity = new PolarisEntity.Builder(renamedEntity).setParentId(last.getId()).build();
       }

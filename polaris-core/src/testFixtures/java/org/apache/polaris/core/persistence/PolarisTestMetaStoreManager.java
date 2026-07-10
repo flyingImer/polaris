@@ -69,9 +69,9 @@ public class PolarisTestMetaStoreManager {
   final PolarisCallContext polarisCallContext;
 
   // call metastore manager
-  final PolarisMetaStoreManager polarisMetaStoreManager;
+  final DurableManager polarisMetaStoreManager;
 
-  // ADR-0002: sibling managers are no longer on PolarisMetaStoreManager. The concrete impl passed
+  // ADR-0002: sibling managers are no longer on DurableManager. The concrete impl passed
   // to this fixture nominally implements them, so narrow it once for the sibling call sites.
   final SecretsManager polarisSecretsManager;
   final GrantManager polarisGrantManager;
@@ -87,7 +87,7 @@ public class PolarisTestMetaStoreManager {
 
   // initialize the test
   public PolarisTestMetaStoreManager(
-      PolarisMetaStoreManager polarisMetaStoreManager, PolarisCallContext polarisCallContext) {
+      DurableManager polarisMetaStoreManager, PolarisCallContext polarisCallContext) {
     this(polarisMetaStoreManager, polarisCallContext, System.currentTimeMillis(), true);
 
     // bootstrap the Polaris service
@@ -96,7 +96,7 @@ public class PolarisTestMetaStoreManager {
   }
 
   public PolarisTestMetaStoreManager(
-      PolarisMetaStoreManager polarisMetaStoreManager,
+      DurableManager polarisMetaStoreManager,
       PolarisCallContext polarisCallContext,
       long testStartTime,
       boolean supportsChangeTracking) {
@@ -114,7 +114,7 @@ public class PolarisTestMetaStoreManager {
     return polarisCallContext;
   }
 
-  public PolarisMetaStoreManager polarisMetaStoreManager() {
+  public DurableManager polarisMetaStoreManager() {
     return polarisMetaStoreManager;
   }
 

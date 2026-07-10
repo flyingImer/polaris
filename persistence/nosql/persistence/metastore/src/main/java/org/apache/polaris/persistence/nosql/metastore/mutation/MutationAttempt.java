@@ -471,7 +471,7 @@ public record MutationAttempt(
     var entityObj = entityObjBuilder.build();
     var existingRef = byName.get(nameKey);
     if (existingRef != null || originalNameKey != null) {
-      // PolarisMetaStoreManager.createEntityIfNotExists: if the entity already exists,
+      // DurableManager.createEntityIfNotExists: if the entity already exists,
       // return it.
       if (existingRef == null) {
         existingRef = byName.get(originalNameKey);

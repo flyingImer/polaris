@@ -66,8 +66,8 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -668,7 +668,7 @@ public class TestCatalogMaintenance {
   }
 
   private static List<PolarisBaseEntity> createTables(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       PolarisBaseEntity namespace,
@@ -683,7 +683,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createTable(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       PolarisBaseEntity namespace,
@@ -692,7 +692,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createTable(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       PolarisBaseEntity namespace,
@@ -714,7 +714,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createNamespace(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       Persistence persistence) {
@@ -722,7 +722,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createNamespace(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       Persistence persistence,
@@ -743,7 +743,7 @@ public class TestCatalogMaintenance {
 
   @SuppressWarnings("SameParameterValue")
   private static PolicyEntity createPolicy(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       PolarisBaseEntity namespace,
@@ -766,7 +766,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createCatalogRole(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       Persistence persistence) {
@@ -774,7 +774,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createCatalogRole(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       Persistence persistence,
@@ -794,7 +794,7 @@ public class TestCatalogMaintenance {
   }
 
   private static List<PolarisBaseEntity> createCatalogRoles(
-      PolarisMetaStoreManager manager,
+      DurableManager manager,
       PolarisCallContext callCtx,
       PolarisBaseEntity catalog,
       Persistence persistence,
@@ -808,7 +808,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createCatalog(
-      PolarisMetaStoreManager manager, PolarisCallContext callCtx, Persistence persistence) {
+      DurableManager manager, PolarisCallContext callCtx, Persistence persistence) {
     var catalogResult =
         manager.createCatalog(
             callCtx,
@@ -827,7 +827,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createPrincipal(
-      PolarisMetaStoreManager manager, PolarisCallContext callCtx, Persistence persistence) {
+      DurableManager manager, PolarisCallContext callCtx, Persistence persistence) {
     var principalResult =
         manager.createPrincipal(
             callCtx,
@@ -842,7 +842,7 @@ public class TestCatalogMaintenance {
   }
 
   private static PolarisBaseEntity createPrincipalRole(
-      PolarisMetaStoreManager manager, PolarisCallContext callCtx, Persistence persistence) {
+      DurableManager manager, PolarisCallContext callCtx, Persistence persistence) {
     var principalRoleResult =
         manager.createEntityIfNotExists(
             callCtx,
@@ -972,5 +972,5 @@ public class TestCatalogMaintenance {
   }
 
   private record TestSetup(
-      PolarisMetaStoreManager manager, PolarisCallContext callCtx, Persistence persistence) {}
+      DurableManager manager, PolarisCallContext callCtx, Persistence persistence) {}
 }

@@ -31,7 +31,7 @@ import java.util.concurrent.ConcurrentMap;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.service.auth.AuthenticationConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration.TokenBrokerConfiguration.RSAKeyPairConfiguration;
@@ -52,7 +52,7 @@ public class RSAKeyPairJWTBrokerFactory implements TokenBrokerFactory {
 
   @Override
   public TokenBroker create(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       SecretsManager secretsManager,
       PolarisCallContext polarisCallContext) {
     RealmContext realmContext = polarisCallContext.getRealmContext();

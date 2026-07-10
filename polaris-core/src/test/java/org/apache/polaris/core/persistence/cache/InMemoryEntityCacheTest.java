@@ -43,7 +43,7 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
@@ -66,7 +66,7 @@ public class InMemoryEntityCacheTest {
   private final PolarisDiagnostics diagServices;
   private final PolarisCallContext callCtx;
   private final PolarisTestMetaStoreManager tm;
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
 
   /**
    * Initialize and create the test metadata
@@ -709,7 +709,7 @@ public class InMemoryEntityCacheTest {
   @Test
   public void testBatchLoadVersionRetryLogic() {
     // get a new cache
-    PolarisMetaStoreManager metaStoreManager = Mockito.spy(this.metaStoreManager);
+    DurableManager metaStoreManager = Mockito.spy(this.metaStoreManager);
     InMemoryEntityCache cache =
         new InMemoryEntityCache(diagServices, callCtx.getRealmConfig(), metaStoreManager);
 
@@ -790,7 +790,7 @@ public class InMemoryEntityCacheTest {
   @Test
   public void testBatchLoadVersionRetryFailsAfterMaxAttempts() {
     // get a new cache
-    PolarisMetaStoreManager metaStoreManager = Mockito.spy(this.metaStoreManager);
+    DurableManager metaStoreManager = Mockito.spy(this.metaStoreManager);
     InMemoryEntityCache cache =
         new InMemoryEntityCache(diagServices, callCtx.getRealmConfig(), metaStoreManager);
 
@@ -891,7 +891,7 @@ public class InMemoryEntityCacheTest {
             List.of(catalog, N1), N2v2, "{\"concurrent_test\": \"client2_version\"}", null);
 
     // Mock the metastore manager to control the timing of method calls
-    PolarisMetaStoreManager mockedMetaStoreManager = Mockito.spy(this.metaStoreManager);
+    DurableManager mockedMetaStoreManager = Mockito.spy(this.metaStoreManager);
 
     // Create caches with the mocked metastore manager
     InMemoryEntityCache cache =

@@ -46,8 +46,8 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -59,7 +59,7 @@ import org.slf4j.LoggerFactory;
 class TableCleanupTaskHandlerTest {
   @Inject Clock clock;
   @Inject MetaStoreManagerFactory metaStoreManagerFactory;
-  @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject DurableManager metaStoreManager;
   @Inject CallContext callContext;
   @InjectMock TaskFileIOSupplier taskFileIOSupplier;
 

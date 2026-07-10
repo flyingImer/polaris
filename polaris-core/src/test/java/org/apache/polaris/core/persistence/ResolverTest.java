@@ -58,7 +58,7 @@ public class ResolverTest extends BaseResolverTest {
   }
 
   @Override
-  protected PolarisMetaStoreManager metaStoreManager() {
+  protected DurableManager metaStoreManager() {
     if (metaStoreManager == null) {
       metaStoreManager = new TransactionalMetaStoreManagerImpl(clock, diagServices);
     }

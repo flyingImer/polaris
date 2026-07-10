@@ -31,7 +31,7 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
@@ -50,9 +50,9 @@ public class AuthBootstrapUtil {
   private AuthBootstrapUtil() {}
 
   public static PrincipalSecretsResult createPolarisPrincipalForRealm(
-      PolarisMetaStoreManager metaStoreManager, PolarisCallContext ctx) {
+      DurableManager metaStoreManager, PolarisCallContext ctx) {
 
-    // ADR-0002: grant/secrets siblings are no longer on PolarisMetaStoreManager. The concrete impl
+    // ADR-0002: grant/secrets siblings are no longer on DurableManager. The concrete impl
     // still nominally implements them, so narrow the passed manager to reach those methods.
     GrantManager grantManager = (GrantManager) metaStoreManager;
     SecretsManager secretsManager = (SecretsManager) metaStoreManager;
@@ -112,7 +112,7 @@ public class AuthBootstrapUtil {
     return secretsManager.loadPrincipalSecrets(ctx, rootPrincipal.getClientId());
   }
 
-  private static long generateId(PolarisMetaStoreManager metaStoreManager, PolarisCallContext ctx) {
+  private static long generateId(DurableManager metaStoreManager, PolarisCallContext ctx) {
     GenerateEntityIdResult res = metaStoreManager.generateNewEntityId(ctx);
     Preconditions.checkState(res.isSuccess(), "Unable to generate id for polaris entity");
     return res.getId();

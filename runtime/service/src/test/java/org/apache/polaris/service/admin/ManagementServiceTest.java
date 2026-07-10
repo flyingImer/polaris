@@ -53,7 +53,7 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -372,7 +372,7 @@ public class ManagementServiceTest {
   }
 
   private PolarisAdminService setupPolarisAdminService(
-      PolarisMetaStoreManager metaStoreManager, PolarisCallContext callContext) {
+      DurableManager metaStoreManager, PolarisCallContext callContext) {
     PolarisPrincipal principal =
         PolarisPrincipal.of(
             new PrincipalEntity.Builder()
@@ -394,7 +394,7 @@ public class ManagementServiceTest {
   }
 
   private PrincipalEntity createPrincipal(
-      PolarisMetaStoreManager metaStoreManager, PolarisCallContext callContext, String name) {
+      DurableManager metaStoreManager, PolarisCallContext callContext, String name) {
     return new PrincipalEntity.Builder()
         .setName(name)
         .setCreateTimestamp(Instant.now().toEpochMilli())
@@ -403,7 +403,7 @@ public class ManagementServiceTest {
   }
 
   private PrincipalRoleEntity createRole(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       PolarisCallContext callContext,
       String name,
       boolean isFederated) {
@@ -419,7 +419,7 @@ public class ManagementServiceTest {
 
   @Test
   public void testCannotAssignFederatedEntities() {
-    PolarisMetaStoreManager metaStoreManager = services.metaStoreManager();
+    DurableManager metaStoreManager = services.metaStoreManager();
     PolarisCallContext callContext = services.newCallContext();
     PolarisAdminService polarisAdminService =
         setupPolarisAdminService(metaStoreManager, callContext);
@@ -438,7 +438,7 @@ public class ManagementServiceTest {
 
   @Test
   public void testCanListCatalogs() {
-    PolarisMetaStoreManager metaStoreManager = services.metaStoreManager();
+    DurableManager metaStoreManager = services.metaStoreManager();
     PolarisCallContext callContext = services.newCallContext();
     PolarisAdminService polarisAdminService =
         setupPolarisAdminService(metaStoreManager, callContext);
@@ -710,7 +710,7 @@ public class ManagementServiceTest {
 
   @Test
   public void testCreateCatalogReturnErrorOnFailure() {
-    PolarisMetaStoreManager metaStoreManager = Mockito.spy(services.metaStoreManager());
+    DurableManager metaStoreManager = Mockito.spy(services.metaStoreManager());
     PolarisCallContext callContext = services.newCallContext();
     PolarisAdminService polarisAdminService =
         setupPolarisAdminService(metaStoreManager, callContext);

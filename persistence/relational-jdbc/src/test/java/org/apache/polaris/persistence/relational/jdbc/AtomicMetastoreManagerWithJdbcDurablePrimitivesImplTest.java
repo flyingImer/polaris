@@ -38,7 +38,7 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
-import org.apache.polaris.core.persistence.BasePolarisMetaStoreManagerTest;
+import org.apache.polaris.core.persistence.BaseDurableManagerTest;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
@@ -46,7 +46,7 @@ import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.jupiter.api.Test;
 
 public abstract class AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest
-    extends BasePolarisMetaStoreManagerTest {
+    extends BaseDurableManagerTest {
 
   protected DatabaseType databaseType() {
     return DatabaseType.H2;

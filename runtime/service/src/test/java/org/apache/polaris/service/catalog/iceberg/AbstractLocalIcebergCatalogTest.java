@@ -116,8 +116,8 @@ import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -232,7 +232,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   PolarisEventListener polarisEventListener;
 
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
-  @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject DurableManager metaStoreManager;
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
   @Inject RealmContextHolder realmContextHolder;
@@ -406,14 +406,12 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   }
 
   protected LocalIcebergCatalog newIcebergCatalog(
-      String catalogName, PolarisMetaStoreManager metaStoreManager) {
+      String catalogName, DurableManager metaStoreManager) {
     return newIcebergCatalog(catalogName, metaStoreManager, fileIOFactory);
   }
 
   protected LocalIcebergCatalog newIcebergCatalog(
-      String catalogName,
-      PolarisMetaStoreManager metaStoreManager,
-      StorageIoProvider fileIOFactory) {
+      String catalogName, DurableManager metaStoreManager, StorageIoProvider fileIOFactory) {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
             resolutionManifestFactory, authenticatedRoot, catalogName);
@@ -1091,7 +1089,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
 
     // Use a spy so we can inject a concurrency error
-    PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
+    DurableManager spyMetaStore = spy(metaStoreManager);
     LocalIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
@@ -2028,7 +2026,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     catalog.createNamespace(NS);
 
     // Create a spy of the metaStoreManager to simulate an unexpected error
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(
             new DropEntityResult(
                 BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, "Simulated server error"))
@@ -2053,7 +2051,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     catalog.buildTable(TABLE, SCHEMA).create();
 
     // Create a spy of the metaStoreManager to simulate an unexpected error
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(
             new DropEntityResult(
                 BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, "Simulated server error"))
@@ -2078,7 +2076,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     catalog.buildTable(TABLE, SCHEMA).create();
 
     // Create a spy of the metaStoreManager to simulate an undroppable entity error
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(
             new DropEntityResult(BaseResult.ReturnStatus.ENTITY_UNDROPPABLE, "Entity is protected"))
         .when(spiedManager)
@@ -2106,7 +2104,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
         .create();
 
     // Create a spy of the metaStoreManager to simulate an unexpected error
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(
             new DropEntityResult(
                 BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, "Simulated server error"))
@@ -2136,7 +2134,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
         .create();
 
     // Create a spy of the metaStoreManager to simulate an undroppable entity error
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(
             new DropEntityResult(BaseResult.ReturnStatus.ENTITY_UNDROPPABLE, "Entity is protected"))
         .when(spiedManager)
@@ -2158,7 +2156,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     catalog.createNamespace(NS);
     catalog.buildTable(TABLE, SCHEMA).create();
 
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(new DropEntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null))
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
@@ -2183,7 +2181,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
         .withQuery("spark", "SELECT * FROM ns.tbl")
         .create();
 
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(new DropEntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null))
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
@@ -2202,7 +2200,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   public void testDropNamespaceWithCatalogPathCannotBeResolved() {
     catalog.createNamespace(NS);
 
-    PolarisMetaStoreManager spiedManager = spy(metaStoreManager);
+    DurableManager spiedManager = spy(metaStoreManager);
     doReturn(new DropEntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null))
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
@@ -2524,7 +2522,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
 
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
-    PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
+    DurableManager spyMetaStore = spy(metaStoreManager);
     final LocalIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
@@ -2561,7 +2559,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
 
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
-    PolarisMetaStoreManager spyMetaStore = spy(metaStoreManager);
+    DurableManager spyMetaStore = spy(metaStoreManager);
     final LocalIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,

@@ -42,9 +42,9 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.DurablePrimitives;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
@@ -141,7 +141,7 @@ class NoSqlMetaStoreManagerFactory implements MetaStoreManagerFactory, RealmProv
   }
 
   @Override
-  public PolarisMetaStoreManager getOrCreateMetaStoreManager(RealmContext realmContext) {
+  public DurableManager getOrCreateMetaStoreManager(RealmContext realmContext) {
     var realmId = realmContext.getRealmIdentifier();
 
     return new NoSqlMetaStoreManager(() -> purgeRealm(realmId), null, clock);

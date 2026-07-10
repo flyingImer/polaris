@@ -54,7 +54,7 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -78,7 +78,7 @@ import org.mockito.MockitoAnnotations;
 public class PolarisAdminServiceTest {
   @Mock private CallContext callContext;
   @Mock private PolarisCallContext polarisCallContext;
-  @Mock private PolarisMetaStoreManager metaStoreManager;
+  @Mock private DurableManager metaStoreManager;
   @Mock private SecretsManager secretsManager;
   @Mock private GrantManager grantManager;
   @Mock private UserSecretsManager userSecretsManager;

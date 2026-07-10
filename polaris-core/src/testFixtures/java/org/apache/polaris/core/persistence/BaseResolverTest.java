@@ -104,7 +104,7 @@ public abstract class BaseResolverTest {
   protected abstract PolarisTestMetaStoreManager tm();
 
   // the meta store manager
-  protected abstract PolarisMetaStoreManager metaStoreManager();
+  protected abstract DurableManager metaStoreManager();
 
   protected static boolean supportEntityCache = true;
 

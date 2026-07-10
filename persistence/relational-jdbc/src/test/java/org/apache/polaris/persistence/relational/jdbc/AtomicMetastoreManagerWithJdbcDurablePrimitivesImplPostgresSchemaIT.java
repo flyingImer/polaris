@@ -36,8 +36,8 @@ import org.testcontainers.junit.jupiter.Testcontainers;
 import org.testcontainers.postgresql.PostgreSQLContainer;
 
 /**
- * Runs {@link org.apache.polaris.core.persistence.BasePolarisMetaStoreManagerTest} integration
- * tests against every PostgreSQL schema version on the classpath.
+ * Runs {@link org.apache.polaris.core.persistence.BaseDurableManagerTest} integration tests against
+ * every PostgreSQL schema version on the classpath.
  */
 @Testcontainers
 @ParameterizedClass

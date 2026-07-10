@@ -43,14 +43,13 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The common implementation of Configuration interface for configuring the {@link
- * PolarisMetaStoreManager} using an underlying meta store to store and retrieve all Polaris
- * metadata.
+ * The common implementation of Configuration interface for configuring the {@link DurableManager}
+ * using an underlying meta store to store and retrieve all Polaris metadata.
  */
 public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
     implements MetaStoreManagerFactory, RealmProvisioner {
 
-  final Map<String, PolarisMetaStoreManager> metaStoreManagerMap = new HashMap<>();
+  final Map<String, DurableManager> metaStoreManagerMap = new HashMap<>();
   final Map<String, EntityCache> entityCacheMap = new HashMap<>();
   final Map<String, Supplier<TransactionalPersistence>> sessionSupplierMap = new HashMap<>();
 
@@ -85,11 +84,10 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
   }
 
   /**
-   * Subclasses can override this to inject different implementations of PolarisMetaStoreManager
-   * into the existing realm-based setup flow.
+   * Subclasses can override this to inject different implementations of DurableManager into the
+   * existing realm-based setup flow.
    */
-  protected PolarisMetaStoreManager createNewMetaStoreManager(
-      Clock clock, PolarisDiagnostics diagnostics) {
+  protected DurableManager createNewMetaStoreManager(Clock clock, PolarisDiagnostics diagnostics) {
     return new TransactionalMetaStoreManagerImpl(clock, diagnostics);
   }
 
@@ -100,7 +98,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
         realmContext.getRealmIdentifier(),
         () -> createMetaStoreSession(backingStore, realmContext, rootCredentialsSet, diagnostics));
 
-    PolarisMetaStoreManager metaStoreManager = createNewMetaStoreManager(clock, diagnostics);
+    DurableManager metaStoreManager = createNewMetaStoreManager(clock, diagnostics);
     metaStoreManagerMap.put(realmContext.getRealmIdentifier(), metaStoreManager);
   }
 
@@ -128,7 +126,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
 
     for (String realm : realms) {
       RealmContext realmContext = () -> realm;
-      PolarisMetaStoreManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
+      DurableManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
       TransactionalPersistence session = getOrCreateSession(realmContext);
 
       PolarisCallContext callContext = new PolarisCallContext(realmContext, session);
@@ -143,8 +141,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
   }
 
   @Override
-  public synchronized PolarisMetaStoreManager getOrCreateMetaStoreManager(
-      RealmContext realmContext) {
+  public synchronized DurableManager getOrCreateMetaStoreManager(RealmContext realmContext) {
     if (!metaStoreManagerMap.containsKey(realmContext.getRealmIdentifier())) {
       initializeForRealm(realmContext, null);
       checkPolarisServiceBootstrappedForRealm(realmContext);
@@ -170,7 +167,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
   public synchronized EntityCache getOrCreateEntityCache(
       RealmContext realmContext, RealmConfig realmConfig) {
     if (!entityCacheMap.containsKey(realmContext.getRealmIdentifier())) {
-      PolarisMetaStoreManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
+      DurableManager metaStoreManager = getOrCreateMetaStoreManager(realmContext);
       entityCacheMap.put(
           realmContext.getRealmIdentifier(),
           new InMemoryEntityCache(diagnostics, realmConfig, metaStoreManager));
@@ -187,8 +184,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
       RealmContext realmContext) {
     // While bootstrapping we need to act as a fake privileged context since the real
     // CallContext may not have been resolved yet.
-    PolarisMetaStoreManager metaStoreManager =
-        metaStoreManagerMap.get(realmContext.getRealmIdentifier());
+    DurableManager metaStoreManager = metaStoreManagerMap.get(realmContext.getRealmIdentifier());
     TransactionalPersistence metaStore =
         sessionSupplierMap.get(realmContext.getRealmIdentifier()).get();
     PolarisCallContext polarisContext = new PolarisCallContext(realmContext, metaStore);
@@ -219,8 +215,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
    * entities
    */
   private void checkPolarisServiceBootstrappedForRealm(RealmContext realmContext) {
-    PolarisMetaStoreManager metaStoreManager =
-        metaStoreManagerMap.get(realmContext.getRealmIdentifier());
+    DurableManager metaStoreManager = metaStoreManagerMap.get(realmContext.getRealmIdentifier());
     TransactionalPersistence metaStore =
         sessionSupplierMap.get(realmContext.getRealmIdentifier()).get();
     PolarisCallContext polarisContext = new PolarisCallContext(realmContext, metaStore);

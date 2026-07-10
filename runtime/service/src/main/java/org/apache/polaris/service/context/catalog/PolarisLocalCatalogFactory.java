@@ -29,7 +29,7 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
@@ -52,7 +52,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
   private final ResolverFactory resolverFactory;
   private final PolarisEventDispatcher polarisEventDispatcher;
   private final PolarisEventMetadataFactory eventMetadataFactory;
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
   private final CallContext callContext;
   private final PolarisPrincipal principal;
 
@@ -65,7 +65,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       CallContext callContext,
       PolarisPrincipal principal) {
     this.diagnostics = diagnostics;

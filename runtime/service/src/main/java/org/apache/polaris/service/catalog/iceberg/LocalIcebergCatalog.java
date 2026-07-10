@@ -112,7 +112,7 @@ import org.apache.polaris.core.entity.PolarisEntityUtils;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.exceptions.CommitConflictException;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
@@ -197,7 +197,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private Map<String, String> catalogProperties;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
-  private PolarisMetaStoreManager metaStoreManager;
+  private DurableManager metaStoreManager;
 
   /**
    * @param callContext the current CallContext
@@ -208,7 +208,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   public LocalIcebergCatalog(
       PolarisDiagnostics diagnostics,
       ResolverFactory resolverFactory,
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView,
       PolarisPrincipal principal,
@@ -285,7 +285,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         PropertyUtil.propertiesWithPrefix(properties, CatalogProperties.TABLE_DEFAULT_PREFIX);
   }
 
-  public void setMetaStoreManager(PolarisMetaStoreManager newMetaStoreManager) {
+  public void setMetaStoreManager(DurableManager newMetaStoreManager) {
     this.metaStoreManager = newMetaStoreManager;
   }
 
@@ -2460,7 +2460,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     return callContext.getPolarisCallContext();
   }
 
-  private PolarisMetaStoreManager getMetaStoreManager() {
+  private DurableManager getMetaStoreManager() {
     return metaStoreManager;
   }
 

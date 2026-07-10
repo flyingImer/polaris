@@ -53,8 +53,8 @@ import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.credentials.connection.ConnectionCredentialVendor;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
@@ -131,7 +131,7 @@ public record TestServices(
     RealmConfig realmConfig,
     PolarisPrincipal principal,
     SecurityContext securityContext,
-    PolarisMetaStoreManager metaStoreManager,
+    DurableManager metaStoreManager,
     StorageIoProvider fileIOFactory,
     TaskExecutor taskExecutor,
     PolarisEventDispatcher polarisEventDispatcher,
@@ -248,7 +248,7 @@ public record TestServices(
               metaStoreManagerFactory.getOrCreateSession(realmContext),
               configurationSource);
 
-      PolarisMetaStoreManager metaStoreManager =
+      DurableManager metaStoreManager =
           metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
 
       CreatePrincipalResult createdPrincipal =

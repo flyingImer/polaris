@@ -33,9 +33,9 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingManager;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.jspecify.annotations.NonNull;
 
-/** Shared basic PolarisMetaStoreManager logic for transactional and non-transactional impls. */
+/** Shared basic DurableManager logic for transactional and non-transactional impls. */
 public abstract class BaseMetaStoreManager
-    implements PolarisMetaStoreManager,
+    implements DurableManager,
         SecretsManager,
         GrantManager,
         PolarisPolicyMappingManager,

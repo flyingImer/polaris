@@ -68,14 +68,14 @@ import org.threeten.extra.MutableClock;
  *
  * @author bdagevil
  */
-public abstract class BasePolarisMetaStoreManagerTest {
+public abstract class BaseDurableManagerTest {
 
   protected final MutableClock clock = MutableClock.of(Instant.now(), ZoneOffset.UTC);
 
   protected PolarisTestMetaStoreManager polarisTestMetaStoreManager;
 
   @BeforeEach
-  public void setupPolarisMetaStoreManager() {
+  public void setupDurableManager() {
     this.polarisTestMetaStoreManager = createPolarisTestMetaStoreManager();
   }
 
@@ -109,7 +109,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
   @Test
   protected void testCreateEntities() {
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     List<PolarisBaseEntity> createdEntities =
@@ -141,7 +141,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
   @Test
   protected void testCreatePrincipalReturnedEntitySameAsPersisted() {
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     PolarisBaseEntity principalEntity =
         metaStoreManager
@@ -184,7 +184,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
    */
   @Test
   protected void testCreateCatalogAtomicityInvariant() {
-    PolarisMetaStoreManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     PolarisBaseEntity catalog =
         new PolarisBaseEntity(
@@ -237,7 +237,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
    */
   @Test
   protected void testCreatePrincipalNeverWithoutSecretsInvariant() {
-    PolarisMetaStoreManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
     SecretsManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
@@ -266,7 +266,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
   @Test
   protected void testCreateEntitiesAlreadyExisting() {
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     List<PolarisBaseEntity> createdEntities =
@@ -300,7 +300,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
   @Test
   protected void testCreateEntitiesWithConflict() {
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     TaskEntity task3 = createTask("task3", 103L);
@@ -430,7 +430,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
           null, PolarisEntityType.TASK, PolarisEntitySubType.NULL_SUBTYPE, "task_" + i);
     }
     String executorId = "testExecutor_abc";
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     List<PolarisBaseEntity> taskList =
         metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(5)).getEntities();
@@ -513,7 +513,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
       polarisTestMetaStoreManager.createEntity(
           null, PolarisEntityType.TASK, PolarisEntitySubType.NULL_SUBTYPE, "task_" + i);
     }
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     List<Future<Set<String>>> futureList = new ArrayList<>();
     ExecutorService executorService = Executors.newCachedThreadPool();
@@ -625,7 +625,7 @@ public abstract class BasePolarisMetaStoreManagerTest {
 
   @Test
   protected void testResetCredentialsClientIdCollision() {
-    PolarisMetaStoreManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
     PrincipalEntity principalA = polarisTestMetaStoreManager.createPrincipal("principalA");

@@ -44,8 +44,8 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.TaskEntity;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.events.EventAttributeMap;
@@ -212,7 +212,7 @@ public class TaskExecutorImpl implements TaskExecutor {
     boolean success = false;
     try {
       LOGGER.info("Handling task entity id {}", taskEntityId);
-      PolarisMetaStoreManager metaStoreManager =
+      DurableManager metaStoreManager =
           metaStoreManagerFactory.getOrCreateMetaStoreManager(ctx.getRealmContext());
       PolarisBaseEntity taskEntity =
           metaStoreManager

@@ -45,7 +45,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -77,11 +77,11 @@ public class PolicyCatalog {
   private final PolarisResolutionManifestCatalogView resolvedEntityView;
   private final CatalogEntity catalogEntity;
   private final long catalogId;
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
   private final PolarisPolicyMappingManager policyMappingManager;
 
   public PolicyCatalog(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       PolarisPolicyMappingManager policyMappingManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView) {

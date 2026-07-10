@@ -29,8 +29,8 @@ import org.apache.polaris.core.config.RealmConfigurationSource;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.persistence.BaseResolverTest;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.apache.polaris.core.persistence.RealmProvisioner;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
@@ -56,7 +56,7 @@ public class TestNoSqlResolver extends BaseResolverTest {
   @Inject RealmConfigurationSource configurationSource;
   @Inject MonotonicClock monotonicClock;
 
-  PolarisMetaStoreManager metaStoreManager;
+  DurableManager metaStoreManager;
 
   PolarisCallContext callCtx;
   PolarisTestMetaStoreManager tm;
@@ -90,7 +90,7 @@ public class TestNoSqlResolver extends BaseResolverTest {
   }
 
   @Override
-  protected PolarisMetaStoreManager metaStoreManager() {
+  protected DurableManager metaStoreManager() {
     callCtx();
     return metaStoreManager;
   }

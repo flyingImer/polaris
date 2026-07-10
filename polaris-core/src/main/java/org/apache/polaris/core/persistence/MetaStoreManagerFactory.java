@@ -23,10 +23,10 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 
-/** Configuration interface for configuring the {@link PolarisMetaStoreManager}. */
+/** Configuration interface for configuring the {@link DurableManager}. */
 public interface MetaStoreManagerFactory {
 
-  PolarisMetaStoreManager getOrCreateMetaStoreManager(RealmContext realmContext);
+  DurableManager getOrCreateMetaStoreManager(RealmContext realmContext);
 
   DurablePrimitives getOrCreateSession(RealmContext realmContext);
 

@@ -74,13 +74,13 @@ public interface DurablePrimitives extends PolicyMappingPersistence {
    *
    * <p>TODO: Either standardize the expected system of exceptions to throw for various concurrency
    * errors (entity not found when originalEntity != null, entity changed from originalEntity, etc)
-   * or push down the return status enums from PolarisMetaStoreManager into this layer and document
+   * or push down the return status enums from DurableManager into this layer and document
    * accordingly.
    *
    * <p>TODO: Change originalEntity to be just the set of members that participate in conditions,
    * similar to PolarisEntityCore, and make the callsites in BasePolarisCatalog actually plumb
-   * through correctly, in particular for values the PolarisMetaStoreManagerImpl doesn't have access
-   * to such as the original name and parentId in renames.
+   * through correctly, in particular for values the DurableManagerImpl doesn't have access to such
+   * as the original name and parentId in renames.
    *
    * @param callCtx call context
    * @param entity entity to persist
@@ -110,13 +110,13 @@ public interface DurablePrimitives extends PolicyMappingPersistence {
    *       these purposes.
    * </ul>
    *
-   * <p>TODO: Push down the multi-entity commit from PolarisMetaStoreManagerImpl to use this instead
-   * of running single writeEntity actions within a transaction.
+   * <p>TODO: Push down the multi-entity commit from DurableManagerImpl to use this instead of
+   * running single writeEntity actions within a transaction.
    *
    * <p>TODO: Change originalEntity to be just the set of members that participate in conditions,
    * similar to PolarisEntityCore, and make the callsites in BasePolarisCatalog actually plumb
-   * through correctly, in particular for values the PolarisMetaStoreManagerImpl doesn't have access
-   * to such as the original name and parentId in renames.
+   * through correctly, in particular for values the DurableManagerImpl doesn't have access to such
+   * as the original name and parentId in renames.
    *
    * @param callCtx call context
    * @param entities entities to persist

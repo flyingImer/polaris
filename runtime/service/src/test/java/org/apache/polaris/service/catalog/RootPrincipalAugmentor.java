@@ -30,13 +30,13 @@ import java.util.Set;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.eclipse.microprofile.config.inject.ConfigProperty;
 
 @RequestScoped
 public class RootPrincipalAugmentor implements SecurityIdentityAugmentor {
 
-  @Inject PolarisMetaStoreManager innerMetaStoreManager;
+  @Inject DurableManager innerMetaStoreManager;
   @Inject CallContext innerCallContext;
 
   @ConfigProperty(name = "polaris.test.rootAugmentor.enabled", defaultValue = "false")

@@ -29,8 +29,7 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
-public class PolarisTreeMapAtomicOperationMetaStoreManagerTest
-    extends BasePolarisMetaStoreManagerTest {
+public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();

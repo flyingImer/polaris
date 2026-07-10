@@ -64,9 +64,9 @@ import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Wraps an existing impl of PolarisMetaStoreManager and delegates expected "read" operations
- * through to the wrapped instance while throwing errors on unexpected operations or enqueuing
- * expected write operations into a collection to be committed as a single atomic unit.
+ * Wraps an existing impl of DurableManager and delegates expected "read" operations through to the
+ * wrapped instance while throwing errors on unexpected operations or enqueuing expected write
+ * operations into a collection to be committed as a single atomic unit.
  *
  * <p>Note that as long as the server-side multi-commit transaction semantics are effectively only
  * SERIALIZABLE isolation (i.e. if we can resolve all UpdateRequirements "statically" before the set
@@ -79,13 +79,13 @@ import org.jspecify.annotations.Nullable;
  * be reused between requests.
  */
 public class TransactionWorkspaceMetaStoreManager
-    implements PolarisMetaStoreManager,
+    implements DurableManager,
         SecretsManager,
         GrantManager,
         PolarisPolicyMappingManager,
         PolarisEventManager {
   private final PolarisDiagnostics diagnostics;
-  private final PolarisMetaStoreManager delegate;
+  private final DurableManager delegate;
 
   // TODO: If we want to support the semantic of opening a transaction in which multiple
   // reads and writes occur on the same entities, where the reads are expected to see the writes
@@ -97,7 +97,7 @@ public class TransactionWorkspaceMetaStoreManager
   private final List<EntityWithPath> pendingUpdates = new ArrayList<>();
 
   public TransactionWorkspaceMetaStoreManager(
-      PolarisDiagnostics diagnostics, PolarisMetaStoreManager delegate) {
+      PolarisDiagnostics diagnostics, DurableManager delegate) {
     this.diagnostics = diagnostics;
     this.delegate = delegate;
   }

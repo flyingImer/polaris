@@ -22,7 +22,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.TaskEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -46,7 +46,7 @@ public class TaskExecutorImplTest {
     InMemoryEventCollector testPolarisEventDispatcher =
         (InMemoryEventCollector) testServices.polarisEventDispatcher();
 
-    PolarisMetaStoreManager metaStoreManager = testServices.metaStoreManager();
+    DurableManager metaStoreManager = testServices.metaStoreManager();
 
     PolarisCallContext polarisCallCtx = testServices.newCallContext();
 

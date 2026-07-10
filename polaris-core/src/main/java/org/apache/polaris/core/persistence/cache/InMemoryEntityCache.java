@@ -43,7 +43,7 @@ import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
@@ -58,7 +58,7 @@ public class InMemoryEntityCache implements EntityCache {
   private static final Logger LOGGER = LoggerFactory.getLogger(InMemoryEntityCache.class);
   public static final int MAX_CACHE_REFRESH_ATTEMPTS = 100;
   private final PolarisDiagnostics diagnostics;
-  private final PolarisMetaStoreManager polarisMetaStoreManager;
+  private final DurableManager polarisMetaStoreManager;
   private final Cache<Long, ResolvedPolarisEntity> byId;
   private final AbstractMap<EntityCacheByNameKey, ResolvedPolarisEntity> byName;
 
@@ -70,7 +70,7 @@ public class InMemoryEntityCache implements EntityCache {
   public InMemoryEntityCache(
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull RealmConfig realmConfig,
-      @NonNull PolarisMetaStoreManager polarisMetaStoreManager) {
+      @NonNull DurableManager polarisMetaStoreManager) {
     this.diagnostics = diagnostics;
 
     // by name cache

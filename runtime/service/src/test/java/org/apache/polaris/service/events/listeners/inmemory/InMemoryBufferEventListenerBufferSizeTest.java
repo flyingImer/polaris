@@ -30,7 +30,7 @@ import io.quarkus.test.junit.TestProfile;
 import io.smallrye.mutiny.subscription.BackPressureFailure;
 import java.time.Duration;
 import org.apache.polaris.core.entity.PolarisEventManager;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.service.Profiles;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
@@ -62,7 +62,7 @@ class InMemoryBufferEventListenerBufferSizeTest extends InMemoryBufferEventListe
   void testFlushFailureRecovery() {
     var manager =
         Mockito.mock(
-            PolarisMetaStoreManager.class,
+            DurableManager.class,
             Mockito.withSettings().extraInterfaces(PolarisEventManager.class));
     doReturn(manager).when(metaStoreManagerFactory).getOrCreateMetaStoreManager(any());
     RuntimeException error = new RuntimeException("error");

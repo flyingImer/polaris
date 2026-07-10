@@ -36,7 +36,7 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.slf4j.Logger;
@@ -85,7 +85,7 @@ public class DefaultAuthenticator implements Authenticator {
 
   private static final Set<String> ALL_ROLES_REQUESTED = Set.of();
 
-  @Inject PolarisMetaStoreManager metaStoreManager;
+  @Inject DurableManager metaStoreManager;
   @Inject GrantManager grantManager;
   @Inject CallContext callContext;
   @Inject PolarisDiagnostics diagnostics;

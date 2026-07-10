@@ -30,7 +30,7 @@ import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.auth.SecretsManager;
 import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.auth.DefaultAuthenticator;
 import org.apache.polaris.service.auth.PolarisCredential;
@@ -49,7 +49,7 @@ public class JWTBroker implements TokenBroker {
   private static final String CLAIM_KEY_PRINCIPAL_ID = "principalId";
   private static final String CLAIM_KEY_SCOPE = "scope";
 
-  private final PolarisMetaStoreManager metaStoreManager;
+  private final DurableManager metaStoreManager;
   private final SecretsManager secretsManager;
   private final PolarisCallContext polarisCallContext;
   private final int maxTokenGenerationInSeconds;
@@ -57,7 +57,7 @@ public class JWTBroker implements TokenBroker {
   private final JWTVerifier verifier;
 
   JWTBroker(
-      PolarisMetaStoreManager metaStoreManager,
+      DurableManager metaStoreManager,
       SecretsManager secretsManager,
       PolarisCallContext polarisCallContext,
       int maxTokenGenerationInSeconds,

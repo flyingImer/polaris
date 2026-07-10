@@ -55,7 +55,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
-import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.DurableManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
@@ -153,7 +153,7 @@ class IcebergCatalogHandlerTest {
         .catalogName(CATALOG_NAME)
         .polarisPrincipal(PolarisPrincipal.of("test", Map.of(), Set.of()))
         .callContext(callContext)
-        .metaStoreManager(mock(PolarisMetaStoreManager.class))
+        .metaStoreManager(mock(DurableManager.class))
         .entityResolver(entityResolver)
         .authorizer(authorizer)
         .diagnostics(diagnostics)
