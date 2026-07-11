@@ -20,7 +20,7 @@
 package org.apache.polaris.service.catalog.iceberg;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.when;
 
 import java.util.ArrayList;
@@ -29,6 +29,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
@@ -38,12 +39,13 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.Resolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.spi.durable.DurableManager;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -54,7 +56,6 @@ import org.mockito.junit.jupiter.MockitoExtension;
 @ExtendWith(MockitoExtension.class)
 class LocalIcebergCatalogTest {
 
-  @Mock ResolverFactory resolverFactory;
   @Mock CallContext callContext;
   @Mock PolarisResolutionManifestCatalogView resolvedEntityView;
   @Mock CatalogEntity catalogEntity;
@@ -75,17 +76,29 @@ class LocalIcebergCatalogTest {
   @BeforeEach
   void initMocks() {
     when(resolvedEntityView.getResolvedCatalogEntity()).thenReturn(catalogEntity);
-    when(resolverFactory.createResolver(any(), any())).thenReturn(resolver);
     when(resolver.resolveAll()).thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS));
 
     rns1 = new ResolvedPolarisEntity(ns1, List.of(), List.of());
     rns2 = new ResolvedPolarisEntity(ns2, List.of(), List.of());
     rt3 = new ResolvedPolarisEntity(table3, List.of(), List.of());
 
+    EntityResolver entityResolver =
+        new DefaultEntityResolver(
+            mock(PolarisDiagnostics.class),
+            mock(PolarisCallContext.class),
+            mock(DurableManager.class),
+            null) {
+          @Override
+          protected Resolver createResolver(
+              PolarisPrincipal principal, String referenceCatalogName) {
+            return resolver;
+          }
+        };
+
     catalog =
         new LocalIcebergCatalog(
             diagnostics,
-            new DefaultEntityResolver(resolverFactory),
+            entityResolver,
             null,
             callContext,
             resolvedEntityView,

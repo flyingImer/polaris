@@ -23,8 +23,14 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
+import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.spi.durable.DurableManager;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
  * OSS default {@link EntityResolver} (ADR-0008 Decision 1). It adapts a {@link ResolutionRequest}
@@ -36,9 +42,10 @@ import org.jspecify.annotations.NonNull;
  * <p>Keeping today's multi-pass revalidation as the default impl is exactly what ADR-0008 Decision
  * 4 sanctions ("the OSS default keeps today's multi-pass revalidation, a remote provider does one
  * consistent read"). The functional SPI is the reshape; the proven local-metastore engine is reused
- * behind it. A remote provider implements {@link EntityResolver} directly instead of wrapping
- * {@link Resolver}, retiring the {@code extends Resolver} / cache-trick / prefetch workarounds
- * (ADR-0008 Decision 5).
+ * behind it, as an internal detail of this impl (there is no {@code ResolverFactory} SPI: the
+ * engine is not a provider seam). A remote provider implements {@link EntityResolver} directly
+ * instead of wrapping {@link Resolver}, retiring the {@code extends Resolver} / cache-trick /
+ * prefetch workarounds (ADR-0008 Decision 5).
  *
  * <p>Path addressing: {@link Resolver#getResolvedPaths()} returns resolved paths in add order, so
  * this maps them back to the {@link ResolvedPathKey} of each requested {@link ResolverPath} in the
@@ -46,17 +53,38 @@ import org.jspecify.annotations.NonNull;
  */
 public class DefaultEntityResolver implements EntityResolver {
 
-  private final ResolverFactory resolverFactory;
+  private final PolarisDiagnostics diagnostics;
+  private final PolarisCallContext callContext;
+  private final DurableManager metaStoreManager;
+  private final @Nullable EntityCache entityCache;
 
-  public DefaultEntityResolver(@NonNull ResolverFactory resolverFactory) {
-    this.resolverFactory =
-        Objects.requireNonNull(resolverFactory, "resolverFactory must be non-null");
+  public DefaultEntityResolver(
+      @NonNull PolarisDiagnostics diagnostics,
+      @NonNull PolarisCallContext callContext,
+      @NonNull DurableManager metaStoreManager,
+      @Nullable EntityCache entityCache) {
+    this.diagnostics = Objects.requireNonNull(diagnostics, "diagnostics must be non-null");
+    this.callContext = Objects.requireNonNull(callContext, "callContext must be non-null");
+    this.metaStoreManager =
+        Objects.requireNonNull(metaStoreManager, "metaStoreManager must be non-null");
+    this.entityCache = entityCache;
+  }
+
+  /**
+   * Builds the per-call {@link Resolver} engine this default impl runs behind the SPI. The engine
+   * is an internal detail (not a provider seam); this is a {@code protected} factory method only so
+   * unit tests can supply a mock engine to exercise the request/result translation without a
+   * metastore.
+   */
+  protected Resolver createResolver(
+      @NonNull PolarisPrincipal principal, @Nullable String referenceCatalogName) {
+    return new Resolver(
+        diagnostics, callContext, metaStoreManager, principal, entityCache, referenceCatalogName);
   }
 
   @Override
   public @NonNull ResolutionResult resolve(@NonNull ResolutionRequest request) {
-    Resolver resolver =
-        resolverFactory.createResolver(request.principal(), request.referenceCatalogName());
+    Resolver resolver = createResolver(request.principal(), request.referenceCatalogName());
 
     for (ResolverEntityName topLevel : request.topLevelNames()) {
       if (topLevel.optional()) {

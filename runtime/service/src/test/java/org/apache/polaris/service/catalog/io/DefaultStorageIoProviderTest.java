@@ -45,7 +45,6 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.extension.io.DefaultStorageIoProvider;
 import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.TestServices;
@@ -215,13 +214,11 @@ public class DefaultStorageIoProviderTest {
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            new DefaultEntityResolver(services.resolverFactory()),
-            services.principal(),
-            CATALOG_NAME);
+            services.entityResolver(), services.principal(), CATALOG_NAME);
     LocalIcebergCatalog polarisCatalog =
         new LocalIcebergCatalog(
             services.polarisDiagnostics(),
-            new DefaultEntityResolver(services.resolverFactory()),
+            services.entityResolver(),
             services.metaStoreManager(),
             callContext,
             passthroughView,

@@ -64,10 +64,8 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -167,7 +165,7 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected StorageIoProvider fileIOFactory;
   @Inject protected PolarisEventMetadataFactory eventMetadataFactory;
   @Inject protected StorageCredentialCache storageCredentialCache;
-  @Inject protected ResolverFactory resolverFactory;
+  @Inject protected EntityResolver entityResolver;
   @Inject protected StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject protected DurableManager metaStoreManager;
   @Inject protected SecretsManager secretsManager;
@@ -220,7 +218,6 @@ public abstract class PolarisAuthzTestBase {
     QuarkusMock.installMockForType(realmContext, RealmContext.class);
     polarisContext = callContext.getPolarisCallContext();
 
-    EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
     polarisAuthorizer = new RbacAuthorizer(realmConfig, entityResolver);
 
     PrincipalEntity rootPrincipal =
@@ -461,12 +458,11 @@ public abstract class PolarisAuthzTestBase {
       }
     }
     PolarisPassthroughResolutionView passthroughView =
-        new PolarisPassthroughResolutionView(
-            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
+        new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, CATALOG_NAME);
     this.baseCatalog =
         new LocalIcebergCatalog(
             diagServices,
-            new DefaultEntityResolver(resolverFactory),
+            entityResolver,
             metaStoreManager,
             callContext,
             passthroughView,

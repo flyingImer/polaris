@@ -55,8 +55,7 @@ import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.core.persistence.resolver.Resolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -122,7 +121,7 @@ public record TestServices(
     RealmConfigurationSource configurationSource,
     PolarisDiagnostics polarisDiagnostics,
     StorageCredentialCache storageCredentialCache,
-    ResolverFactory resolverFactory,
+    EntityResolver entityResolver,
     MetaStoreManagerFactory metaStoreManagerFactory,
     RealmContext realmContext,
     RealmConfig realmConfig,
@@ -283,15 +282,9 @@ public record TestServices(
 
       EntityCache entityCache =
           metaStoreManagerFactory.getOrCreateEntityCache(realmContext, realmConfig);
-      ResolverFactory resolverFactory =
-          (_principal, referenceCatalogName) ->
-              new Resolver(
-                  diagnostics,
-                  callContext.getPolarisCallContext(),
-                  metaStoreManager,
-                  _principal,
-                  entityCache,
-                  referenceCatalogName);
+      EntityResolver entityResolver =
+          new DefaultEntityResolver(
+              diagnostics, callContext.getPolarisCallContext(), metaStoreManager, entityCache);
 
       UserSecretsManager userSecretsManager =
           userSecretsManagerFactory.getOrCreateUserSecretsManager(realmContext);
@@ -323,7 +316,7 @@ public record TestServices(
       LocalCatalogFactory localCatalogFactory =
           new PolarisLocalCatalogFactory(
               diagnostics,
-              new DefaultEntityResolver(resolverFactory),
+              entityResolver,
               taskExecutor,
               storageAccessConfigProvider,
               fileIOFactory,
@@ -355,8 +348,7 @@ public record TestServices(
                   .diagnostics(diagnostics)
                   .callContext(callContext)
                   .prefixParser(new DefaultCatalogPrefixParser())
-                  .resolverFactory(resolverFactory)
-                  .entityResolver(new DefaultEntityResolver(resolverFactory))
+                  .entityResolver(entityResolver)
                   .metaStoreManager(metaStoreManager)
                   .credentialManager(credentialManager)
                   .localCatalogFactory(localCatalogFactory)
@@ -407,7 +399,7 @@ public record TestServices(
                   .catalogName(catalogName)
                   .polarisPrincipal(principal)
                   .callContext(callContext)
-                  .entityResolver(new DefaultEntityResolver(resolverFactory))
+                  .entityResolver(entityResolver)
                   .metaStoreManager(metaStoreManager)
                   .authorizer(authorizer)
                   .credentialManager(credentialManager)
@@ -436,7 +428,7 @@ public record TestServices(
       PolarisAdminService adminService =
           new PolarisAdminService(
               callContext,
-              new DefaultEntityResolver(resolverFactory),
+              entityResolver,
               metaStoreManager,
               (SecretsManager) metaStoreManager,
               (GrantManager) metaStoreManager,
@@ -460,7 +452,7 @@ public record TestServices(
           configurationSource,
           diagnostics,
           storageCredentialCache,
-          resolverFactory,
+          entityResolver,
           metaStoreManagerFactory,
           realmContext,
           realmConfig,

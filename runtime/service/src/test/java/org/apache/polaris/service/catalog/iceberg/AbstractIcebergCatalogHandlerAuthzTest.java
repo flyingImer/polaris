@@ -78,7 +78,6 @@ import org.apache.polaris.core.entity.CatalogRoleEntity;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
@@ -1863,7 +1862,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
   private PolarisLocalCatalogFactory createExternalCatalogFactory(String externalCatalog) {
     return new PolarisLocalCatalogFactory(
         diagServices,
-        new DefaultEntityResolver(resolverFactory),
+        entityResolver,
         Mockito.mock(),
         storageAccessConfigProvider,
         fileIOFactory,

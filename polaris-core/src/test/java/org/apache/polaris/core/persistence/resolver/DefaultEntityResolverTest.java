@@ -19,16 +19,18 @@
 package org.apache.polaris.core.persistence.resolver;
 
 import static org.assertj.core.api.Assertions.assertThat;
-import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import java.util.List;
+import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.spi.durable.DurableManager;
 import org.junit.jupiter.api.Test;
 
 /**
@@ -43,9 +45,16 @@ class DefaultEntityResolverTest {
       implements ResolverEntityName {}
 
   private DefaultEntityResolver newResolver(Resolver mockResolver) {
-    ResolverFactory factory = mock(ResolverFactory.class);
-    when(factory.createResolver(any(), any())).thenReturn(mockResolver);
-    return new DefaultEntityResolver(factory);
+    return new DefaultEntityResolver(
+        mock(PolarisDiagnostics.class),
+        mock(PolarisCallContext.class),
+        mock(DurableManager.class),
+        null) {
+      @Override
+      protected Resolver createResolver(PolarisPrincipal principal, String referenceCatalogName) {
+        return mockResolver;
+      }
+    };
   }
 
   @Test

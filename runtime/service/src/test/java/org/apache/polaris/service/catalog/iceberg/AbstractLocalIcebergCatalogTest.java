@@ -122,8 +122,7 @@ import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
@@ -241,7 +240,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   @Inject TaskFileIOSupplier taskFileIOSupplier;
   @Inject PolarisPrincipal authenticatedRoot;
   @Inject PolarisAdminService adminService;
-  @Inject ResolverFactory resolverFactory;
+  @Inject EntityResolver entityResolver;
   @Inject PolarisEventDispatcher polarisEventDispatcher;
 
   private LocalIcebergCatalog catalog;
@@ -412,12 +411,11 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
   protected LocalIcebergCatalog newIcebergCatalog(
       String catalogName, DurableManager metaStoreManager, StorageIoProvider fileIOFactory) {
     PolarisPassthroughResolutionView passthroughView =
-        new PolarisPassthroughResolutionView(
-            new DefaultEntityResolver(resolverFactory), authenticatedRoot, catalogName);
+        new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, catalogName);
     TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
     return new LocalIcebergCatalog(
         diagServices,
-        new DefaultEntityResolver(resolverFactory),
+        entityResolver,
         metaStoreManager,
         polarisContext,
         passthroughView,

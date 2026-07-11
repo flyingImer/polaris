@@ -51,8 +51,6 @@ import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.Resolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -162,8 +160,17 @@ public class ServiceProducers {
 
   @Produces
   @RequestScoped
-  public EntityResolver entityResolver(ResolverFactory resolverFactory) {
-    return new DefaultEntityResolver(resolverFactory);
+  public EntityResolver entityResolver(
+      PolarisDiagnostics diagnostics,
+      RealmContext realmContext,
+      RealmConfig realmConfig,
+      MetaStoreManagerFactory metaStoreManagerFactory,
+      CallContext callContext,
+      DurableManager polarisMetaStoreManager) {
+    EntityCache entityCache =
+        metaStoreManagerFactory.getOrCreateEntityCache(realmContext, realmConfig);
+    return new DefaultEntityResolver(
+        diagnostics, callContext.getPolarisCallContext(), polarisMetaStoreManager, entityCache);
   }
 
   @Produces
@@ -174,27 +181,6 @@ public class ServiceProducers {
     // Select the active authorizer from the @Identifier-annotated PolarisAuthorizer producer beans
     // (internal / opa / ranger). Return the selected bean directly; do not cast an injected proxy.
     return authorizers.select(Identifier.Literal.of(authorizationConfig.type())).get();
-  }
-
-  @Produces
-  @RequestScoped
-  public ResolverFactory resolverFactory(
-      PolarisDiagnostics diagnostics,
-      RealmContext realmContext,
-      RealmConfig realmConfig,
-      MetaStoreManagerFactory metaStoreManagerFactory,
-      CallContext callContext,
-      DurableManager polarisMetaStoreManager) {
-    EntityCache entityCache =
-        metaStoreManagerFactory.getOrCreateEntityCache(realmContext, realmConfig);
-    return (principal, referenceCatalogName) ->
-        new Resolver(
-            diagnostics,
-            callContext.getPolarisCallContext(),
-            polarisMetaStoreManager,
-            principal,
-            entityCache,
-            referenceCatalogName);
   }
 
   // Polaris service beans - selected from @Identifier-annotated beans

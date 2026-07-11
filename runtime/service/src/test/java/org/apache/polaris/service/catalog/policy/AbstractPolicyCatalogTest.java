@@ -57,9 +57,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
 import org.apache.polaris.core.policy.exceptions.PolicyInUseException;
@@ -129,7 +127,7 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject StorageCredentialCache storageCredentialCache;
   @Inject PolarisStorageIntegrationProvider storageIntegrationProvider;
   @Inject PolarisDiagnostics diagServices;
-  @Inject ResolverFactory resolverFactory;
+  @Inject EntityResolver entityResolver;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject DurableManager metaStoreManager;
   @Inject SecretsManager secretsManager;
@@ -180,7 +178,6 @@ public abstract class AbstractPolicyCatalogTest {
     authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
     polarisPrincipalHolder.set(authenticatedRoot);
 
-    EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
     PolarisAuthorizer authorizer = new RbacAuthorizer(realmConfig, entityResolver);
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
@@ -222,8 +219,7 @@ public abstract class AbstractPolicyCatalogTest {
                     .asCatalog(serviceIdentityProvider)));
 
     PolarisPassthroughResolutionView passthroughView =
-        new PolarisPassthroughResolutionView(
-            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
+        new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, CATALOG_NAME);
     TaskExecutor taskExecutor = Mockito.mock();
 
     StsClient stsClient = Mockito.mock(StsClient.class);
@@ -256,7 +252,7 @@ public abstract class AbstractPolicyCatalogTest {
     this.icebergCatalog =
         new LocalIcebergCatalog(
             diagServices,
-            new DefaultEntityResolver(resolverFactory),
+            entityResolver,
             metaStoreManager,
             polarisContext,
             passthroughView,

@@ -59,7 +59,6 @@ import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
@@ -160,7 +159,6 @@ class IcebergCatalogHandlerTest {
         .credentialManager(mock(PolarisCredentialManager.class))
         .federatedCatalogFactories(mock(Instance.class))
         .prefixParser(mock(CatalogPrefixParser.class))
-        .resolverFactory(mock(ResolverFactory.class))
         .localCatalogFactory(localCatalogFactory)
         .reservedProperties(mock(ReservedProperties.class))
         .catalogHandlerUtils(mock(CatalogHandlerUtils.class))

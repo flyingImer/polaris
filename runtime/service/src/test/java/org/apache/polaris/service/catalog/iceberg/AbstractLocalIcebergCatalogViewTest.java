@@ -46,9 +46,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
@@ -107,7 +105,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
 
   @Inject PolarisEventDispatcher polarisEventDispatcher;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
-  @Inject ResolverFactory resolverFactory;
+  @Inject EntityResolver entityResolver;
   @Inject DurableManager metaStoreManager;
   @Inject SecretsManager secretsManager;
   @Inject GrantManager grantManager;
@@ -158,7 +156,6 @@ public abstract class AbstractLocalIcebergCatalogViewTest
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
     PolarisPrincipal authenticatedRoot = PolarisPrincipal.of(rootPrincipal, Set.of());
 
-    EntityResolver entityResolver = new DefaultEntityResolver(resolverFactory);
     PolarisAuthorizer authorizer = new RbacAuthorizer(realmConfig, entityResolver);
     ReservedProperties reservedProperties = ReservedProperties.NONE;
 
@@ -193,15 +190,14 @@ public abstract class AbstractLocalIcebergCatalogViewTest
                 .asCatalog(serviceIdentityProvider)));
 
     PolarisPassthroughResolutionView passthroughView =
-        new PolarisPassthroughResolutionView(
-            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
+        new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, CATALOG_NAME);
 
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
     testPolarisEventListener.clear();
     this.catalog =
         new LocalIcebergCatalog(
             diagServices,
-            new DefaultEntityResolver(resolverFactory),
+            entityResolver,
             metaStoreManager,
             polarisContext,
             passthroughView,

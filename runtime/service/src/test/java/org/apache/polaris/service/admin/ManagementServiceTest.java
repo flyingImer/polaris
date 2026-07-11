@@ -53,7 +53,6 @@ import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
-import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.secrets.UnsafeInMemorySecretsManager;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.service.TestServices;
@@ -381,15 +380,14 @@ public class ManagementServiceTest {
             Set.of(PolarisEntityConstants.getNameOfPrincipalServiceAdminRole()));
     return new PolarisAdminService(
         callContext,
-        new DefaultEntityResolver(services.resolverFactory()),
+        services.entityResolver(),
         metaStoreManager,
         (SecretsManager) metaStoreManager,
         (GrantManager) metaStoreManager,
         new UnsafeInMemorySecretsManager(),
         new DefaultServiceIdentityProvider(),
         principal,
-        new RbacAuthorizer(
-            services.realmConfig(), new DefaultEntityResolver(services.resolverFactory())),
+        new RbacAuthorizer(services.realmConfig(), services.entityResolver()),
         ReservedProperties.NONE);
   }
 

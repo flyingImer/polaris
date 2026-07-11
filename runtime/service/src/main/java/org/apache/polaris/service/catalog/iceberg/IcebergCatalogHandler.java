@@ -111,7 +111,6 @@ import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisEndpoints;
 import org.apache.polaris.core.storage.PolarisStorageActions;
@@ -199,8 +198,6 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
   protected abstract Instance<FederatedCatalogFactory> federatedCatalogFactories();
 
   protected abstract CatalogPrefixParser prefixParser();
-
-  protected abstract ResolverFactory resolverFactory();
 
   protected abstract LocalCatalogFactory localCatalogFactory();
 
