@@ -108,10 +108,10 @@ import org.apache.polaris.core.persistence.TransactionWorkspaceMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
+import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
-import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
-import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisEndpoints;
 import org.apache.polaris.core.storage.PolarisStorageActions;
@@ -1553,12 +1553,17 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
   }
 
   public ConfigResponse getConfig() {
-    Resolver resolver = resolverFactory().createResolver(polarisPrincipal(), catalogName());
-    ResolverStatus resolverStatus = resolver.resolveAll();
-    if (!resolverStatus.getStatus().equals(ResolverStatus.StatusEnum.SUCCESS)) {
+    // Resolve the reference catalog through the EntityResolver SPI (ADR-0008). This carries no
+    // paths or top-level names, so it resolves the caller principal, activated roles, and the
+    // reference catalog, matching the prior raw-resolver resolveAll() with nothing added. A
+    // provider's EntityResolver (e.g. managed's cache-populating wrapper) runs here as it does on
+    // the authorize path, so any request-scoped resolution side effects are preserved.
+    ResolutionResult resolution =
+        entityResolver().resolve(ResolutionRequest.of(polarisPrincipal(), catalogName()));
+    if (!resolution.isSuccess()) {
       throw new NotFoundException("Unable to find warehouse %s", catalogName());
     }
-    ResolvedPolarisEntity resolvedReferenceCatalog = resolver.getResolvedReferenceCatalog();
+    ResolvedPolarisEntity resolvedReferenceCatalog = resolution.resolvedReferenceCatalog();
     Map<String, String> properties =
         PolarisEntity.of(resolvedReferenceCatalog.getEntity()).getPropertiesAsMap();
 
