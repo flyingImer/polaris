@@ -21,6 +21,7 @@ package org.apache.polaris.service.config;
 import static java.lang.String.format;
 
 import com.fasterxml.jackson.databind.json.JsonMapper;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.enterprise.event.Observes;
 import jakarta.enterprise.event.Startup;
@@ -46,6 +47,7 @@ import org.apache.polaris.service.context.TestRealmContextResolver;
 import org.apache.polaris.service.credentials.connection.AuthType;
 import org.apache.polaris.service.metrics.MetricsConfiguration;
 import org.apache.polaris.service.persistence.InMemoryPolarisMetaStoreManagerFactory;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.RealmContextResolver;
 import org.eclipse.microprofile.config.Config;
 import org.eclipse.microprofile.config.ConfigValue;
@@ -505,5 +507,39 @@ public class ProductionReadinessChecks {
     return errors.isEmpty()
         ? ProductionReadinessCheck.OK
         : ProductionReadinessCheck.of(errors.toArray(new Error[0]));
+  }
+
+  /**
+   * Verifies that an authorizer is available for the configured {@code polaris.authorization.type}.
+   *
+   * <p>The active authorizer is produced by selecting the {@code @Identifier}-annotated {@link
+   * PolarisAuthorizer} bean whose id matches the configured type (see {@code
+   * ServiceProducers#polarisAuthorizer}). That selection is request-scoped, so without this check a
+   * misconfigured type -- a typo, or a valid type name whose authorizer extension module is absent
+   * from the classpath -- would pass startup and then fail every request with an unsatisfied-bean
+   * error. The dissolved {@code PolarisAuthorizerFactory} used to force this selection at boot as a
+   * side effect of the OPA readiness check injecting the selected factory; this makes the boot-time
+   * fail-fast explicit and type-agnostic (it covers internal, opa, ranger, and any unknown value).
+   *
+   * <p>It uses {@link jakarta.enterprise.inject.Instance#isUnsatisfied()} to test only for the
+   * bean's existence without instantiating it, so it is safe for request-scoped authorizers (e.g.
+   * Ranger) that cannot be resolved outside a request scope at startup.
+   */
+  @Produces
+  public ProductionReadinessCheck checkAuthorizerTypeResolvable(
+      AuthorizationConfiguration authorizationConfig,
+      @Any Instance<PolarisAuthorizer> authorizers) {
+    String type = authorizationConfig.type();
+    if (authorizers.select(Identifier.Literal.of(type)).isUnsatisfied()) {
+      return ProductionReadinessCheck.of(
+          Error.ofSevere(
+              format(
+                  "No authorizer is available for the configured authorization type '%s'. Check "
+                      + "'polaris.authorization.type' and ensure the matching authorizer extension "
+                      + "module is on the classpath.",
+                  type),
+              "polaris.authorization.type"));
+    }
+    return ProductionReadinessCheck.OK;
   }
 }
