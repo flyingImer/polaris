@@ -215,7 +215,9 @@ public class DefaultStorageIoProviderTest {
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            services.resolutionManifestFactory(), services.principal(), CATALOG_NAME);
+            new DefaultEntityResolver(services.resolverFactory()),
+            services.principal(),
+            CATALOG_NAME);
     LocalIcebergCatalog polarisCatalog =
         new LocalIcebergCatalog(
             services.polarisDiagnostics(),

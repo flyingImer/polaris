@@ -25,7 +25,7 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.entity.PolarisEntityType;
 
-/** Canonical lookup key for resolved paths in a {@link PolarisResolutionManifest}. */
+/** Canonical lookup key for resolved paths in a {@link ResolutionResult}. */
 public record ResolvedPathKey(List<String> entityNames, PolarisEntityType entityType) {
 
   public ResolvedPathKey {

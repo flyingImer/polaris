@@ -48,7 +48,6 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -109,7 +108,6 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   @Inject PolarisEventDispatcher polarisEventDispatcher;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject ResolverFactory resolverFactory;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject DurableManager metaStoreManager;
   @Inject SecretsManager secretsManager;
   @Inject GrantManager grantManager;
@@ -196,7 +194,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            resolutionManifestFactory, authenticatedRoot, CATALOG_NAME);
+            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
 
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
     testPolarisEventListener.clear();

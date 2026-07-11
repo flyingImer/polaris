@@ -19,46 +19,49 @@
 package org.apache.polaris.service.catalog;
 
 import com.google.common.base.Preconditions;
+import java.util.List;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolverManifestView;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
+import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
+import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 
 /**
  * For test purposes or for elevated-privilege scenarios where entity resolution is allowed to
- * directly access a PolarisEntityManager/DurableManager without being part of an
- * authorization-gated PolarisResolutionManifest, this class delegates entity resolution directly to
- * new single-use PolarisResolutionManifests for each desired resolved path without defining a fixed
- * set of resolved entities that need to be checked against authorizable operations.
+ * directly access the durable layer without being part of an authorization-gated resolution, this
+ * view resolves each requested path on demand through the {@link EntityResolver} SPI (ADR-0008),
+ * without defining a fixed set of resolved entities checked against authorizable operations. Each
+ * read is an independent single-call resolution, matching the retired manifest's
+ * single-use-resolver semantics.
  */
 public class PolarisPassthroughResolutionView implements PolarisResolutionManifestCatalogView {
-  private final ResolutionManifestFactory resolutionManifestFactory;
+  private final EntityResolver entityResolver;
   private final PolarisPrincipal polarisPrincipal;
   private final String catalogName;
 
   public PolarisPassthroughResolutionView(
-      ResolutionManifestFactory resolutionManifestFactory,
-      PolarisPrincipal polarisPrincipal,
-      String catalogName) {
-    this.resolutionManifestFactory = resolutionManifestFactory;
+      EntityResolver entityResolver, PolarisPrincipal polarisPrincipal, String catalogName) {
+    this.entityResolver = entityResolver;
     this.polarisPrincipal = polarisPrincipal;
     this.catalogName = catalogName;
   }
 
-  private PolarisResolutionManifest newResolutionManifest() {
-    return resolutionManifestFactory.createResolutionManifest(polarisPrincipal, catalogName);
+  private EntityResolverManifestView freshView(List<ResolverPath> paths) {
+    ResolutionResult result =
+        entityResolver.resolve(
+            new ResolutionRequest(polarisPrincipal, catalogName, paths, List.of()));
+    return new EntityResolverManifestView(entityResolver, polarisPrincipal, catalogName, result);
   }
 
   @Override
   public PolarisResolvedPathWrapper getResolvedReferenceCatalogEntity() {
-    PolarisResolutionManifest manifest = newResolutionManifest();
-    manifest.resolveAll();
-    return manifest.getResolvedReferenceCatalogEntity();
+    return freshView(List.of()).getResolvedReferenceCatalogEntity();
   }
 
   @Override
@@ -67,10 +70,8 @@ public class PolarisPassthroughResolutionView implements PolarisResolutionManife
         key.entityType() == PolarisEntityType.NAMESPACE,
         "Trying to getResolvedPath(key) for non-namespace key %s",
         key);
-    PolarisResolutionManifest manifest = newResolutionManifest();
-    manifest.addPath(new ResolverPath(key.entityNames(), key.entityType()));
-    manifest.resolveAll();
-    return manifest.getResolvedPath(key);
+    return freshView(List.of(new ResolverPath(key.entityNames(), key.entityType())))
+        .getResolvedPath(key);
   }
 
   @Override
@@ -81,10 +82,8 @@ public class PolarisPassthroughResolutionView implements PolarisResolutionManife
             || key.entityType() == PolarisEntityType.POLICY,
         "Trying to getResolvedPath(key, subType) for unsupported key %s",
         key);
-    PolarisResolutionManifest manifest = newResolutionManifest();
-    manifest.addPath(new ResolverPath(key.entityNames(), key.entityType()));
-    manifest.resolveAll();
-    return manifest.getResolvedPath(key, subType);
+    return freshView(List.of(new ResolverPath(key.entityNames(), key.entityType())))
+        .getResolvedPath(key, subType);
   }
 
   @Override
@@ -93,9 +92,7 @@ public class PolarisPassthroughResolutionView implements PolarisResolutionManife
         key.entityType() == PolarisEntityType.NAMESPACE,
         "Trying to getPassthroughResolvedPath(key) for non-namespace key %s",
         key);
-    PolarisResolutionManifest manifest = newResolutionManifest();
-    manifest.addPassthroughPath(new ResolverPath(key.entityNames(), key.entityType()));
-    return manifest.getPassthroughResolvedPath(key);
+    return freshView(List.of()).getPassthroughResolvedPath(key);
   }
 
   @Override
@@ -106,8 +103,6 @@ public class PolarisPassthroughResolutionView implements PolarisResolutionManife
             || key.entityType() == PolarisEntityType.POLICY,
         "Trying to getPassthroughResolvedPath(key, subType) for unsupported key %s",
         key);
-    PolarisResolutionManifest manifest = newResolutionManifest();
-    manifest.addPassthroughPath(new ResolverPath(key.entityNames(), key.entityType()));
-    return manifest.getPassthroughResolvedPath(key, subType);
+    return freshView(List.of()).getPassthroughResolvedPath(key, subType);
   }
 }

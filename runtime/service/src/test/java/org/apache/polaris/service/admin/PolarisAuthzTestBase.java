@@ -67,7 +67,6 @@ import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -163,7 +162,6 @@ public abstract class PolarisAuthzTestBase {
           required(4, "data", Types.StringType.get()));
   protected final ReservedProperties reservedProperties = ReservedProperties.NONE;
 
-  @Inject protected ResolutionManifestFactory resolutionManifestFactory;
   @Inject protected ServiceIdentityProvider serviceIdentityProvider;
   @Inject protected PolarisDiagnostics diagServices;
   @Inject protected StorageIoProvider fileIOFactory;
@@ -464,7 +462,7 @@ public abstract class PolarisAuthzTestBase {
     }
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            resolutionManifestFactory, authenticatedRoot, CATALOG_NAME);
+            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
     this.baseCatalog =
         new LocalIcebergCatalog(
             diagServices,

@@ -59,7 +59,6 @@ import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.policy.exceptions.NoSuchPolicyException;
@@ -131,7 +130,6 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject PolarisStorageIntegrationProvider storageIntegrationProvider;
   @Inject PolarisDiagnostics diagServices;
   @Inject ResolverFactory resolverFactory;
-  @Inject ResolutionManifestFactory resolutionManifestFactory;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
   @Inject DurableManager metaStoreManager;
   @Inject SecretsManager secretsManager;
@@ -225,7 +223,7 @@ public abstract class AbstractPolicyCatalogTest {
 
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
-            resolutionManifestFactory, authenticatedRoot, CATALOG_NAME);
+            new DefaultEntityResolver(resolverFactory), authenticatedRoot, CATALOG_NAME);
     TaskExecutor taskExecutor = Mockito.mock();
 
     StsClient stsClient = Mockito.mock(StsClient.class);

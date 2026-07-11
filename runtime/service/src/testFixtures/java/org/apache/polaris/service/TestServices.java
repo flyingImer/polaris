@@ -55,8 +55,6 @@ import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -125,7 +123,6 @@ public record TestServices(
     PolarisDiagnostics polarisDiagnostics,
     StorageCredentialCache storageCredentialCache,
     ResolverFactory resolverFactory,
-    ResolutionManifestFactory resolutionManifestFactory,
     MetaStoreManagerFactory metaStoreManagerFactory,
     RealmContext realmContext,
     RealmConfig realmConfig,
@@ -296,9 +293,6 @@ public record TestServices(
                   entityCache,
                   referenceCatalogName);
 
-      ResolutionManifestFactory resolutionManifestFactory =
-          new ResolutionManifestFactoryImpl(diagnostics, realmContext, resolverFactory);
-
       UserSecretsManager userSecretsManager =
           userSecretsManagerFactory.getOrCreateUserSecretsManager(realmContext);
       ServiceIdentityProvider serviceIdentityProvider = new DefaultServiceIdentityProvider();
@@ -467,7 +461,6 @@ public record TestServices(
           diagnostics,
           storageCredentialCache,
           resolverFactory,
-          resolutionManifestFactory,
           metaStoreManagerFactory,
           realmContext,
           realmConfig,

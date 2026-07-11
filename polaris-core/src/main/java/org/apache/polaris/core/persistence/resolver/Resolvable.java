@@ -19,8 +19,7 @@
 package org.apache.polaris.core.persistence.resolver;
 
 /**
- * Explicit resolution components for {@link
- * PolarisResolutionManifest#resolveSelections(java.util.Set)}.
+ * Explicit resolution components for {@link Resolver#resolveSelections(java.util.Set)}.
  *
  * <p>Selections control which entity groups the resolver should fetch for a request.
  */
@@ -37,11 +36,11 @@ public enum Resolvable {
   REQUESTED_PATHS,
   /**
    * Resolve any additional top-level entities explicitly registered via {@link
-   * PolarisResolutionManifest#addTopLevelName}, such as catalog/principal/principal-role names used
-   * for authorization beyond the caller and reference catalog.
+   * Resolver#addEntityByName}, such as catalog/principal/principal-role names used for
+   * authorization beyond the caller and reference catalog.
    *
-   * <p>All entity types resolved here share the same {@link
-   * PolarisResolutionManifest#addTopLevelName} registration surface.
+   * <p>All entity types resolved here share the same {@link Resolver#addEntityByName} registration
+   * surface.
    */
   REQUESTED_TOP_LEVEL_ENTITIES
 }

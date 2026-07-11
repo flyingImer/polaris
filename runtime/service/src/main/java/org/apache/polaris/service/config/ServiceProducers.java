@@ -51,8 +51,6 @@ import org.apache.polaris.core.persistence.cache.EntityCache;
 import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolver;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
-import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactoryImpl;
 import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
@@ -197,13 +195,6 @@ public class ServiceProducers {
             principal,
             entityCache,
             referenceCatalogName);
-  }
-
-  @Produces
-  @RequestScoped
-  public ResolutionManifestFactory resolutionManifestFactory(
-      PolarisDiagnostics diagnostics, RealmContext realmContext, ResolverFactory resolverFactory) {
-    return new ResolutionManifestFactoryImpl(diagnostics, realmContext, resolverFactory);
   }
 
   // Polaris service beans - selected from @Identifier-annotated beans
