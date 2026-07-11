@@ -88,6 +88,7 @@ dependencies {
   testImplementation("org.junit.jupiter:junit-jupiter")
   testImplementation(libs.assertj.core)
   testImplementation(libs.mockito.core)
+  testImplementation(libs.jakarta.enterprise.cdi.api)
   testImplementation(libs.threeten.extra)
   testImplementation(testFixtures(project(":polaris-async-api")))
   testImplementation(project(":polaris-async-java"))

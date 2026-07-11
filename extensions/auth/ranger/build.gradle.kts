@@ -49,6 +49,8 @@ dependencies {
 
   testImplementation(platform(libs.jackson3.bom))
   testImplementation("tools.jackson.core:jackson-databind")
+  testImplementation(libs.jakarta.enterprise.cdi.api)
+  testImplementation(libs.mockito.core)
 
   compileOnly(libs.jspecify)
   compileOnly(libs.jakarta.enterprise.cdi.api)
