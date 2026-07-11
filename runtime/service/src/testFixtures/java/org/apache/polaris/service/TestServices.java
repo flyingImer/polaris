@@ -329,7 +329,7 @@ public record TestServices(
       LocalCatalogFactory localCatalogFactory =
           new PolarisLocalCatalogFactory(
               diagnostics,
-              resolverFactory,
+              new DefaultEntityResolver(resolverFactory),
               taskExecutor,
               storageAccessConfigProvider,
               fileIOFactory,

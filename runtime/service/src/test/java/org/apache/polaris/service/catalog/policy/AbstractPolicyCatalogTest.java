@@ -258,7 +258,7 @@ public abstract class AbstractPolicyCatalogTest {
     this.icebergCatalog =
         new LocalIcebergCatalog(
             diagServices,
-            resolverFactory,
+            new DefaultEntityResolver(resolverFactory),
             metaStoreManager,
             polarisContext,
             passthroughView,

@@ -45,6 +45,7 @@ import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.extension.io.DefaultStorageIoProvider;
 import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.TestServices;
@@ -218,7 +219,7 @@ public class DefaultStorageIoProviderTest {
     LocalIcebergCatalog polarisCatalog =
         new LocalIcebergCatalog(
             services.polarisDiagnostics(),
-            services.resolverFactory(),
+            new DefaultEntityResolver(services.resolverFactory()),
             services.metaStoreManager(),
             callContext,
             passthroughView,

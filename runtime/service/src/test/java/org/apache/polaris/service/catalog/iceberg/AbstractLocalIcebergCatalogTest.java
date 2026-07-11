@@ -122,6 +122,7 @@ import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.storage.CredentialVendingContext;
@@ -418,7 +419,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Local
     TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
     return new LocalIcebergCatalog(
         diagServices,
-        resolverFactory,
+        new DefaultEntityResolver(resolverFactory),
         metaStoreManager,
         polarisContext,
         passthroughView,

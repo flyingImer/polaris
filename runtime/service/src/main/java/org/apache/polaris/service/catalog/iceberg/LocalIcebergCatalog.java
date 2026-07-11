@@ -119,10 +119,12 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.core.persistence.resolver.EntityResolverManifestView;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
+import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
+import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.storage.PolarisStorageActions;
@@ -175,7 +177,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       };
 
   private final PolarisDiagnostics diagnostics;
-  private final ResolverFactory resolverFactory;
+  private final EntityResolver entityResolver;
   private final CallContext callContext;
   private final RealmConfig realmConfig;
   private final PolarisResolutionManifestCatalogView resolvedEntityView;
@@ -207,7 +209,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
    */
   public LocalIcebergCatalog(
       PolarisDiagnostics diagnostics,
-      ResolverFactory resolverFactory,
+      EntityResolver entityResolver,
       DurableManager metaStoreManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView,
@@ -218,7 +220,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory) {
     this.diagnostics = diagnostics;
-    this.resolverFactory = resolverFactory;
+    this.entityResolver = entityResolver;
     this.callContext = callContext;
     this.realmConfig = callContext.getRealmConfig();
     this.resolvedEntityView = resolvedEntityView;
@@ -1485,16 +1487,12 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   List<PolarisEntity> resolveOptionalPaths(List<ResolvedPathKey> keys, String catalogName) {
     LOGGER.debug("Resolving {} sibling entities to validate location", keys.size());
 
-    PolarisResolutionManifest resolutionManifest =
-        new PolarisResolutionManifest(
-            diagnostics, callContext.getRealmContext(), resolverFactory, principal, catalogName);
+    List<ResolverPath> paths = new ArrayList<>(keys.size());
+    keys.forEach(k -> paths.add(new ResolverPath(k, true))); // optional path
 
-    keys.forEach(
-        k -> {
-          resolutionManifest.addPath(new ResolverPath(k, true)); // optional path
-        });
-
-    ResolverStatus status = resolutionManifest.resolveAll();
+    ResolutionResult resolution =
+        entityResolver.resolve(new ResolutionRequest(principal, catalogName, paths, List.of()));
+    ResolverStatus status = resolution.status();
 
     if (status.getStatus() != ResolverStatus.StatusEnum.SUCCESS) {
       String message =
@@ -1514,10 +1512,15 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       throw new CommitConflictException(message);
     }
 
+    // Read leaves through the same view semantics the retired manifest used: a
+    // partially-resolved optional sibling (one that does not fully exist) yields null and is
+    // skipped; getResolvedPath prepends the reference catalog but the leaf is unchanged.
+    PolarisResolutionManifestCatalogView view =
+        new EntityResolverManifestView(entityResolver, principal, catalogName, resolution);
     List<PolarisEntity> result = new ArrayList<>(keys.size());
     keys.forEach(
         k -> {
-          PolarisResolvedPathWrapper path = resolutionManifest.getResolvedPath(k);
+          PolarisResolvedPathWrapper path = view.getResolvedPath(k);
           if (path != null) {
             PolarisEntity entity = path.getRawLeafEntity();
             if (entity != null) {

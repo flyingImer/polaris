@@ -37,6 +37,7 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.Resolver;
@@ -84,7 +85,7 @@ class LocalIcebergCatalogTest {
     catalog =
         new LocalIcebergCatalog(
             diagnostics,
-            resolverFactory,
+            new DefaultEntityResolver(resolverFactory),
             null,
             callContext,
             resolvedEntityView,

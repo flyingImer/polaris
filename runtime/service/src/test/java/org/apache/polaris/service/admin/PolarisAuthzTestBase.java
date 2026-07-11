@@ -468,7 +468,7 @@ public abstract class PolarisAuthzTestBase {
     this.baseCatalog =
         new LocalIcebergCatalog(
             diagServices,
-            resolverFactory,
+            new DefaultEntityResolver(resolverFactory),
             metaStoreManager,
             callContext,
             passthroughView,
@@ -501,7 +501,7 @@ public abstract class PolarisAuthzTestBase {
     @Inject
     public TestPolarisLocalCatalogFactory(
         PolarisDiagnostics diagnostics,
-        ResolverFactory resolverFactory,
+        EntityResolver entityResolver,
         TaskExecutor taskExecutor,
         StorageAccessConfigProvider accessConfigProvider,
         StorageIoProvider fileIOFactory,
@@ -512,7 +512,7 @@ public abstract class PolarisAuthzTestBase {
         PolarisPrincipal principal) {
       super(
           diagnostics,
-          resolverFactory,
+          entityResolver,
           taskExecutor,
           accessConfigProvider,
           fileIOFactory,

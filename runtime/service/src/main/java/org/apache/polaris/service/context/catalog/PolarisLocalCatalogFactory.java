@@ -29,8 +29,8 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
+import org.apache.polaris.core.persistence.resolver.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
-import org.apache.polaris.core.persistence.resolver.ResolverFactory;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
@@ -49,7 +49,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
   private final TaskExecutor taskExecutor;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
-  private final ResolverFactory resolverFactory;
+  private final EntityResolver entityResolver;
   private final PolarisEventDispatcher polarisEventDispatcher;
   private final PolarisEventMetadataFactory eventMetadataFactory;
   private final DurableManager metaStoreManager;
@@ -59,7 +59,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
   @Inject
   public PolarisLocalCatalogFactory(
       PolarisDiagnostics diagnostics,
-      ResolverFactory resolverFactory,
+      EntityResolver entityResolver,
       TaskExecutor taskExecutor,
       StorageAccessConfigProvider storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
@@ -69,7 +69,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
       CallContext callContext,
       PolarisPrincipal principal) {
     this.diagnostics = diagnostics;
-    this.resolverFactory = resolverFactory;
+    this.entityResolver = entityResolver;
     this.taskExecutor = taskExecutor;
     this.storageAccessConfigProvider = storageAccessConfigProvider;
     this.storageIoProvider = storageIoProvider;
@@ -92,7 +92,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
     LocalIcebergCatalog catalogInstance =
         new LocalIcebergCatalog(
             diagnostics,
-            resolverFactory,
+            entityResolver,
             metaStoreManager,
             callContext,
             resolvedEntityView,
