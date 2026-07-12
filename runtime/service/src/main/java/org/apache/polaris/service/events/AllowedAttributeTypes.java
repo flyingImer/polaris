@@ -22,6 +22,7 @@ import com.google.common.reflect.TypeToken;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -40,18 +41,15 @@ import org.apache.polaris.core.admin.model.UpdateCatalogRoleRequest;
 import org.apache.polaris.core.admin.model.UpdatePrincipalRequest;
 import org.apache.polaris.core.admin.model.UpdatePrincipalRoleRequest;
 import org.apache.polaris.core.entity.PolarisPrivilege;
-import org.apache.polaris.service.types.AttachPolicyRequest;
-import org.apache.polaris.service.types.CommitViewRequest;
-import org.apache.polaris.service.types.CreateGenericTableRequest;
-import org.apache.polaris.service.types.CreatePolicyRequest;
-import org.apache.polaris.service.types.DetachPolicyRequest;
-import org.apache.polaris.service.types.GenericTable;
-import org.apache.polaris.service.types.GetApplicablePoliciesResponse;
-import org.apache.polaris.service.types.LoadPolicyResponse;
-import org.apache.polaris.service.types.NotificationRequest;
-import org.apache.polaris.service.types.UpdatePolicyRequest;
 
-/** Whitelist of types allowed for event attributes. */
+/**
+ * Whitelist of types allowed for event attributes. The built-in set covers primitives, Iceberg spec
+ * types and Polaris admin-model types, all nameable from this class's own module. Served-REST
+ * request/response types (policy, generic-table, notification, ...) live in modules that depend on
+ * this one, so this class cannot name them without a dependency cycle; {@link #register} lets a
+ * caller in a module that CAN see them extend the whitelist before constructing an {@link
+ * AttributeKey} of that type.
+ */
 final class AllowedAttributeTypes {
   private AllowedAttributeTypes() {}
 
@@ -80,18 +78,18 @@ final class AllowedAttributeTypes {
           UpdateCatalogRoleRequest.class,
           AddGrantRequest.class,
           RevokeGrantRequest.class,
-          PolarisPrivilege.class,
-          // Polaris service types
-          CommitViewRequest.class,
-          GenericTable.class,
-          CreateGenericTableRequest.class,
-          CreatePolicyRequest.class,
-          UpdatePolicyRequest.class,
-          LoadPolicyResponse.class,
-          AttachPolicyRequest.class,
-          DetachPolicyRequest.class,
-          GetApplicablePoliciesResponse.class,
-          NotificationRequest.class);
+          PolarisPrivilege.class);
+
+  private static final Set<Class<?>> REGISTERED_TYPES = ConcurrentHashMap.newKeySet();
+
+  /**
+   * Extends the whitelist with a type this class cannot name directly. Must run before any {@link
+   * AttributeKey} of that type is constructed (e.g. from a static initializer that precedes the key
+   * declarations, in the caller's class).
+   */
+  static void register(Class<?>... types) {
+    REGISTERED_TYPES.addAll(List.of(types));
+  }
 
   private static final Set<Class<?>> COLLECTION_TYPES = Set.of(List.class, Set.class, Map.class);
 
@@ -109,15 +107,10 @@ final class AllowedAttributeTypes {
     return isSubtypeOfAllowedType(rawType);
   }
 
-  private static final ClassValue<Boolean> ALLOWED_CACHE =
-      new ClassValue<>() {
-        @Override
-        protected Boolean computeValue(Class<?> type) {
-          return ALLOWED_TYPES.stream().anyMatch(t -> t.isAssignableFrom(type));
-        }
-      };
-
+  // No ClassValue cache here (unlike the fixed built-in set, REGISTERED_TYPES can grow after a
+  // class has already been checked, so a permanent per-Class cache could go stale).
   private static boolean isSubtypeOfAllowedType(Class<?> rawType) {
-    return ALLOWED_CACHE.get(rawType);
+    return ALLOWED_TYPES.stream().anyMatch(t -> t.isAssignableFrom(rawType))
+        || REGISTERED_TYPES.stream().anyMatch(t -> t.isAssignableFrom(rawType));
   }
 }

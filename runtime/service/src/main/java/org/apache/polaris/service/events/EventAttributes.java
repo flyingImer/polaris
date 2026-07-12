@@ -76,6 +76,23 @@ import org.apache.polaris.service.types.UpdatePolicyRequest;
 public final class EventAttributes {
   private EventAttributes() {}
 
+  // AllowedAttributeTypes lives in polaris-core and cannot name these served-REST-API types
+  // without a dependency cycle (they live in modules that depend on core). Register them here,
+  // before any AttributeKey below is constructed, so AttributeKey's validation accepts them.
+  static {
+    AllowedAttributeTypes.register(
+        AttachPolicyRequest.class,
+        CommitViewRequest.class,
+        CreateGenericTableRequest.class,
+        CreatePolicyRequest.class,
+        DetachPolicyRequest.class,
+        GenericTable.class,
+        GetApplicablePoliciesResponse.class,
+        LoadPolicyResponse.class,
+        NotificationRequest.class,
+        UpdatePolicyRequest.class);
+  }
+
   // Catalog attributes
   public static final AttributeKey<String> CATALOG_NAME =
       new AttributeKey<>("catalog_name", String.class);

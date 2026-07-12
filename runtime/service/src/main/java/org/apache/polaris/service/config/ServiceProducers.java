@@ -67,6 +67,7 @@ import org.apache.polaris.service.catalog.api.IcebergRestOAuth2ApiService;
 import org.apache.polaris.service.catalog.io.FileIOConfiguration;
 import org.apache.polaris.service.context.RealmContextConfiguration;
 import org.apache.polaris.service.credentials.PolarisCredentialManagerConfiguration;
+import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.PolarisEventListenerConfiguration;
 import org.apache.polaris.service.persistence.PersistenceConfiguration;
 import org.apache.polaris.service.ratelimiter.RateLimiter;
@@ -181,6 +182,12 @@ public class ServiceProducers {
     // Select the active authorizer from the @Identifier-annotated PolarisAuthorizer producer beans
     // (internal / opa / ranger). Return the selected bean directly; do not cast an injected proxy.
     return authorizers.select(Identifier.Literal.of(authorizationConfig.type())).get();
+  }
+
+  @Produces
+  @RequestScoped
+  public EventAttributeMap eventAttributeMap() {
+    return new EventAttributeMap();
   }
 
   // Polaris service beans - selected from @Identifier-annotated beans
