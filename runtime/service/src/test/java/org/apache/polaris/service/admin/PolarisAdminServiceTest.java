@@ -56,7 +56,7 @@ import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;

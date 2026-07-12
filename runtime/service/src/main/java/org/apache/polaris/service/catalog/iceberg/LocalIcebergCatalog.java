@@ -122,7 +122,7 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolverManifestView;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;

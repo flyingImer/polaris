@@ -20,8 +20,8 @@ package org.apache.polaris.core.persistence;
 
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
-import org.apache.polaris.core.persistence.cache.EntityCache;
-import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
+import org.apache.polaris.core.persistence.internal.EntityCache;
+import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
 

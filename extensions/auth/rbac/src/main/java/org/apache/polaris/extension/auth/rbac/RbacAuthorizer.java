@@ -154,7 +154,7 @@ import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.extension.auth.rbac.RbacOperationSemantics.ResolvedPathRooting;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;

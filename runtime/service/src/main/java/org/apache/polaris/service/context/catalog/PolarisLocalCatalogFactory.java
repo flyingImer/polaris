@@ -29,7 +29,7 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;

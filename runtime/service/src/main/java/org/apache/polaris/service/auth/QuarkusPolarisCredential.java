@@ -20,7 +20,7 @@ package org.apache.polaris.service.auth;
 
 import io.quarkus.security.credential.Credential;
 import java.util.Set;
-import org.apache.polaris.core.auth.PolarisCredential;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.jspecify.annotations.Nullable;
 
 /**

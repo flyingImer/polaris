@@ -16,9 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence.metrics;
+package org.apache.polaris.spi.durable;
 
 import com.google.common.annotations.Beta;
+import org.apache.polaris.core.persistence.metrics.CommitMetricsRecord;
+import org.apache.polaris.core.persistence.metrics.ScanMetricsRecord;
 import org.jspecify.annotations.NonNull;
 
 /**

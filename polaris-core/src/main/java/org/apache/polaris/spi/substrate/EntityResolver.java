@@ -16,8 +16,12 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence.resolver;
+package org.apache.polaris.spi.substrate;
 
+import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
+import org.apache.polaris.core.persistence.resolver.Resolver;
+import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
+import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.jspecify.annotations.NonNull;
 
 /**

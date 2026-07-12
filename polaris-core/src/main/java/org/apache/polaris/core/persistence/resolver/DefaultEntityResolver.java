@@ -27,8 +27,9 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
-import org.apache.polaris.core.persistence.cache.EntityCache;
+import org.apache.polaris.core.persistence.internal.EntityCache;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 

@@ -32,7 +32,7 @@ import java.util.Map;
 import java.util.Set;
 import org.apache.iceberg.exceptions.NotAuthorizedException;
 import org.apache.polaris.core.admin.model.PrincipalWithCredentialsCredentials;
-import org.apache.polaris.core.auth.PolarisCredential;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisEntityConstants;

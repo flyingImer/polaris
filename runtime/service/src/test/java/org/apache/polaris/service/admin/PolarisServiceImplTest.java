@@ -37,7 +37,7 @@ import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.spi.durable.DurableManager;

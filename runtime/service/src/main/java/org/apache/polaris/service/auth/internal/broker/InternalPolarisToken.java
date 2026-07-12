@@ -22,7 +22,7 @@ import com.google.common.base.Splitter;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.polaris.immutables.PolarisImmutable;
-import org.apache.polaris.core.auth.PolarisCredential;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.immutables.value.Value;
 import org.jspecify.annotations.NonNull;
 

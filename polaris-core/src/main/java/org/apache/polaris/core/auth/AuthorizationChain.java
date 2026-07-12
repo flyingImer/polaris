@@ -40,7 +40,7 @@ import org.jspecify.annotations.Nullable;
  * Authorization-side composition over a {@link ResolutionResult} (ADR-0008 Decision 6).
  *
  * <p>ADR-0008 splits resolution from authorization: the {@link
- * org.apache.polaris.core.persistence.resolver.EntityResolver} returns clean, name-addressable data
+ * org.apache.polaris.spi.substrate.EntityResolver} returns clean, name-addressable data
  * ({@link ResolutionResult}), and the RBAC authorization chain, prepending the reference catalog
  * and (for root-rooted operations) the root container to a resolved path so grants cascade
  * correctly, is an authorization concern that lives here rather than on the result data type. This

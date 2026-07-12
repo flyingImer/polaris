@@ -117,7 +117,7 @@ import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
-import org.apache.polaris.core.persistence.resolver.EntityResolver;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ImmutableResolverEntityName;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;

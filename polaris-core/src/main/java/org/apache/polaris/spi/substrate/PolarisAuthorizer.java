@@ -36,7 +36,7 @@ public interface PolarisAuthorizer {
    * Core authorization entry point: decide allow/deny for a names-only {@link AuthorizationRequest}
    * (ADR-0005 Decision 4). The request carries only the principal and typed intents over
    * name-addressed securables, no resolved state. An implementation that needs resolved entities
-   * composes the {@link org.apache.polaris.core.persistence.resolver.EntityResolver} SPI itself,
+   * composes the {@link org.apache.polaris.spi.substrate.EntityResolver} SPI itself,
    * turning the request's names into a resolved snapshot; a remote authorizer can forward the names
    * directly.
    *

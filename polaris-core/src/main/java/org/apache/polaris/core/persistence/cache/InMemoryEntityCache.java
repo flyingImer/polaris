@@ -47,6 +47,7 @@ import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
+import org.apache.polaris.core.persistence.internal.EntityCache;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;

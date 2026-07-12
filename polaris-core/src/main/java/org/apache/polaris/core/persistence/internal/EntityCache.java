@@ -16,18 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence.cache;
+package org.apache.polaris.core.persistence.internal;
 
 import java.util.List;
+import org.apache.polaris.annotations.Internal;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.cache.EntityCacheByNameKey;
+import org.apache.polaris.core.persistence.cache.EntityCacheLookupResult;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-/** Interface for a Polaris entity cache */
+/**
+ * Interface for a Polaris entity cache. Tier-3 internal (ADR-0008 Decision 5): an implementation
+ * detail of the default {@code EntityResolver}, not a provider-facing seam. Public because it is
+ * used across module boundaries (persistence backends, runtime wiring); providers must not depend
+ * on it.
+ */
+@Internal
 public interface EntityCache {
   /**
    * Remove the specified cache entry from the cache

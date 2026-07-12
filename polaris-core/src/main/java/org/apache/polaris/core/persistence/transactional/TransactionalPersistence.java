@@ -33,8 +33,8 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.IntegrationPersistence;
-import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
+import org.apache.polaris.spi.durable.IntegrationPersistence;
+import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.TransactionalPolicyMappingPersistence;
@@ -265,19 +265,19 @@ public interface TransactionalPersistence
       long catalogId,
       long parentId);
 
-  /** See {@link org.apache.polaris.core.persistence.IntegrationPersistence#loadPrincipalSecrets} */
+  /** See {@link org.apache.polaris.spi.durable.IntegrationPersistence#loadPrincipalSecrets} */
   @Nullable PolarisPrincipalSecrets loadPrincipalSecretsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId);
 
   /**
    * See {@link
-   * org.apache.polaris.core.persistence.IntegrationPersistence#generateNewPrincipalSecrets}
+   * org.apache.polaris.spi.durable.IntegrationPersistence#generateNewPrincipalSecrets}
    */
   @NonNull PolarisPrincipalSecrets generateNewPrincipalSecretsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull String principalName, long principalId);
 
   /**
-   * See {@link org.apache.polaris.core.persistence.IntegrationPersistence#rotatePrincipalSecrets}
+   * See {@link org.apache.polaris.spi.durable.IntegrationPersistence#rotatePrincipalSecrets}
    */
   @Nullable PolarisPrincipalSecrets rotatePrincipalSecretsInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
@@ -287,13 +287,13 @@ public interface TransactionalPersistence
       @NonNull String oldSecretHash);
 
   /**
-   * See {@link org.apache.polaris.core.persistence.IntegrationPersistence#deletePrincipalSecrets}
+   * See {@link org.apache.polaris.spi.durable.IntegrationPersistence#deletePrincipalSecrets}
    */
   void deletePrincipalSecretsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId, long principalId);
 
   /**
-   * See {@link org.apache.polaris.core.persistence.IntegrationPersistence#createStorageIntegration}
+   * See {@link org.apache.polaris.spi.durable.IntegrationPersistence#createStorageIntegration}
    */
   @Nullable PolarisStorageIntegration createStorageIntegrationInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
@@ -303,7 +303,7 @@ public interface TransactionalPersistence
 
   /**
    * See {@link
-   * org.apache.polaris.core.persistence.IntegrationPersistence#persistStorageIntegrationIfNeeded}
+   * org.apache.polaris.spi.durable.IntegrationPersistence#persistStorageIntegrationIfNeeded}
    */
   void persistStorageIntegrationIfNeededInCurrentTxn(
       @NonNull PolarisCallContext callContext,

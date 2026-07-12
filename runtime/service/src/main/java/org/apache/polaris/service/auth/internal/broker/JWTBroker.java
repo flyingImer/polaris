@@ -31,7 +31,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.auth.DefaultAuthenticator;
-import org.apache.polaris.core.auth.PolarisCredential;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.apache.polaris.service.auth.internal.service.OAuthError;
 import org.apache.polaris.service.types.TokenType;
 import org.apache.polaris.spi.durable.DurableManager;

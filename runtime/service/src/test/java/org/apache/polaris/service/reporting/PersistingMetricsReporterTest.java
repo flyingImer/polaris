@@ -43,7 +43,7 @@ import org.apache.iceberg.metrics.ScanReport;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.core.persistence.metrics.CommitMetricsRecord;
-import org.apache.polaris.core.persistence.metrics.MetricsPersistence;
+import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.core.persistence.metrics.ScanMetricsRecord;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
