@@ -27,6 +27,7 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.iceberg.exceptions.ServiceFailureException;
+import org.apache.polaris.core.auth.PolarisCredential;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 
 /**
@@ -62,7 +63,7 @@ public class AuthenticatingAugmentor implements SecurityIdentityAugmentor {
   }
 
   private PolarisCredential extractPolarisCredential(SecurityIdentity identity) {
-    PolarisCredential credential = identity.getCredential(PolarisCredential.class);
+    PolarisCredential credential = identity.getCredential(QuarkusPolarisCredential.class);
     if (credential == null) {
       throw new AuthenticationFailedException("No token credential available");
     }

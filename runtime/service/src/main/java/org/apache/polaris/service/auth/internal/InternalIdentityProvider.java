@@ -27,6 +27,7 @@ import io.quarkus.vertx.http.runtime.security.HttpSecurityUtils;
 import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.RoutingContext;
 import jakarta.enterprise.context.ApplicationScoped;
+import org.apache.polaris.service.auth.QuarkusPolarisCredential;
 
 /** A custom {@link IdentityProvider} that handles {@link InternalAuthenticationRequest}s. */
 @ApplicationScoped
@@ -44,7 +45,7 @@ class InternalIdentityProvider implements IdentityProvider<InternalAuthenticatio
         .item(
             QuarkusSecurityIdentity.builder()
                 .setPrincipal(new QuarkusPrincipal(request.getCredential().getPrincipalName()))
-                .addCredential(request.getCredential())
+                .addCredential(QuarkusPolarisCredential.of(request.getCredential()))
                 .addAttribute(
                     RoutingContext.class.getName(),
                     HttpSecurityUtils.getRoutingContextAttribute(request))

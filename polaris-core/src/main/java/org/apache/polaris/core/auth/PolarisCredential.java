@@ -16,20 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.auth;
+package org.apache.polaris.core.auth;
 
-import io.quarkus.security.credential.Credential;
 import java.util.Set;
 import org.apache.polaris.immutables.PolarisImmutable;
 import org.immutables.value.Value;
 import org.jspecify.annotations.Nullable;
 
 /**
- * A Quarkus Security {@link Credential} exposing Polaris-specific attributes: the principal id,
- * name, and roles.
+ * Polaris-specific authentication attributes extracted from an incoming request: the principal
+ * id, name, roles, and token. Framework-agnostic; a runtime module adapts this to whatever
+ * identity/credential model it serves (e.g. Quarkus Security's {@code Credential}).
  */
 @PolarisImmutable
-public interface PolarisCredential extends Credential {
+public interface PolarisCredential {
 
   static PolarisCredential of(
       @Nullable Long principalId, @Nullable String principalName, Set<String> principalRoles) {

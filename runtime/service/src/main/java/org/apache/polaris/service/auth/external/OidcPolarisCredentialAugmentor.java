@@ -31,8 +31,9 @@ import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.Set;
+import org.apache.polaris.core.auth.PolarisCredential;
 import org.apache.polaris.service.auth.AuthenticatingAugmentor;
-import org.apache.polaris.service.auth.PolarisCredential;
+import org.apache.polaris.service.auth.QuarkusPolarisCredential;
 import org.apache.polaris.service.auth.external.mapping.PrincipalMapper;
 import org.apache.polaris.service.auth.external.mapping.PrincipalRolesMapper;
 import org.apache.polaris.service.auth.external.tenant.OidcTenantConfiguration;
@@ -98,6 +99,8 @@ public class OidcPolarisCredentialAugmentor implements SecurityIdentityAugmentor
         PolarisCredential.of(principalId, principalName, principalRoles, token);
     // Note: we don't change the identity roles here, this will be done later on
     // by the AuthenticatingAugmentor, which will also validate them.
-    return QuarkusSecurityIdentity.builder(identity).addCredential(credential).build();
+    return QuarkusSecurityIdentity.builder(identity)
+        .addCredential(QuarkusPolarisCredential.of(credential))
+        .build();
   }
 }

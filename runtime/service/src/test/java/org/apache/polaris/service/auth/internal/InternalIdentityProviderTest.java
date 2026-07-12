@@ -28,7 +28,8 @@ import io.smallrye.mutiny.Uni;
 import io.vertx.ext.web.RoutingContext;
 import java.security.Principal;
 import java.util.Set;
-import org.apache.polaris.service.auth.PolarisCredential;
+import org.apache.polaris.core.auth.PolarisCredential;
+import org.apache.polaris.service.auth.QuarkusPolarisCredential;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
@@ -64,8 +65,20 @@ public class InternalIdentityProviderTest {
     assertThat(principal).isNotNull();
     assertThat(principal.getName()).isEqualTo("testUser");
 
-    // Verify the credential is set
-    assertThat(identity.getCredential(PolarisCredential.class)).isSameAs(credential);
+    // Verify the credential is set (wrapped by the Quarkus adapter, so compare by value)
+    PolarisCredential retrieved = identity.getCredential(QuarkusPolarisCredential.class);
+    assertThat(retrieved)
+        .isNotNull()
+        .extracting(
+            PolarisCredential::getPrincipalId,
+            PolarisCredential::getPrincipalName,
+            PolarisCredential::getPrincipalRoles,
+            PolarisCredential::getToken)
+        .containsExactly(
+            credential.getPrincipalId(),
+            credential.getPrincipalName(),
+            credential.getPrincipalRoles(),
+            credential.getToken());
 
     // Verify the routing context attribute is set
     assertThat((RoutingContext) identity.getAttribute(RoutingContext.class.getName()))
