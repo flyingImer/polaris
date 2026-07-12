@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.service.events.listeners;
 
+import org.apache.polaris.spi.feature.PolarisEventListener;
+
 /**
  * Marker interface signalling that a {@link PolarisEventListener} requires the raw, unsanitized
  * event. Listeners that implement this interface receive the original event from {@link

@@ -20,6 +20,11 @@ package org.apache.polaris.service.events;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.ImmutablePolarisEventMetadata;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventMetadata;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.junit.jupiter.api.Test;
 
 class PolarisEventTest {

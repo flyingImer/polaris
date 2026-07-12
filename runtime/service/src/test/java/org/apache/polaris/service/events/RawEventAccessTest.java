@@ -35,8 +35,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.polaris.core.admin.model.Catalog;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.events.listeners.RawEventAccess;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest

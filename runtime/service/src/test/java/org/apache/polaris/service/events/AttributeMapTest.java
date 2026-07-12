@@ -21,6 +21,8 @@ package org.apache.polaris.service.events;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.EventAttributeMap;
 import org.junit.jupiter.api.Test;
 
 class AttributeMapTest {

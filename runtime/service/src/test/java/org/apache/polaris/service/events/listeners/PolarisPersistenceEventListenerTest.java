@@ -19,8 +19,8 @@
 
 package org.apache.polaris.service.events.listeners;
 
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.Mockito.mock;
@@ -44,12 +44,12 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.types.Types;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.EventEntity;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventMetadata;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.events.DefaultEventSanitizer;
-import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEvent;
-import org.apache.polaris.service.events.PolarisEventMetadata;
-import org.apache.polaris.service.events.PolarisEventType;
 import org.junit.jupiter.api.Test;
 
 class PolarisPersistenceEventListenerTest {

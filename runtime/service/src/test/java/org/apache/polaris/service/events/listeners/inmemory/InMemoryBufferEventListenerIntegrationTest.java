@@ -19,11 +19,11 @@
 
 package org.apache.polaris.service.events.listeners.inmemory;
 
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
 import static org.apache.polaris.persistence.relational.jdbc.models.ModelEvent.CONVERTER;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
 import static org.apache.polaris.service.it.env.PolarisClient.polarisClient;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;

@@ -20,8 +20,9 @@ package org.apache.polaris.service.events.listeners;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.polaris.service.events.PolarisEvent;
-import org.apache.polaris.service.events.PolarisEventType;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 
 /** Test event listener that stores all emitted events by type. */
 public class TestPolarisEventListener implements PolarisEventListener {

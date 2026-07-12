@@ -19,6 +19,9 @@
 
 package org.apache.polaris.service.events;
 
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
+
 public interface PolarisEventDispatcher {
   void dispatch(PolarisEvent event);
 

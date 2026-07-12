@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.events;
+package org.apache.polaris.core.events;
 
 import java.util.Arrays;
 import java.util.Set;

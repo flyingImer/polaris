@@ -28,7 +28,9 @@ import io.smallrye.common.annotation.Identifier;
 import jakarta.inject.Inject;
 import jakarta.inject.Singleton;
 import java.util.Map;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest

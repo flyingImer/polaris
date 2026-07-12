@@ -18,10 +18,10 @@
  */
 package org.apache.polaris.service.events;
 
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
@@ -35,6 +35,7 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.service.tracing.RequestIdFilter;
 import org.jboss.resteasy.reactive.server.core.CurrentRequestManager;
 import org.jboss.resteasy.reactive.server.core.ResteasyReactiveRequestContext;

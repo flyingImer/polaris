@@ -21,6 +21,7 @@ package org.apache.polaris.service.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.Arrays;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.junit.jupiter.api.Test;
 
 class PolarisEventTypeTest {

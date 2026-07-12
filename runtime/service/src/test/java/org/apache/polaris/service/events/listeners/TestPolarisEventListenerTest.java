@@ -20,6 +20,7 @@
 package org.apache.polaris.service.events.listeners;
 
 import java.lang.reflect.Method;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.junit.jupiter.api.Test;
 
 class TestPolarisEventListenerTest {

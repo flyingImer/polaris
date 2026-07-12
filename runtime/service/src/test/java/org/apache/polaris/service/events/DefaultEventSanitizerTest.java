@@ -25,6 +25,9 @@ import static org.mockito.Mockito.when;
 
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.admin.model.Catalog;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.junit.jupiter.api.Test;
 
 class DefaultEventSanitizerTest {

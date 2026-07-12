@@ -29,13 +29,13 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 import java.io.IOException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.config.FilterPriorities;
-import org.apache.polaris.service.events.EventAttributeMap;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
-import org.apache.polaris.service.events.PolarisEventType;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

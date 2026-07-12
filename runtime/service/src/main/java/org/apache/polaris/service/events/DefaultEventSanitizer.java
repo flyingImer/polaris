@@ -29,6 +29,9 @@ import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Set;
 import org.apache.polaris.core.admin.model.Catalog;
+import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
 
 /**
  * Default implementation of {@link EventSanitizer}. Drops attributes whose keys are on the denylist

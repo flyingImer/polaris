@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.events;
+package org.apache.polaris.core.events;
 
 import com.google.common.reflect.TypeToken;
 import java.util.List;
@@ -28,6 +28,7 @@ import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.RESTMessage;
 import org.apache.iceberg.view.ViewMetadata;
+import org.apache.polaris.annotations.Internal;
 import org.apache.polaris.core.admin.model.AddGrantRequest;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.admin.model.CatalogRole;
@@ -50,7 +51,8 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
  * caller in a module that CAN see them extend the whitelist before constructing an {@link
  * AttributeKey} of that type.
  */
-final class AllowedAttributeTypes {
+@Internal
+public final class AllowedAttributeTypes {
   private AllowedAttributeTypes() {}
 
   static final Set<Class<?>> ALLOWED_TYPES =
@@ -87,7 +89,7 @@ final class AllowedAttributeTypes {
    * AttributeKey} of that type is constructed (e.g. from a static initializer that precedes the key
    * declarations, in the caller's class).
    */
-  static void register(Class<?>... types) {
+  public static void register(Class<?>... types) {
     REGISTERED_TYPES.addAll(List.of(types));
   }
 

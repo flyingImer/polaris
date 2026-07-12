@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.events;
+package org.apache.polaris.core.events;
 
 import com.fasterxml.jackson.annotation.JsonValue;
 import com.google.common.reflect.TypeToken;

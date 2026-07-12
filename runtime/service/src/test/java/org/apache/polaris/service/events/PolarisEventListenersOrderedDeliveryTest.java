@@ -37,7 +37,11 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest

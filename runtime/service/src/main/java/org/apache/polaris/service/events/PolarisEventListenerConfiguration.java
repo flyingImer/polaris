@@ -26,7 +26,8 @@ import io.smallrye.config.WithParentName;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.core.events.PolarisEventType;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 
 @StaticInitSafe
 @ConfigMapping(prefix = "polaris.event-listener")

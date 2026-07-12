@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.google.common.reflect.TypeToken;
+import org.apache.polaris.core.events.AttributeKey;
 import org.junit.jupiter.api.Test;
 
 class AttributeKeyTest {

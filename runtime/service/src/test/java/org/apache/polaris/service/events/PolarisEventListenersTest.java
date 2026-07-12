@@ -38,8 +38,10 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.function.Predicate;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.Profiles;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest

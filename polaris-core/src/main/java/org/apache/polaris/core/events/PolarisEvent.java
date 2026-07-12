@@ -16,16 +16,20 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.events.listeners;
-
-import org.apache.polaris.service.events.PolarisEvent;
+package org.apache.polaris.core.events;
 
 /**
- * Event listener that responds to notable moments during Polaris's execution. Implementations can
- * filter events by checking {@link PolarisEvent#type()} or by querying attributes via {@link
- * PolarisEvent#attributes()}.
+ * Represents an event emitted by Polaris. Events have a type, metadata, and a map of typed
+ * attributes
  */
-public interface PolarisEventListener {
+public record PolarisEvent(
+    PolarisEventType type, PolarisEventMetadata metadata, EventAttributeMap attributes) {
 
-  default void onEvent(PolarisEvent event) {}
+  public PolarisEvent {
+    attributes = new EventAttributeMap(attributes);
+  }
+
+  public PolarisEvent(PolarisEventType type, PolarisEventMetadata metadata) {
+    this(type, metadata, new EventAttributeMap());
+  }
 }

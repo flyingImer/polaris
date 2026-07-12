@@ -32,11 +32,12 @@ import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.EventEntity.ResourceType;
-import org.apache.polaris.service.events.AttributeKey;
-import org.apache.polaris.service.events.EventAttributeMap;
+import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEvent;
-import org.apache.polaris.service.events.PolarisEventType;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 
 public abstract class PolarisPersistenceEventListener implements PolarisEventListener {
 

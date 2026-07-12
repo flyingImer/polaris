@@ -22,10 +22,10 @@ import static io.opentelemetry.api.common.AttributeKey.booleanKey;
 import static io.opentelemetry.api.common.AttributeKey.longKey;
 import static io.opentelemetry.api.common.AttributeKey.stringArrayKey;
 import static io.opentelemetry.api.common.AttributeKey.stringKey;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
-import static org.apache.polaris.service.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SAMPLED_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_SPAN_ID_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_FLAGS_KEY;
+import static org.apache.polaris.core.events.PolarisEventMetadata.OPEN_TELEMETRY_TRACE_ID_KEY;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
@@ -48,11 +48,11 @@ import java.util.Optional;
 import java.util.function.Function;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.admin.model.GrantResource;
-import org.apache.polaris.service.events.AttributeKey;
+import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEvent;
-import org.apache.polaris.service.events.PolarisEventMetadata;
-import org.apache.polaris.service.events.listeners.PolarisEventListener;
+import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.slf4j.LoggerFactory;
 
 @ApplicationScoped

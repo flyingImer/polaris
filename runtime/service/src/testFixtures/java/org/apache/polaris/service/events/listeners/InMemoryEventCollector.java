@@ -21,9 +21,9 @@ package org.apache.polaris.service.events.listeners;
 
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import org.apache.polaris.service.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEvent;
+import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
-import org.apache.polaris.service.events.PolarisEventType;
 
 public class InMemoryEventCollector implements PolarisEventDispatcher {
   private final Map<PolarisEventType, PolarisEvent> latestEvents = new ConcurrentHashMap<>();
