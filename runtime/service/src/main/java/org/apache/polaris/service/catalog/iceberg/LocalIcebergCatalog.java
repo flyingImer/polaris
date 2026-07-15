@@ -122,7 +122,6 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.EntityResolverManifestView;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
@@ -146,6 +145,7 @@ import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.apache.polaris.storage.model.VendedClientStorageAccess;
@@ -157,7 +157,11 @@ import org.slf4j.LoggerFactory;
 
 /** Defines the relationship between PolarisEntities and Iceberg's business logic. */
 public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
-    implements SupportsNamespaces, SupportsNotifications, Closeable {
+    implements SupportsNamespaces,
+        SupportsNotifications,
+        Closeable,
+        IcebergTableCatalogOps<org.apache.polaris.spi.feature.catalog.NoExtension>,
+        IcebergViewCatalogOps<org.apache.polaris.spi.feature.catalog.NoExtension> {
   private static final Logger LOGGER = LoggerFactory.getLogger(LocalIcebergCatalog.class);
 
   private static final Joiner SLASH = Joiner.on("/");
