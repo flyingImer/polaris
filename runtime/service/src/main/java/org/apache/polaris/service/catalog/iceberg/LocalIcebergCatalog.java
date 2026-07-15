@@ -30,11 +30,16 @@ import com.google.common.base.Joiner;
 import com.google.common.base.Objects;
 import com.google.common.base.Preconditions;
 import com.google.common.base.Throwables;
+import com.google.common.collect.ImmutableList;
 import com.google.common.collect.ImmutableMap;
+import com.google.common.collect.ImmutableSet;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.inject.Instance;
 import java.io.Closeable;
 import java.io.IOException;
 import java.net.URLEncoder;
 import java.nio.charset.Charset;
+import java.time.Clock;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collections;
@@ -61,9 +66,11 @@ import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
 import org.apache.iceberg.TableOperations;
 import org.apache.iceberg.TableProperties;
+import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.SupportsNamespaces;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
@@ -81,6 +88,15 @@ import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.io.InputFile;
 import org.apache.iceberg.io.LocationProvider;
 import org.apache.iceberg.io.OutputFile;
+import org.apache.iceberg.rest.Endpoint;
+import org.apache.iceberg.rest.RESTCatalogProperties;
+import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
+import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
+import org.apache.iceberg.rest.responses.ConfigResponse;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
 import org.apache.iceberg.util.Tasks;
@@ -95,12 +111,17 @@ import org.apache.iceberg.view.ViewProperties;
 import org.apache.iceberg.view.ViewUtil;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.auth.PolarisAuthorizableOperation;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.catalog.PolarisCatalogHelpers;
 import org.apache.polaris.core.config.BehaviorChangeConfiguration;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
+import org.apache.polaris.core.connection.ConnectionConfigInfoDpo;
+import org.apache.polaris.core.connection.ConnectionType;
 import org.apache.polaris.core.context.CallContext;
+import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.NamespaceEntity;
@@ -116,6 +137,7 @@ import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
+import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -129,23 +151,33 @@ import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.core.rest.NamespaceUtils;
+import org.apache.polaris.core.rest.PolarisEndpoints;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.StorageUtil;
+import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.catalog.SupportsNotifications;
+import org.apache.polaris.service.catalog.common.CatalogAuthorizer;
 import org.apache.polaris.service.catalog.common.CatalogUtils;
 import org.apache.polaris.service.catalog.common.LocationUtils;
 import org.apache.polaris.service.catalog.io.FileIOUtil;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation;
+import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
+import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.NoExtension;
+import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.apache.polaris.spi.substrate.EntityResolver;
+import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.apache.polaris.storage.model.VendedClientStorageAccess;
@@ -160,8 +192,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces,
         SupportsNotifications,
         Closeable,
-        IcebergTableCatalogOps<org.apache.polaris.spi.feature.catalog.NoExtension>,
-        IcebergViewCatalogOps<org.apache.polaris.spi.feature.catalog.NoExtension> {
+        IcebergTableCatalogOps<NoExtension>,
+        IcebergViewCatalogOps<NoExtension> {
   private static final Logger LOGGER = LoggerFactory.getLogger(LocalIcebergCatalog.class);
 
   private static final Joiner SLASH = Joiner.on("/");
@@ -184,8 +216,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private final EntityResolver entityResolver;
   private final CallContext callContext;
   private final RealmConfig realmConfig;
-  private final PolarisResolutionManifestCatalogView resolvedEntityView;
-  private final CatalogEntity catalogEntity;
+  private PolarisResolutionManifestCatalogView resolvedEntityView;
+  private CatalogEntity catalogEntity;
   private final TaskExecutor taskExecutor;
   private final PolarisPrincipal principal;
   private final PolarisEventDispatcher polarisEventDispatcher;
@@ -197,13 +229,38 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private CloseableGroup closeableGroup;
   private Map<String, String> tableDefaultProperties;
 
-  private final String catalogName;
-  private final long catalogId;
+  private String catalogName;
+  private long catalogId;
   private String defaultBaseLocation;
   private Map<String, String> catalogProperties;
   private final StorageAccessConfigProvider storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
   private DurableManager metaStoreManager;
+
+  // --- Issue 29: merged Iceberg catalog feature-SPI collaborators + dispatch state. Set only via
+  // the feature-SPI constructor below; they stay null on the legacy view-taking constructor path,
+  // whose instances never receive feature-SPI op calls (the adapter still routes through the old
+  // IcebergCatalogHandler until Inc6). ---
+  private CatalogAuthorizer authz;
+  private PolarisCredentialManager credentialManager;
+  private Instance<FederatedCatalogFactory> federatedCatalogFactories;
+  private ReservedProperties reservedProperties;
+  private CatalogHandlerUtils catalogHandlerUtils;
+  private EventAttributeMap eventAttributeMap;
+  private Clock clock;
+  private AccessDelegationModeResolver accessDelegationModeResolver;
+  private PolarisMetricsReporter polarisMetricsReporter;
+  private CatalogPrefixParser prefixParser;
+
+  // Local-vs-federated dispatch state, established by ensureBaseInitialized() after authorization.
+  // Local: baseCatalog/namespaceCatalog/viewCatalog are this instance; federated: a narrow remote
+  // delegate.
+  private Catalog federatedDelegate;
+  private boolean isFederated = false;
+  private boolean baseInitialized = false;
+  private Catalog baseCatalog;
+  private SupportsNamespaces namespaceCatalog;
+  private ViewCatalog viewCatalog;
 
   /**
    * @param callContext the current CallContext
@@ -238,6 +295,62 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     this.metaStoreManager = metaStoreManager;
     this.polarisEventDispatcher = polarisEventDispatcher;
     this.eventMetadataFactory = eventMetadataFactory;
+    // Legacy path: the view is supplied eagerly, so base construction is already complete.
+    this.baseInitialized = true;
+  }
+
+  /**
+   * Feature-SPI constructor (Issue 29): builds the catalog EARLY from the catalog name + principal
+   * + collaborators, with NO resolved-entity view yet. {@link #ensureBaseInitialized()} completes
+   * construction after the composed {@link CatalogAuthorizer} resolves the entity view during the
+   * first authorized operation, deciding local vs federated there (mirroring the retired handler's
+   * lazy {@code initializeCatalog()}).
+   */
+  public LocalIcebergCatalog(
+      String catalogName,
+      PolarisPrincipal principal,
+      CallContext callContext,
+      PolarisDiagnostics diagnostics,
+      EntityResolver entityResolver,
+      PolarisAuthorizer authorizer,
+      DurableManager metaStoreManager,
+      TaskExecutor taskExecutor,
+      StorageAccessConfigProvider storageAccessConfigProvider,
+      StorageIoProvider storageIoProvider,
+      PolarisEventDispatcher polarisEventDispatcher,
+      PolarisEventMetadataFactory eventMetadataFactory,
+      PolarisCredentialManager credentialManager,
+      Instance<FederatedCatalogFactory> federatedCatalogFactories,
+      ReservedProperties reservedProperties,
+      CatalogHandlerUtils catalogHandlerUtils,
+      EventAttributeMap eventAttributeMap,
+      Clock clock,
+      AccessDelegationModeResolver accessDelegationModeResolver,
+      PolarisMetricsReporter polarisMetricsReporter,
+      CatalogPrefixParser prefixParser) {
+    this.diagnostics = diagnostics;
+    this.entityResolver = entityResolver;
+    this.callContext = callContext;
+    this.realmConfig = callContext.getRealmConfig();
+    this.principal = principal;
+    this.taskExecutor = taskExecutor;
+    this.catalogName = catalogName;
+    this.storageAccessConfigProvider = storageAccessConfigProvider;
+    this.storageIoProvider = storageIoProvider;
+    this.metaStoreManager = metaStoreManager;
+    this.polarisEventDispatcher = polarisEventDispatcher;
+    this.eventMetadataFactory = eventMetadataFactory;
+    this.credentialManager = credentialManager;
+    this.federatedCatalogFactories = federatedCatalogFactories;
+    this.reservedProperties = reservedProperties;
+    this.catalogHandlerUtils = catalogHandlerUtils;
+    this.eventAttributeMap = eventAttributeMap;
+    this.clock = clock;
+    this.accessDelegationModeResolver = accessDelegationModeResolver;
+    this.polarisMetricsReporter = polarisMetricsReporter;
+    this.prefixParser = prefixParser;
+    this.authz = new CatalogAuthorizer(entityResolver, authorizer, principal, catalogName);
+    // resolvedEntityView / catalogEntity / catalogId are established by ensureBaseInitialized().
   }
 
   @Override
@@ -2960,5 +3073,284 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
 
   private int getMaxMetadataRefreshRetries() {
     return realmConfig.getConfig(FeatureConfiguration.MAX_METADATA_REFRESH_RETRIES);
+  }
+
+  // ===============================================================================================
+  // Issue 29: merged Iceberg catalog feature-SPI implementation (E = NoExtension).
+  //
+  // The public REST operations below are transcribed from the retired IcebergCatalogHandler.
+  // Authorization is composed via the CatalogAuthorizer helper (never a base class); the local data
+  // mechanics are this instance's own Iceberg machinery (baseCatalog == this), and the federated
+  // path forwards to a narrow remote delegate. These overrides are additive and unused until Inc6
+  // rewires IcebergCatalogAdapter to call them directly; the legacy view-taking construction path
+  // never reaches them.
+  // ===============================================================================================
+
+  private static final Set<Endpoint> DEFAULT_ENDPOINTS =
+      ImmutableSet.<Endpoint>builder()
+          .add(Endpoint.V1_LIST_NAMESPACES)
+          .add(Endpoint.V1_LOAD_NAMESPACE)
+          .add(Endpoint.V1_NAMESPACE_EXISTS)
+          .add(Endpoint.V1_CREATE_NAMESPACE)
+          .add(Endpoint.V1_UPDATE_NAMESPACE)
+          .add(Endpoint.V1_DELETE_NAMESPACE)
+          .add(Endpoint.V1_LIST_TABLES)
+          .add(Endpoint.V1_LOAD_TABLE)
+          .add(Endpoint.V1_TABLE_EXISTS)
+          .add(Endpoint.V1_CREATE_TABLE)
+          .add(Endpoint.V1_UPDATE_TABLE)
+          .add(Endpoint.V1_DELETE_TABLE)
+          .add(Endpoint.V1_RENAME_TABLE)
+          .add(Endpoint.V1_REGISTER_TABLE)
+          .add(Endpoint.V1_REPORT_METRICS)
+          .add(Endpoint.V1_COMMIT_TRANSACTION)
+          .build();
+
+  private static final Set<Endpoint> VIEW_ENDPOINTS =
+      ImmutableSet.<Endpoint>builder()
+          .add(Endpoint.V1_LIST_VIEWS)
+          .add(Endpoint.V1_LOAD_VIEW)
+          .add(Endpoint.V1_VIEW_EXISTS)
+          .add(Endpoint.V1_CREATE_VIEW)
+          .add(Endpoint.V1_UPDATE_VIEW)
+          .add(Endpoint.V1_DELETE_VIEW)
+          .add(Endpoint.V1_RENAME_VIEW)
+          .add(Endpoint.V1_REGISTER_VIEW)
+          .build();
+
+  /**
+   * Completes construction after authorization: reads the resolved-entity view populated by {@link
+   * #authz} and establishes local-vs-federated dispatch state. Idempotent (guarded on {@link
+   * #baseInitialized}). Moved verbatim from the retired {@code
+   * IcebergCatalogHandler.initializeCatalog()}, folding in {@code
+   * PolarisLocalCatalogFactory.createCatalog}'s local-initialize step (this instance IS the local
+   * catalog, so it initializes itself instead of building a new one).
+   */
+  private void ensureBaseInitialized() {
+    if (baseInitialized) {
+      return;
+    }
+    this.resolvedEntityView = authz.resolvedEntityView();
+    CatalogEntity resolvedCatalogEntity = resolvedEntityView.getResolvedCatalogEntity();
+    diagnostics.checkNotNull(resolvedCatalogEntity, "No catalog available");
+    this.catalogEntity = resolvedCatalogEntity;
+    this.catalogId = resolvedCatalogEntity.getId();
+
+    ConnectionConfigInfoDpo connectionConfigInfoDpo =
+        resolvedCatalogEntity.getConnectionConfigInfoDpo();
+    if (connectionConfigInfoDpo != null) {
+      LOGGER
+          .atInfo()
+          .addKeyValue("remoteUrl", connectionConfigInfoDpo.getUri())
+          .log("Initializing federated catalog");
+      FeatureConfiguration.enforceFeatureEnabledOrThrow(
+          realmConfig, FeatureConfiguration.ENABLE_CATALOG_FEDERATION);
+
+      ConnectionType connectionType =
+          ConnectionType.fromCode(connectionConfigInfoDpo.getConnectionTypeCode());
+      Instance<FederatedCatalogFactory> federatedCatalogFactory =
+          federatedCatalogFactories.select(
+              Identifier.Literal.of(connectionType.getFactoryIdentifier()));
+      if (federatedCatalogFactory.isResolvable()) {
+        Map<String, String> federatedProperties = resolvedCatalogEntity.getPropertiesAsMap();
+        this.federatedDelegate =
+            federatedCatalogFactory
+                .get()
+                .createCatalog(connectionConfigInfoDpo, credentialManager, federatedProperties);
+      } else {
+        throw new UnsupportedOperationException(
+            "External catalog factory for type '" + connectionType + "' is unavailable.");
+      }
+      this.isFederated = true;
+      this.baseCatalog = federatedDelegate;
+      this.namespaceCatalog =
+          (federatedDelegate instanceof SupportsNamespaces)
+              ? (SupportsNamespaces) federatedDelegate
+              : null;
+      this.viewCatalog =
+          (federatedDelegate instanceof ViewCatalog) ? (ViewCatalog) federatedDelegate : null;
+    } else {
+      LOGGER.debug("Initializing non-federated catalog");
+      this.isFederated = false;
+      Map<String, String> localCatalogProperties =
+          new HashMap<>(resolvedCatalogEntity.getPropertiesAsMap());
+      String warehouseLocation = resolvedCatalogEntity.getBaseLocation();
+      if (warehouseLocation == null) {
+        throw new IllegalStateException(
+            String.format(
+                "Catalog '%s' does not have a configured warehouse location. "
+                    + "Please configure a default base location for this catalog.",
+                catalogName));
+      }
+      localCatalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
+      initialize(catalogName, localCatalogProperties);
+      this.baseCatalog = this;
+      this.namespaceCatalog = this;
+      this.viewCatalog = this;
+    }
+    this.baseInitialized = true;
+  }
+
+  private CatalogEntity getResolvedCatalogEntity() {
+    diagnostics.checkNotNull(catalogEntity, "No catalog available");
+    return catalogEntity;
+  }
+
+  private boolean shouldDecodeToken() {
+    return realmConfig.getConfig(
+        FeatureConfiguration.LIST_PAGINATION_ENABLED, getResolvedCatalogEntity());
+  }
+
+  @Override
+  public PolarisResult<ListNamespacesResponse, NoExtension> listNamespaces(
+      Namespace parent, String pageToken, Integer pageSize) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.LIST_NAMESPACES;
+    authz.authorizeBasicNamespaceOperationOrThrow(op, parent);
+    ensureBaseInitialized();
+
+    ListNamespacesResponse response;
+    if (isFederated) {
+      response = catalogHandlerUtils.listNamespaces(namespaceCatalog, parent, pageToken, pageSize);
+    } else {
+      PageToken pageRequest = PageToken.build(pageToken, pageSize, this::shouldDecodeToken);
+      var results = this.listNamespaces(parent, pageRequest);
+      response =
+          ListNamespacesResponse.builder()
+              .addAll(results.items())
+              .nextPageToken(results.encodedResponseToken())
+              .build();
+    }
+    return PolarisResult.of(response);
+  }
+
+  @Override
+  public PolarisResult<CreateNamespaceResponse, NoExtension> createNamespace(
+      CreateNamespaceRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.CREATE_NAMESPACE;
+
+    Namespace namespace = request.namespace();
+    if (namespace.isEmpty()) {
+      throw new AlreadyExistsException(
+          "Cannot create root namespace, as it already exists implicitly.");
+    }
+    authz.authorizeCreateNamespaceUnderNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    CreateNamespaceResponse response;
+    if (isFederated) {
+      response = catalogHandlerUtils.createNamespace(namespaceCatalog, request);
+    } else {
+      // Note: The CatalogHandlers' default implementation will non-atomically create the
+      // namespace and then fetch its properties using loadNamespaceMetadata for the response.
+      // However, the latest namespace metadata technically isn't the same authorized instance,
+      // so we don't want all cals to loadNamespaceMetadata to automatically use the manifest
+      // in "passthrough" mode.
+      //
+      // For CreateNamespace, we consider this a special case in that the creator is able to
+      // retrieve the latest namespace metadata for the duration of the CreateNamespace
+      // operation, even if the entityVersion and/or grantsVersion update in the interim.
+      namespaceCatalog.createNamespace(
+          namespace, reservedProperties.removeReservedProperties(request.properties()));
+      Map<String, String> filteredProperties =
+          reservedProperties.removeReservedProperties(
+              resolvedEntityView
+                  .getPassthroughResolvedPath(ResolvedPathKey.ofNamespace(namespace))
+                  .getRawLeafEntity()
+                  .getPropertiesAsMap());
+      response =
+          CreateNamespaceResponse.builder()
+              .withNamespace(namespace)
+              .setProperties(filteredProperties)
+              .build();
+    }
+    return PolarisResult.of(response);
+  }
+
+  @Override
+  public PolarisResult<GetNamespaceResponse, NoExtension> getNamespaceMetadata(
+      Namespace namespace) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.LOAD_NAMESPACE_METADATA;
+    authz.authorizeBasicNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    return PolarisResult.of(catalogHandlerUtils.loadNamespace(namespaceCatalog, namespace));
+  }
+
+  @Override
+  public PolarisResult<Void, NoExtension> checkNamespaceExists(Namespace namespace) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.NAMESPACE_EXISTS;
+
+    // TODO: This authz check doesn't accomplish true authz in terms of blocking the ability
+    // for a caller to ascertain whether the namespace exists or not, but instead just behaves
+    // according to convention -- if existence is going to be privileged, we must instead
+    // add a base layer that throws NotFound exceptions instead of NotAuthorizedException
+    // for *all* operations in which we determine that the basic privilege for determining
+    // existence is also missing.
+    authz.authorizeBasicNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    // TODO: Just skip CatalogHandlers for this one maybe
+    catalogHandlerUtils.loadNamespace(namespaceCatalog, namespace);
+    return PolarisResult.<Void>of(null);
+  }
+
+  @Override
+  public PolarisResult<Void, NoExtension> deleteNamespace(Namespace namespace) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.DROP_NAMESPACE;
+    authz.authorizeBasicNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    catalogHandlerUtils.dropNamespace(namespaceCatalog, namespace);
+    return PolarisResult.<Void>of(null);
+  }
+
+  @Override
+  public PolarisResult<UpdateNamespacePropertiesResponse, NoExtension> updateNamespaceProperties(
+      Namespace namespace, UpdateNamespacePropertiesRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.UPDATE_NAMESPACE_PROPERTIES;
+    authz.authorizeBasicNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    return PolarisResult.of(
+        catalogHandlerUtils.updateNamespaceProperties(namespaceCatalog, namespace, request));
+  }
+
+  @Override
+  public PolarisResult<ConfigResponse, NoExtension> getConfig() {
+    // Resolve the reference catalog through the EntityResolver SPI (ADR-0008). This carries no
+    // paths or top-level names, so it resolves the caller principal, activated roles, and the
+    // reference catalog, matching the prior raw-resolver resolveAll() with nothing added. A
+    // provider's EntityResolver (e.g. managed's cache-populating wrapper) runs here as it does on
+    // the authorize path, so any request-scoped resolution side effects are preserved. No authz and
+    // no ensureBaseInitialized(): getConfig never resolves a catalog instance.
+    ResolutionResult resolution =
+        entityResolver.resolve(ResolutionRequest.of(principal, catalogName));
+    if (!resolution.isSuccess()) {
+      throw new NotFoundException("Unable to find warehouse %s", catalogName);
+    }
+    ResolvedPolarisEntity resolvedReferenceCatalog = resolution.resolvedReferenceCatalog();
+    Map<String, String> properties =
+        PolarisEntity.of(resolvedReferenceCatalog.getEntity()).getPropertiesAsMap();
+
+    ConfigResponse response =
+        ConfigResponse.builder()
+            .withDefaults(properties) // catalog properties are defaults
+            .withOverrides(
+                ImmutableMap.of(
+                    "prefix",
+                    prefixParser.catalogNameToPrefix(catalogName),
+                    // Polaris does not handle custom namespace separators;
+                    // always communicate the default namespace separator to clients.
+                    RESTCatalogProperties.NAMESPACE_SEPARATOR,
+                    NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR_ENCODED))
+            .withEndpoints(
+                ImmutableList.<Endpoint>builder()
+                    .addAll(DEFAULT_ENDPOINTS)
+                    .addAll(VIEW_ENDPOINTS)
+                    .addAll(PolarisEndpoints.getSupportedGenericTableEndpoints(realmConfig))
+                    .addAll(PolarisEndpoints.getSupportedPolicyEndpoints(realmConfig))
+                    .build())
+            .build();
+    return PolarisResult.of(response);
   }
 }
