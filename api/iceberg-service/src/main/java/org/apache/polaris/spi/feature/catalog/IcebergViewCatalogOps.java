@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
+package org.apache.polaris.spi.feature.catalog;
 
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -26,8 +26,6 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadViewResponse;
-import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
-import org.apache.polaris.spi.feature.catalog.PolarisResult;
 
 /**
  * The iceberg-view-catalog L0 feature SPI (ADR-0001): the provider-replaceable contract for the
@@ -35,10 +33,17 @@ import org.apache.polaris.spi.feature.catalog.PolarisResult;
  *
  * <p>Every operation returns its plain Iceberg response wrapped in {@link PolarisResult} (Issue
  * 29), with the OSS-carried {@code etag} and a typed provider-private {@code extension} of type
- * {@code E} (OSS default {@code E = }{@link org.apache.polaris.spi.feature.catalog.NoExtension}).
- * Inputs stay plain parameters. {@code listViews} returns a {@link ListTablesResponse} (Iceberg's
- * own view-listing response type). Each method defaults to throwing {@link
- * UnsupportedOperationException} so a provider need only implement the operations it serves.
+ * {@code E} (OSS default {@code E = }{@link NoExtension}). Inputs stay plain parameters. {@code
+ * listViews} returns a {@link ListTablesResponse} (Iceberg's own view-listing response type). Each
+ * method defaults to throwing {@link UnsupportedOperationException} so a provider need only
+ * implement the operations it serves.
+ *
+ * <p>Method names match the OSS Iceberg-REST operationIds EXCEPT for 3 renamed off {@code
+ * checkViewExists}/{@code deleteView}/{@code getView} to avoid a compile-blocking signature
+ * collision on the current OSS default implementation {@code LocalIcebergCatalog}, which still
+ * {@code extends BaseMetastoreViewCatalog implements ViewCatalog} pending the Issue 29 Rework R
+ * composite restructure (R4). Once that lands these revert to {@code viewExists}/{@code
+ * dropView}/{@code loadView} (see {@link IcebergCatalogOps} for the 5 table/namespace-side ones).
  *
  * @param <E> the provider-private extension payload type
  */

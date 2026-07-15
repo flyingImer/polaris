@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.http;
+package org.apache.polaris.spi.feature.catalog;
 
 import java.util.List;
 import java.util.regex.MatchResult;

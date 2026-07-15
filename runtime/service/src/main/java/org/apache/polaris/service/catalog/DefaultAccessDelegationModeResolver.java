@@ -18,8 +18,8 @@
  */
 package org.apache.polaris.service.catalog;
 
-import static org.apache.polaris.service.catalog.AccessDelegationMode.REMOTE_SIGNING;
-import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.REMOTE_SIGNING;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
@@ -30,6 +30,8 @@ import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;

@@ -18,8 +18,8 @@
  */
 package org.apache.polaris.service.catalog;
 
-import static org.apache.polaris.service.catalog.AccessDelegationMode.REMOTE_SIGNING;
-import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.REMOTE_SIGNING;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import static org.mockito.ArgumentMatchers.eq;
@@ -36,6 +36,8 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.azure.AzureStorageConfigurationInfo;
 import org.apache.polaris.core.storage.gcp.GcpStorageConfigurationInfo;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;

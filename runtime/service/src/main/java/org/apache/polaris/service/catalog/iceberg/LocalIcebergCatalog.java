@@ -185,8 +185,6 @@ import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.StorageUtil;
-import org.apache.polaris.service.catalog.AccessDelegationMode;
-import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.catalog.SupportsNotifications;
 import org.apache.polaris.service.catalog.common.CatalogAuthorizer;
 import org.apache.polaris.service.catalog.common.CatalogUtils;
@@ -199,13 +197,17 @@ import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.http.IcebergHttpUtil;
-import org.apache.polaris.service.http.IfNoneMatch;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.IcebergCatalogOps;
+import org.apache.polaris.spi.feature.catalog.IcebergViewCatalogOps;
+import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
 import org.apache.polaris.spi.feature.catalog.NoExtension;
 import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.apache.polaris.spi.substrate.EntityResolver;
@@ -224,7 +226,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces,
         SupportsNotifications,
         Closeable,
-        IcebergTableCatalogOps<NoExtension>,
+        IcebergCatalogOps<NoExtension>,
         IcebergViewCatalogOps<NoExtension> {
   private static final Logger LOGGER = LoggerFactory.getLogger(LocalIcebergCatalog.class);
 

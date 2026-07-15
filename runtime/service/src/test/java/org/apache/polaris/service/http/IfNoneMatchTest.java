@@ -22,6 +22,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.List;
 import java.util.Set;
+import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 

@@ -18,7 +18,7 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
-import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 
 import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
@@ -92,15 +92,15 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
-import org.apache.polaris.service.catalog.AccessDelegationMode;
-import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
-import org.apache.polaris.service.http.IfNoneMatch;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.service.types.TableUpdateNotification;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
+import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
 import org.apache.polaris.spi.feature.catalog.NoExtension;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.assertj.core.api.Assertions;

@@ -16,11 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog;
+package org.apache.polaris.spi.feature.catalog;
 
-import static org.apache.polaris.service.catalog.AccessDelegationMode.REMOTE_SIGNING;
-import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
-import static org.apache.polaris.service.catalog.AccessDelegationMode.fromProtocolValuesList;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.REMOTE_SIGNING;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
+import static org.apache.polaris.spi.feature.catalog.AccessDelegationMode.fromProtocolValuesList;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import java.util.EnumSet;
