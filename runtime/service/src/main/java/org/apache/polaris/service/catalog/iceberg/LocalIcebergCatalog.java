@@ -3420,17 +3420,6 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public PolarisResult<LoadTableResponse, NoExtension> createTableDirect(
-      Namespace namespace, CreateTableRequest request) {
-    // The Inc3 feature-SPI signature is delegation-free; forward to the delegation-aware body with
-    // no access delegation (matching the retired handler's 2-arg createTableDirect). NOTE: this
-    // drops the vended-credentials createTableDirect path the adapter still drives via the 4-arg
-    // handler method; the interface will need a delegation-aware signature before Inc6 rewires the
-    // adapter (flagged to the reviewer).
-    return createTableDirect(
-        namespace, request, EnumSet.noneOf(AccessDelegationMode.class), Optional.empty());
-  }
-
-  private PolarisResult<LoadTableResponse, NoExtension> createTableDirect(
       Namespace namespace,
       CreateTableRequest request,
       EnumSet<AccessDelegationMode> delegationModes,

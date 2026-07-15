@@ -105,7 +105,10 @@ public interface IcebergTableCatalogOps<E extends ExtensionPayload> {
   }
 
   default PolarisResult<LoadTableResponse, E> createTableDirect(
-      Namespace namespace, CreateTableRequest request) {
+      Namespace namespace,
+      CreateTableRequest request,
+      EnumSet<AccessDelegationMode> delegationModes,
+      Optional<String> refreshCredentialsEndpoint) {
     throw unsupported("createTableDirect");
   }
 
