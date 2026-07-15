@@ -3224,8 +3224,13 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   private CatalogEntity getResolvedCatalogEntity() {
-    diagnostics.checkNotNull(catalogEntity, "No catalog available");
-    return catalogEntity;
+    // Read from the authorizer's resolved view (populated by the authorize/resolve call), matching
+    // the retired handler's getResolvedCatalogEntity(). Equivalent to the catalogEntity field once
+    // ensureBaseInitialized() has run, but also valid between a resolve and ensureBaseInitialized()
+    // (used by updateTable, which reads catalog config before initializing the catalog instance).
+    CatalogEntity resolved = authz.resolvedEntityView().getResolvedCatalogEntity();
+    diagnostics.checkNotNull(resolved, "No catalog available");
+    return resolved;
   }
 
   private boolean shouldDecodeToken() {
@@ -3804,13 +3809,13 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     // Ensure resolution manifest is initialized so we can determine whether
     // fine grained authz model is enabled at the catalog level
     authz.ensureResolutionManifestForTable(tableIdentifier);
-    ensureBaseInitialized();
 
     EnumSet<PolarisAuthorizableOperation> authorizableOperations =
         getUpdateTableAuthorizableOperations(request);
 
     authz.authorizeBasicTableLikeOperationsOrThrow(
         authorizableOperations, PolarisEntitySubType.ICEBERG_TABLE, tableIdentifier);
+    ensureBaseInitialized();
 
     CatalogEntity resolvedCatalog = getResolvedCatalogEntity();
     if (resolvedCatalog.isStaticFacade()) {
