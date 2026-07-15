@@ -20,15 +20,19 @@ package org.apache.polaris.service.catalog.iceberg;
 
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 
-import com.google.common.collect.ImmutableMap;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
+import java.time.Clock;
 import java.time.Instant;
 import java.util.EnumSet;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
+import java.util.function.Supplier;
 import java.util.stream.Stream;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.CatalogUtil;
@@ -37,7 +41,6 @@ import org.apache.iceberg.PartitionSpec;
 import org.apache.iceberg.SortOrder;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.TableMetadataParser;
-import org.apache.iceberg.catalog.Catalog;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.ForbiddenException;
@@ -61,6 +64,14 @@ import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.CreateNamespaceResponse;
+import org.apache.iceberg.rest.responses.GetNamespaceResponse;
+import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
+import org.apache.iceberg.rest.responses.ListNamespacesResponse;
+import org.apache.iceberg.rest.responses.ListTablesResponse;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
+import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.polaris.core.admin.model.CreateCatalogRequest;
@@ -68,24 +79,30 @@ import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.PrincipalWithCredentialsCredentials;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.catalog.LocalCatalogFactory;
+import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.PolarisConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
+import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.CatalogRoleEntity;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
-import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
-import org.apache.polaris.service.context.catalog.PolarisLocalCatalogFactory;
+import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.http.IfNoneMatch;
+import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.service.types.TableUpdateNotification;
+import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.NoExtension;
+import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.DynamicNode;
 import org.junit.jupiter.api.Test;
@@ -93,8 +110,15 @@ import org.junit.jupiter.api.TestFactory;
 import org.mockito.Mockito;
 
 /**
- * Authorization test class for IcebergCatalogHandler. Runs with the default value for
- * ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES (currently true).
+ * Authorization test class for the merged Iceberg catalog feature-SPI implementation ({@link
+ * LocalIcebergCatalog}), which absorbed the retired {@code IcebergCatalogHandler} (Issue 29). Runs
+ * with the default value for ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES (currently true).
+ *
+ * <p>Each test builds the merged catalog with real principal roles + the real PolarisAuthorizer
+ * (via {@link PolarisAuthzTestBase}), composed through {@code CatalogAuthorizer}, so the
+ * real-authorization coverage runs on the merged path. {@link MergedCatalogHandle} is a thin test
+ * shim that exposes the retired handler's method names and unwraps the feature-SPI PolarisResult /
+ * ConditionalLoadOutcome return types, so the privilege matrices below stay unchanged.
  *
  * <p>This class tests:
  *
@@ -108,30 +132,294 @@ import org.mockito.Mockito;
 @SuppressWarnings("resource")
 public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuthzTestBase {
 
-  @Inject LocalCatalogFactory localCatalogFactory;
-  @Inject IcebergCatalogHandlerFactory icebergCatalogHandlerFactory;
+  @Inject TaskExecutor taskExecutor;
+  @Inject PolarisCredentialManager credentialManager;
+  @Inject @Any Instance<FederatedCatalogFactory> federatedCatalogFactories;
+  @Inject CatalogHandlerUtils catalogHandlerUtils;
+  @Inject EventAttributeMap eventAttributeMap;
+  @Inject Clock clock;
+  @Inject AccessDelegationModeResolver accessDelegationModeResolver;
+  @Inject PolarisMetricsReporter metricsReporter;
+  @Inject CatalogPrefixParser prefixParser;
 
-  protected IcebergCatalogHandler newHandler() {
+  protected MergedCatalogHandle newHandler() {
     return newHandler(Set.of());
   }
 
-  private IcebergCatalogHandler newHandler(Set<String> activatedPrincipalRoles) {
-    return newHandler(activatedPrincipalRoles, CATALOG_NAME, localCatalogFactory);
+  private MergedCatalogHandle newHandler(Set<String> activatedPrincipalRoles) {
+    return newHandler(activatedPrincipalRoles, CATALOG_NAME);
   }
 
-  private IcebergCatalogHandler newHandler(
-      Set<String> activatedPrincipalRoles, String catalogName, LocalCatalogFactory factory) {
+  private MergedCatalogHandle newHandler(Set<String> activatedPrincipalRoles, String catalogName) {
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(principalEntity, activatedPrincipalRoles);
-    IcebergCatalogHandler handler =
-        icebergCatalogHandlerFactory.createHandler(catalogName, authenticatedPrincipal);
-    if (factory == localCatalogFactory) {
-      return handler;
+    return new MergedCatalogHandle(
+        () -> buildMergedCatalog(catalogName, authenticatedPrincipal, callContext));
+  }
+
+  /**
+   * Builds the merged Iceberg catalog directly (mirroring {@link LocalIcebergCatalogFactory}) from
+   * the substrate collaborators injected here plus the base class. The anonymous {@code initialize}
+   * override forces the in-memory FileIO the base test fixtures write to, exactly as {@code
+   * PolarisAuthzTestBase.TestPolarisLocalCatalogFactory} did for the retired handler.
+   */
+  private LocalIcebergCatalog buildMergedCatalog(
+      String catalogName, PolarisPrincipal principal, CallContext ctx) {
+    return new LocalIcebergCatalog(
+        catalogName,
+        principal,
+        ctx,
+        diagServices,
+        entityResolver,
+        polarisAuthorizer,
+        metaStoreManager,
+        taskExecutor,
+        storageAccessConfigProvider,
+        fileIOFactory,
+        polarisEventDispatcher,
+        eventMetadataFactory,
+        credentialManager,
+        federatedCatalogFactories,
+        reservedProperties,
+        catalogHandlerUtils,
+        eventAttributeMap,
+        clock,
+        accessDelegationModeResolver,
+        metricsReporter,
+        prefixParser) {
+      @Override
+      public void initialize(String name, Map<String, String> properties) {
+        Map<String, String> withInMemoryIo = new HashMap<>(properties);
+        withInMemoryIo.put(
+            CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
+        super.initialize(name, withInMemoryIo);
+      }
+    };
+  }
+
+  /**
+   * Thin test shim over the merged {@link LocalIcebergCatalog}: exposes the retired {@code
+   * IcebergCatalogHandler} method names/signatures the tests below call, and unwraps the
+   * feature-SPI PolarisResult / ConditionalLoadOutcome return types so the privilege assertions are
+   * preserved verbatim. Every call runs the real merged-catalog op with real authorization via the
+   * composed {@code CatalogAuthorizer}.
+   */
+  static final class MergedCatalogHandle {
+    private final Supplier<LocalIcebergCatalog> catalogSupplier;
+
+    MergedCatalogHandle(Supplier<LocalIcebergCatalog> catalogSupplier) {
+      this.catalogSupplier = catalogSupplier;
     }
-    return ImmutableIcebergCatalogHandler.builder()
-        .from(handler)
-        .localCatalogFactory(factory)
-        .build();
+
+    /**
+     * A fresh merged catalog per op, matching production where {@code IcebergCatalogAdapter} builds
+     * a new catalog instance per REST request. A merged {@link LocalIcebergCatalog} snapshots its
+     * resolved-entity view once (in {@code ensureBaseInitialized}), so reusing a single instance
+     * across ops on different namespaces would read a stale view; each op gets its own instance.
+     */
+    private LocalIcebergCatalog catalog() {
+      return catalogSupplier.get();
+    }
+
+    ListNamespacesResponse listNamespaces(Namespace parent) {
+      return catalog().listNamespaces(parent, null, null).body();
+    }
+
+    CreateNamespaceResponse createNamespace(CreateNamespaceRequest request) {
+      return catalog().createNamespace(request).body();
+    }
+
+    GetNamespaceResponse loadNamespaceMetadata(Namespace namespace) {
+      return catalog().getNamespaceMetadata(namespace).body();
+    }
+
+    void namespaceExists(Namespace namespace) {
+      catalog().checkNamespaceExists(namespace);
+    }
+
+    void dropNamespace(Namespace namespace) {
+      catalog().deleteNamespace(namespace);
+    }
+
+    UpdateNamespacePropertiesResponse updateNamespaceProperties(
+        Namespace namespace, UpdateNamespacePropertiesRequest request) {
+      return catalog().updateNamespaceProperties(namespace, request).body();
+    }
+
+    ListTablesResponse listTables(Namespace namespace) {
+      return catalog().listTables(namespace, null, null).body();
+    }
+
+    LoadTableResponse createTableDirect(Namespace namespace, CreateTableRequest request) {
+      return catalog()
+          .createTableDirect(
+              namespace, request, EnumSet.noneOf(AccessDelegationMode.class), Optional.empty())
+          .body();
+    }
+
+    LoadTableResponse createTableDirect(
+        Namespace namespace,
+        CreateTableRequest request,
+        EnumSet<AccessDelegationMode> delegationModes,
+        Optional<String> refreshCredentialsEndpoint) {
+      return catalog()
+          .createTableDirect(namespace, request, delegationModes, refreshCredentialsEndpoint)
+          .body();
+    }
+
+    LoadTableResponse createTableStaged(Namespace namespace, CreateTableRequest request) {
+      return catalog()
+          .createTableStaged(
+              namespace, request, EnumSet.noneOf(AccessDelegationMode.class), Optional.empty())
+          .body();
+    }
+
+    LoadTableResponse createTableStagedWithWriteDelegation(
+        Namespace namespace,
+        CreateTableRequest request,
+        Optional<String> refreshCredentialsEndpoint) {
+      return catalog()
+          .createTableStaged(
+              namespace, request, EnumSet.of(VENDED_CREDENTIALS), refreshCredentialsEndpoint)
+          .body();
+    }
+
+    LoadTableResponse registerTable(
+        Namespace namespace,
+        RegisterTableRequest request,
+        EnumSet<AccessDelegationMode> delegationModes,
+        Optional<String> refreshCredentialsEndpoint) {
+      return catalog()
+          .registerTable(namespace, request, delegationModes, refreshCredentialsEndpoint)
+          .body();
+    }
+
+    LoadTableResponse loadTable(TableIdentifier tableIdentifier, String snapshots) {
+      return loaded(
+          catalog()
+              .loadTable(
+                  tableIdentifier,
+                  snapshots,
+                  null,
+                  EnumSet.noneOf(AccessDelegationMode.class),
+                  Optional.empty()));
+    }
+
+    ConditionalLoadOutcome<LoadTableResponse, NoExtension> loadTableIfStale(
+        TableIdentifier tableIdentifier, IfNoneMatch ifNoneMatch, String snapshots) {
+      return catalog()
+          .loadTable(
+              tableIdentifier,
+              snapshots,
+              ifNoneMatch,
+              EnumSet.noneOf(AccessDelegationMode.class),
+              Optional.empty());
+    }
+
+    LoadTableResponse loadTableWithAccessDelegation(
+        TableIdentifier tableIdentifier,
+        String snapshots,
+        Optional<String> refreshCredentialsEndpoint) {
+      return loaded(
+          catalog()
+              .loadTable(
+                  tableIdentifier,
+                  snapshots,
+                  null,
+                  EnumSet.of(VENDED_CREDENTIALS),
+                  refreshCredentialsEndpoint));
+    }
+
+    ConditionalLoadOutcome<LoadTableResponse, NoExtension> loadTableWithAccessDelegationIfStale(
+        TableIdentifier tableIdentifier,
+        IfNoneMatch ifNoneMatch,
+        String snapshots,
+        Optional<String> refreshCredentialsEndpoint) {
+      return catalog()
+          .loadTable(
+              tableIdentifier,
+              snapshots,
+              ifNoneMatch,
+              EnumSet.of(VENDED_CREDENTIALS),
+              refreshCredentialsEndpoint);
+    }
+
+    ImmutableLoadCredentialsResponse loadCredentials(
+        TableIdentifier tableIdentifier, Optional<String> refreshCredentialsEndpoint) {
+      return catalog().loadCredentials(tableIdentifier, refreshCredentialsEndpoint).body();
+    }
+
+    LoadTableResponse updateTable(TableIdentifier tableIdentifier, UpdateTableRequest request) {
+      return catalog().updateTable(tableIdentifier, request).body();
+    }
+
+    LoadTableResponse updateTableForStagedCreate(
+        TableIdentifier tableIdentifier, UpdateTableRequest request) {
+      return catalog().updateTableForStagedCreate(tableIdentifier, request).body();
+    }
+
+    void dropTableWithoutPurge(TableIdentifier tableIdentifier) {
+      catalog().dropTableWithoutPurge(tableIdentifier);
+    }
+
+    void dropTableWithPurge(TableIdentifier tableIdentifier) {
+      catalog().dropTableWithPurge(tableIdentifier);
+    }
+
+    void tableExists(TableIdentifier tableIdentifier) {
+      catalog().checkTableExists(tableIdentifier);
+    }
+
+    void renameTable(RenameTableRequest request) {
+      catalog().renameTable(request);
+    }
+
+    void commitTransaction(CommitTransactionRequest commitTransactionRequest) {
+      catalog().commitTransaction(commitTransactionRequest);
+    }
+
+    ListTablesResponse listViews(Namespace namespace) {
+      return catalog().listViews(namespace, null, null).body();
+    }
+
+    LoadViewResponse createView(Namespace namespace, CreateViewRequest request) {
+      return catalog().createView(namespace, request).body();
+    }
+
+    LoadViewResponse loadView(TableIdentifier viewIdentifier) {
+      return catalog().getView(viewIdentifier).body();
+    }
+
+    LoadViewResponse replaceView(TableIdentifier viewIdentifier, UpdateTableRequest request) {
+      return catalog().replaceView(viewIdentifier, request).body();
+    }
+
+    void dropView(TableIdentifier viewIdentifier) {
+      catalog().deleteView(viewIdentifier);
+    }
+
+    void viewExists(TableIdentifier viewIdentifier) {
+      catalog().checkViewExists(viewIdentifier);
+    }
+
+    void renameView(RenameTableRequest request) {
+      catalog().renameView(request);
+    }
+
+    boolean sendNotification(TableIdentifier identifier, NotificationRequest request) {
+      return catalog().submitNotification(identifier, request).body();
+    }
+
+    void reportMetrics(TableIdentifier identifier, ReportMetricsRequest request) {
+      catalog().reportMetrics(identifier, request);
+    }
+
+    private static LoadTableResponse loaded(
+        ConditionalLoadOutcome<LoadTableResponse, NoExtension> outcome) {
+      return ((ConditionalLoadOutcome.Loaded<LoadTableResponse, NoExtension>) outcome)
+          .result()
+          .body();
+    }
   }
 
   @TestFactory
@@ -165,8 +453,9 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     PolarisPrincipal authenticatedPrincipal =
         PolarisPrincipal.of(newPrincipal.getPrincipal(), Set.of(PRINCIPAL_ROLE1, PRINCIPAL_ROLE2));
 
-    IcebergCatalogHandler handler =
-        icebergCatalogHandlerFactory.createHandler(CATALOG_NAME, authenticatedPrincipal);
+    MergedCatalogHandle handler =
+        new MergedCatalogHandle(
+            () -> buildMergedCatalog(CATALOG_NAME, authenticatedPrincipal, callContext));
 
     // a variety of actions are all disallowed because the principal's credentials must be rotated
 
@@ -204,11 +493,9 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     PolarisPrincipal authenticatedPrincipal1 =
         PolarisPrincipal.of(refreshPrincipal, Set.of(PRINCIPAL_ROLE1, PRINCIPAL_ROLE2));
 
-    IcebergCatalogHandler refreshedWrapper =
-        ImmutableIcebergCatalogHandler.builder()
-            .from(handler)
-            .polarisPrincipal(authenticatedPrincipal1)
-            .build();
+    MergedCatalogHandle refreshedWrapper =
+        new MergedCatalogHandle(
+            () -> buildMergedCatalog(CATALOG_NAME, authenticatedPrincipal1, callContext));
 
     // Grant NAMESPACE_DROP to CATALOG_ROLE2 so cleanup can work
     assertSuccess(
@@ -627,7 +914,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                         Optional.empty()))
         .cleanupAction(
             () -> {
-              IcebergCatalogHandler cleanup = newHandler(Set.of(PRINCIPAL_ROLE2));
+              MergedCatalogHandle cleanup = newHandler(Set.of(PRINCIPAL_ROLE2));
               try {
                 cleanup.dropTableWithoutPurge(targetTable);
               } catch (RuntimeException ignored) {
@@ -726,7 +1013,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                         Optional.empty()))
         .cleanupAction(
             () -> {
-              IcebergCatalogHandler cleanup = newHandler(Set.of(PRINCIPAL_ROLE2));
+              MergedCatalogHandle cleanup = newHandler(Set.of(PRINCIPAL_ROLE2));
               try {
                 cleanup.dropTableWithoutPurge(TABLE_NS1_1);
               } catch (RuntimeException ignored) {
@@ -1110,7 +1397,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
    * Creates a wrapper with fine-grained authorization explicitly disabled for testing the fallback
    * behavior to coarse-grained authorization.
    */
-  private IcebergCatalogHandler newHandlerWithFineGrainedAuthzDisabled() {
+  private MergedCatalogHandle newHandlerWithFineGrainedAuthzDisabled() {
     PolarisPrincipal authenticatedPrincipal = PolarisPrincipal.of(principalEntity, Set.of());
 
     // Create a custom CallContext that returns a custom RealmConfig
@@ -1164,14 +1451,10 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     Mockito.when(mockCallContext.getPolarisCallContext())
         .thenReturn(callContext.getPolarisCallContext());
 
-    IcebergCatalogHandler handler =
-        icebergCatalogHandlerFactory.createHandler(
-            PolarisAuthzTestBase.CATALOG_NAME, authenticatedPrincipal);
-
-    return ImmutableIcebergCatalogHandler.builder()
-        .from(handler)
-        .callContext(mockCallContext)
-        .build();
+    return new MergedCatalogHandle(
+        () ->
+            buildMergedCatalog(
+                PolarisAuthzTestBase.CATALOG_NAME, authenticatedPrincipal, mockCallContext));
   }
 
   @TestFactory
@@ -1577,7 +1860,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         "file:///tmp/send_notification_sufficient_privileges_" + System.nanoTime();
 
     createExternalCatalog(externalCatalog, storageLocation);
-    PolarisLocalCatalogFactory factory = createExternalCatalogFactory(externalCatalog);
 
     Namespace namespace = Namespace.of("extns1", "extns2");
     TableIdentifier table = TableIdentifier.of(namespace, "tbl1");
@@ -1614,20 +1896,20 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
             PolarisPrivilege.NAMESPACE_DROP)
         .action(
             () -> {
-              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                   .sendNotification(table, createRequest);
-              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                   .sendNotification(table, updateRequest);
-              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                   .sendNotification(table, dropRequest);
-              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                   .sendNotification(table, validateRequest);
             })
         .cleanupAction(
             () -> {
-              newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog)
                   .dropNamespace(Namespace.of("extns1", "extns2"));
-              newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
+              newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog)
                   .dropNamespace(Namespace.of("extns1"));
             })
         .createTests();
@@ -1640,7 +1922,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         "file:///tmp/send_notification_sufficient_privileges_" + System.nanoTime();
 
     createExternalCatalog(externalCatalog, storageLocation);
-    PolarisLocalCatalogFactory factory = createExternalCatalogFactory(externalCatalog);
 
     Namespace namespace = Namespace.of("extns1", "extns2");
     TableIdentifier table = TableIdentifier.of(namespace, "tbl1");
@@ -1654,11 +1935,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         .catalogName(externalCatalog)
         .action(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                     .sendNotification(table, createRequest))
         .cleanupAction(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog)
                     .sendNotification(table, dropRequest))
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_CONTENT)
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_METADATA)
@@ -1689,7 +1970,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         "file:///tmp/send_notification_sufficient_privileges_" + System.nanoTime();
 
     createExternalCatalog(externalCatalog, storageLocation);
-    PolarisLocalCatalogFactory factory = createExternalCatalogFactory(externalCatalog);
 
     Namespace namespace = Namespace.of("extns1", "extns2");
     TableIdentifier table = TableIdentifier.of(namespace, "tbl1");
@@ -1703,11 +1983,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         .catalogName(externalCatalog)
         .action(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                     .sendNotification(table, updateRequest))
         .cleanupAction(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog)
                     .sendNotification(table, dropRequest))
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_CONTENT)
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_METADATA)
@@ -1738,7 +2018,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         "file:///tmp/send_notification_sufficient_privileges_" + System.nanoTime();
 
     createExternalCatalog(externalCatalog, storageLocation);
-    PolarisLocalCatalogFactory factory = createExternalCatalogFactory(externalCatalog);
 
     Namespace namespace = Namespace.of("extns1", "extns2");
     TableIdentifier table = TableIdentifier.of(namespace, "tbl1");
@@ -1748,18 +2027,17 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         createNotificationRequest(table, tableUuid, storageLocation);
     NotificationRequest dropRequest = dropNotificationRequest(table, tableUuid);
 
-    newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
-        .sendNotification(table, createRequest);
+    newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog).sendNotification(table, createRequest);
 
     return authzTestsBuilder("sendNotification (DROP)")
         .catalogName(externalCatalog)
         .action(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                     .sendNotification(table, dropRequest))
         .cleanupAction(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog)
                     .sendNotification(table, createRequest))
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_CONTENT)
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_METADATA)
@@ -1790,7 +2068,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         "file:///tmp/send_notification_sufficient_privileges_" + System.nanoTime();
 
     createExternalCatalog(externalCatalog, storageLocation);
-    PolarisLocalCatalogFactory factory = createExternalCatalogFactory(externalCatalog);
 
     Namespace namespace = Namespace.of("extns1", "extns2");
     TableIdentifier table = TableIdentifier.of(namespace, "tbl1");
@@ -1801,14 +2078,13 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     NotificationRequest validateRequest =
         validateNotificationRequest(table, tableUuid, storageLocation);
 
-    newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog, factory)
-        .sendNotification(table, createRequest);
+    newHandler(Set.of(PRINCIPAL_ROLE2), externalCatalog).sendNotification(table, createRequest);
 
     return authzTestsBuilder("sendNotification (VALIDATE)")
         .catalogName(externalCatalog)
         .action(
             () ->
-                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog, factory)
+                newHandler(Set.of(PRINCIPAL_ROLE1), externalCatalog)
                     .sendNotification(table, validateRequest))
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_CONTENT)
         .shouldPassWith(PolarisPrivilege.CATALOG_MANAGE_METADATA)
@@ -1857,29 +2133,6 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     assertSuccess(
         adminService.grantPrivilegeOnCatalogToRole(
             externalCatalog, CATALOG_ROLE2, PolarisPrivilege.CATALOG_MANAGE_CONTENT));
-  }
-
-  private PolarisLocalCatalogFactory createExternalCatalogFactory(String externalCatalog) {
-    return new PolarisLocalCatalogFactory(
-        diagServices,
-        entityResolver,
-        Mockito.mock(),
-        storageAccessConfigProvider,
-        fileIOFactory,
-        polarisEventDispatcher,
-        eventMetadataFactory,
-        metaStoreManager,
-        callContext,
-        authenticatedRoot) {
-      @Override
-      public Catalog createCatalog(PolarisResolutionManifestCatalogView resolvedEntityView) {
-        Catalog catalog = super.createCatalog(resolvedEntityView);
-        String fileIoImpl = "org.apache.iceberg.inmemory.InMemoryFileIO";
-        catalog.initialize(
-            externalCatalog, ImmutableMap.of(CatalogProperties.FILE_IO_IMPL, fileIoImpl));
-        return catalog;
-      }
-    };
   }
 
   private static NotificationRequest createNotificationRequest(
