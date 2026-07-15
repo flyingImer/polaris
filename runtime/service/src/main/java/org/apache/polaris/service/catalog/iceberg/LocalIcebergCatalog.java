@@ -106,7 +106,9 @@ import org.apache.iceberg.rest.credentials.ImmutableCredential;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.CreateViewRequest;
 import org.apache.iceberg.rest.requests.RegisterTableRequest;
+import org.apache.iceberg.rest.requests.RegisterViewRequest;
 import org.apache.iceberg.rest.requests.RenameTableRequest;
 import org.apache.iceberg.rest.requests.ReportMetricsRequest;
 import org.apache.iceberg.rest.requests.UpdateNamespacePropertiesRequest;
@@ -118,6 +120,7 @@ import org.apache.iceberg.rest.responses.ImmutableLoadCredentialsResponse;
 import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
+import org.apache.iceberg.rest.responses.LoadViewResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
 import org.apache.iceberg.util.LocationUtil;
 import org.apache.iceberg.util.PropertyUtil;
@@ -4432,5 +4435,126 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         .addKeyValue("tableIdentifier", tableIdentifier)
         .log("Response has null metadataLocation; omitting etag");
     return Optional.empty();
+  }
+
+  // ---- Issue 29 Inc 4d: view ops (transcribed from IcebergCatalogHandler). ----
+
+  @Override
+  public PolarisResult<ListTablesResponse, NoExtension> listViews(
+      Namespace namespace, String pageToken, Integer pageSize) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.LIST_VIEWS;
+    authz.authorizeBasicNamespaceOperationOrThrow(op, namespace);
+    ensureBaseInitialized();
+
+    ListTablesResponse response;
+    if (isFederated) {
+      if (baseCatalog instanceof ViewCatalog federatedViewCatalog) {
+        response =
+            catalogHandlerUtils.listViews(federatedViewCatalog, namespace, pageToken, pageSize);
+      } else {
+        throw new BadRequestException(
+            "Unsupported operation: listViews with baseCatalog type: %s",
+            baseCatalog.getClass().getName());
+      }
+    } else {
+      PageToken pageRequest = PageToken.build(pageToken, pageSize, this::shouldDecodeToken);
+      var results = this.listViews(namespace, pageRequest);
+      response =
+          ListTablesResponse.builder()
+              .addAll(results.items())
+              .nextPageToken(results.encodedResponseToken())
+              .build();
+    }
+    return PolarisResult.of(response);
+  }
+
+  @Override
+  public PolarisResult<LoadViewResponse, NoExtension> createView(
+      Namespace namespace, CreateViewRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.CREATE_VIEW;
+    authz.authorizeCreateTableLikeUnderNamespaceOperationOrThrow(
+        op, TableIdentifier.of(namespace, request.name()));
+    ensureBaseInitialized();
+
+    CatalogEntity resolvedCatalog = getResolvedCatalogEntity();
+    if (resolvedCatalog.isStaticFacade()) {
+      throw new BadRequestException("Cannot create view on static-facade external catalogs.");
+    }
+    return PolarisResult.of(catalogHandlerUtils.createView(viewCatalog, namespace, request));
+  }
+
+  @Override
+  public PolarisResult<LoadViewResponse, NoExtension> registerView(
+      Namespace namespace, RegisterViewRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.REGISTER_VIEW;
+    authz.authorizeCreateTableLikeUnderNamespaceOperationOrThrow(
+        op, TableIdentifier.of(namespace, request.name()));
+    ensureBaseInitialized();
+
+    return PolarisResult.of(catalogHandlerUtils.registerView(viewCatalog, namespace, request));
+  }
+
+  @Override
+  public PolarisResult<LoadViewResponse, NoExtension> getView(TableIdentifier viewIdentifier) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.LOAD_VIEW;
+    authz.authorizeBasicTableLikeOperationOrThrow(
+        op, PolarisEntitySubType.ICEBERG_VIEW, viewIdentifier);
+    ensureBaseInitialized();
+
+    return PolarisResult.of(catalogHandlerUtils.loadView(viewCatalog, viewIdentifier));
+  }
+
+  @Override
+  public PolarisResult<LoadViewResponse, NoExtension> replaceView(
+      TableIdentifier viewIdentifier, UpdateTableRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.REPLACE_VIEW;
+    authz.authorizeBasicTableLikeOperationOrThrow(
+        op, PolarisEntitySubType.ICEBERG_VIEW, viewIdentifier);
+    ensureBaseInitialized();
+
+    CatalogEntity resolvedCatalog = getResolvedCatalogEntity();
+    if (resolvedCatalog.isStaticFacade()) {
+      throw new BadRequestException("Cannot replace view on static-facade external catalogs.");
+    }
+    return PolarisResult.of(
+        catalogHandlerUtils.updateView(viewCatalog, viewIdentifier, applyUpdateFilters(request)));
+  }
+
+  @Override
+  public PolarisResult<Void, NoExtension> deleteView(TableIdentifier viewIdentifier) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.DROP_VIEW;
+    authz.authorizeBasicTableLikeOperationOrThrow(
+        op, PolarisEntitySubType.ICEBERG_VIEW, viewIdentifier);
+    ensureBaseInitialized();
+
+    catalogHandlerUtils.dropView(viewCatalog, viewIdentifier);
+    return PolarisResult.<Void>of(null);
+  }
+
+  @Override
+  public PolarisResult<Void, NoExtension> checkViewExists(TableIdentifier viewIdentifier) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.VIEW_EXISTS;
+    authz.authorizeBasicTableLikeOperationOrThrow(
+        op, PolarisEntitySubType.ICEBERG_VIEW, viewIdentifier);
+    ensureBaseInitialized();
+
+    // TODO: Just skip CatalogHandlers for this one maybe
+    catalogHandlerUtils.loadView(viewCatalog, viewIdentifier);
+    return PolarisResult.<Void>of(null);
+  }
+
+  @Override
+  public PolarisResult<Void, NoExtension> renameView(RenameTableRequest request) {
+    PolarisAuthorizableOperation op = PolarisAuthorizableOperation.RENAME_VIEW;
+    authz.authorizeRenameTableLikeOperationOrThrow(
+        op, PolarisEntitySubType.ICEBERG_VIEW, request.source(), request.destination());
+    ensureBaseInitialized();
+
+    CatalogEntity resolvedCatalog = getResolvedCatalogEntity();
+    if (resolvedCatalog.isStaticFacade()) {
+      throw new BadRequestException("Cannot rename view on static-facade external catalogs.");
+    }
+    catalogHandlerUtils.renameView(viewCatalog, request);
+    return PolarisResult.<Void>of(null);
   }
 }
