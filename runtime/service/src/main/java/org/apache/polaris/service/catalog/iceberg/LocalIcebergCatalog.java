@@ -248,7 +248,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   private final EntityResolver entityResolver;
   private final CallContext callContext;
   private final RealmConfig realmConfig;
-  private PolarisResolutionManifestCatalogView resolvedEntityView;
+  protected PolarisResolutionManifestCatalogView resolvedEntityView;
   private CatalogEntity catalogEntity;
   private final TaskExecutor taskExecutor;
   private final PolarisPrincipal principal;
@@ -273,7 +273,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   // the feature-SPI constructor below; they stay null on the legacy view-taking constructor path,
   // whose instances never receive feature-SPI op calls (the adapter still routes through the old
   // IcebergCatalogHandler until Inc6). ---
-  private CatalogAuthorizer authz;
+  protected CatalogAuthorizer authz;
   private PolarisCredentialManager credentialManager;
   private Instance<FederatedCatalogFactory> federatedCatalogFactories;
   private ReservedProperties reservedProperties;
@@ -288,11 +288,11 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
   // Local: baseCatalog/namespaceCatalog/viewCatalog are this instance; federated: a narrow remote
   // delegate.
   private Catalog federatedDelegate;
-  private boolean isFederated = false;
-  private boolean baseInitialized = false;
-  private Catalog baseCatalog;
-  private SupportsNamespaces namespaceCatalog;
-  private ViewCatalog viewCatalog;
+  protected boolean isFederated = false;
+  protected boolean baseInitialized = false;
+  protected Catalog baseCatalog;
+  protected SupportsNamespaces namespaceCatalog;
+  protected ViewCatalog viewCatalog;
 
   /**
    * @param callContext the current CallContext
@@ -3158,7 +3158,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
    * PolarisLocalCatalogFactory.createCatalog}'s local-initialize step (this instance IS the local
    * catalog, so it initializes itself instead of building a new one).
    */
-  private void ensureBaseInitialized() {
+  protected void ensureBaseInitialized() {
     if (baseInitialized) {
       return;
     }
@@ -3223,7 +3223,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     this.baseInitialized = true;
   }
 
-  private CatalogEntity getResolvedCatalogEntity() {
+  protected CatalogEntity getResolvedCatalogEntity() {
     // Read from the authorizer's resolved view (populated by the authorize/resolve call), matching
     // the retired handler's getResolvedCatalogEntity(). Equivalent to the catalogEntity field once
     // ensureBaseInitialized() has run, but also valid between a resolve and ensureBaseInitialized()
@@ -3752,7 +3752,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
   }
 
-  private Set<PolarisStorageActions> authorizeLoadTable(
+  protected Set<PolarisStorageActions> authorizeLoadTable(
       TableIdentifier tableIdentifier, boolean delegationRequested) {
     if (!delegationRequested) {
       authz.authorizeBasicTableLikeOperationOrThrow(
@@ -4250,7 +4250,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     return PolarisResult.of(result);
   }
 
-  private @Nullable IcebergTableLikeEntity getTableEntity(TableIdentifier tableIdentifier) {
+  protected @Nullable IcebergTableLikeEntity getTableEntity(TableIdentifier tableIdentifier) {
     PolarisResolvedPathWrapper target =
         resolvedEntityView.getResolvedPath(ResolvedPathKey.ofTableLike(tableIdentifier));
     PolarisEntity rawLeafEntity = target.getRawLeafEntity();
@@ -4260,7 +4260,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     return null; // could be an external catalog
   }
 
-  private Optional<AccessDelegationMode> resolveAccessDelegationModes(
+  protected Optional<AccessDelegationMode> resolveAccessDelegationModes(
       EnumSet<AccessDelegationMode> requestedModes) {
 
     CatalogEntity resolvedCatalog = getResolvedCatalogEntity();
@@ -4302,7 +4302,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private LoadTableResponse.Builder buildLoadTableResponseWithDelegationCredentials(
+  protected LoadTableResponse.Builder buildLoadTableResponseWithDelegationCredentials(
       TableIdentifier tableIdentifier,
       TableMetadata tableMetadata,
       Optional<AccessDelegationMode> delegationMode,
