@@ -774,7 +774,7 @@ public class LocalIcebergCatalog extends BasePolarisCatalog<NoExtension> impleme
       }
       localCatalogProperties.put(CatalogProperties.WAREHOUSE_LOCATION, warehouseLocation);
       this.polarisIcebergCatalog =
-          new PolarisIcebergCatalog(
+          createPolarisIcebergCatalog(
               diagnostics,
               entityResolver,
               metaStoreManager,
@@ -793,6 +793,41 @@ public class LocalIcebergCatalog extends BasePolarisCatalog<NoExtension> impleme
       this.viewCatalog = this.polarisIcebergCatalog;
     }
     this.baseInitialized = true;
+  }
+
+  /**
+   * Constructs the composed {@link PolarisIcebergCatalog} delegate for the non-federated (local)
+   * case. A provider whose Iceberg-SDK-mechanics need customizing (e.g. a different {@code
+   * defaultWarehouseLocation}, or wrapped {@code TableOperations}/{@code ViewOperations} via {@code
+   * newTableOps}/{@code newViewOps}) overrides this to return a {@code PolarisIcebergCatalog}
+   * subclass instead of the plain OSS default — those SDK-mechanics methods can no longer be
+   * overridden by subclassing {@code LocalIcebergCatalog} itself since Issue 29 Rework R4 (this
+   * class no longer extends the Iceberg SDK types {@code PolarisIcebergCatalog} implements).
+   */
+  protected PolarisIcebergCatalog createPolarisIcebergCatalog(
+      PolarisDiagnostics diagnostics,
+      EntityResolver entityResolver,
+      DurableManager metaStoreManager,
+      CallContext callContext,
+      PolarisResolutionManifestCatalogView resolvedEntityView,
+      PolarisPrincipal principal,
+      TaskExecutor taskExecutor,
+      StorageAccessConfigProvider storageAccessConfigProvider,
+      StorageIoProvider storageIoProvider,
+      PolarisEventDispatcher polarisEventDispatcher,
+      PolarisEventMetadataFactory eventMetadataFactory) {
+    return new PolarisIcebergCatalog(
+        diagnostics,
+        entityResolver,
+        metaStoreManager,
+        callContext,
+        resolvedEntityView,
+        principal,
+        taskExecutor,
+        storageAccessConfigProvider,
+        storageIoProvider,
+        polarisEventDispatcher,
+        eventMetadataFactory);
   }
 
   /**
