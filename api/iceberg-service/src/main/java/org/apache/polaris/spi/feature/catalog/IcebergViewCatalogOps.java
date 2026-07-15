@@ -38,12 +38,15 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
  * method defaults to throwing {@link UnsupportedOperationException} so a provider need only
  * implement the operations it serves.
  *
- * <p>Method names match the OSS Iceberg-REST operationIds EXCEPT for 3 renamed off {@code
- * checkViewExists}/{@code deleteView}/{@code getView} to avoid a compile-blocking signature
- * collision on the current OSS default implementation {@code LocalIcebergCatalog}, which still
- * {@code extends BaseMetastoreViewCatalog implements ViewCatalog} pending the Issue 29 Rework R
- * composite restructure (R4). Once that lands these revert to {@code viewExists}/{@code
- * dropView}/{@code loadView} (see {@link IcebergCatalogOps} for the 5 table/namespace-side ones).
+ * <p>Method names match the OSS Iceberg-REST operationIds directly ({@code viewExists}, {@code
+ * dropView}, {@code loadView}). These 3 were temporarily renamed off their natural names ({@code
+ * checkViewExists}, {@code deleteView}, {@code getView}) during Issue 29 Rework R1-R3, to avoid a
+ * compile-blocking signature collision on the OSS default implementation {@code
+ * LocalIcebergCatalog}, which still {@code extends BaseMetastoreViewCatalog implements ViewCatalog}
+ * at the time. Rework R4 removed that inheritance (composing a separate {@code
+ * PolarisIcebergCatalog} Iceberg-mechanics delegate instead via {@link BasePolarisCatalog}), which
+ * permanently removes the collision, so the natural names are reverted here for good (see {@link
+ * IcebergCatalogOps} for the 5 table/namespace-side ones).
  *
  * @param <E> the provider-private extension payload type
  */
@@ -69,8 +72,8 @@ public interface IcebergViewCatalogOps<E extends ExtensionPayload> {
     throw unsupported("registerView");
   }
 
-  default PolarisResult<LoadViewResponse, E> getView(TableIdentifier viewIdentifier) {
-    throw unsupported("getView");
+  default PolarisResult<LoadViewResponse, E> loadView(TableIdentifier viewIdentifier) {
+    throw unsupported("loadView");
   }
 
   default PolarisResult<LoadViewResponse, E> replaceView(
@@ -78,12 +81,12 @@ public interface IcebergViewCatalogOps<E extends ExtensionPayload> {
     throw unsupported("replaceView");
   }
 
-  default PolarisResult<Void, E> deleteView(TableIdentifier viewIdentifier) {
-    throw unsupported("deleteView");
+  default PolarisResult<Void, E> dropView(TableIdentifier viewIdentifier) {
+    throw unsupported("dropView");
   }
 
-  default PolarisResult<Void, E> checkViewExists(TableIdentifier viewIdentifier) {
-    throw unsupported("checkViewExists");
+  default PolarisResult<Void, E> viewExists(TableIdentifier viewIdentifier) {
+    throw unsupported("viewExists");
   }
 
   default PolarisResult<Void, E> renameView(RenameTableRequest request) {

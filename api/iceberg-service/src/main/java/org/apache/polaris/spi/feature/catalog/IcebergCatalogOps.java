@@ -57,20 +57,21 @@ import org.apache.polaris.service.types.NotificationRequest;
  * implement the operations it serves (mirroring Iceberg's own {@code default}-throw pattern on
  * {@code Catalog.registerTable}/{@code buildTable}).
  *
- * <p>8 methods below are named off the OSS Iceberg-REST operationIds to avoid a compile-blocking
- * signature collision (same name + params, different return type) on the current OSS default
- * implementation {@code LocalIcebergCatalog}, which still {@code extends BaseMetastoreViewCatalog}
- * pending the Issue 29 Rework R composite restructure (R4). Once {@code LocalIcebergCatalog} stops
- * inheriting from Iceberg's {@code Catalog}/{@code SupportsNamespaces}/{@code
- * SupportsNotifications}, these revert to the natural REST names ({@code
- * checkNamespaceExists→namespaceExists}, {@code checkTableExists→tableExists}, {@code
- * deleteNamespace→dropNamespace}, {@code getNamespaceMetadata→loadNamespaceMetadata}, {@code
- * submitNotification→sendNotification}; the 3 view-side collisions are on {@link
- * IcebergViewCatalogOps}).
+ * <p>Method names match the OSS Iceberg-REST operationIds directly ({@code namespaceExists}, {@code
+ * tableExists}, {@code dropNamespace}, {@code loadNamespaceMetadata}, {@code sendNotification}).
+ * These 5 were temporarily renamed off their natural names ({@code checkNamespaceExists}, {@code
+ * checkTableExists}, {@code deleteNamespace}, {@code getNamespaceMetadata}, {@code
+ * submitNotification}) during Issue 29 Rework R1-R3, to avoid a compile-blocking signature
+ * collision (same name + params, different return type) while the OSS default implementation {@code
+ * LocalIcebergCatalog} still extended Iceberg's {@code BaseMetastoreViewCatalog}/{@code
+ * SupportsNamespaces}/{@code SupportsNotifications} directly. Rework R4 removed that inheritance
+ * (composing a separate {@code PolarisIcebergCatalog} Iceberg-mechanics delegate instead via {@link
+ * BasePolarisCatalog}), which permanently removes the collision, so the natural names are reverted
+ * here for good (the 3 view-side collisions are on {@link IcebergViewCatalogOps}).
  *
  * <p>Lives in {@code api-iceberg-service} (not bare {@code polaris-core}) because {@link
- * #submitNotification} needs {@link NotificationRequest}, a Polaris-owned OpenAPI-generated type
- * that this module owns; {@code api-iceberg-service} depends on {@code polaris-core} (never the
+ * #sendNotification} needs {@link NotificationRequest}, a Polaris-owned OpenAPI-generated type that
+ * this module owns; {@code api-iceberg-service} depends on {@code polaris-core} (never the
  * reverse), so this is the lowest layer that can see both the Iceberg SDK types, the generic {@link
  * PolarisResult}/{@link ExtensionPayload} wrapper types, and {@link NotificationRequest} together.
  *
@@ -93,16 +94,16 @@ public interface IcebergCatalogOps<E extends ExtensionPayload> {
     throw unsupported("createNamespace");
   }
 
-  default PolarisResult<GetNamespaceResponse, E> getNamespaceMetadata(Namespace namespace) {
-    throw unsupported("getNamespaceMetadata");
+  default PolarisResult<GetNamespaceResponse, E> loadNamespaceMetadata(Namespace namespace) {
+    throw unsupported("loadNamespaceMetadata");
   }
 
-  default PolarisResult<Void, E> checkNamespaceExists(Namespace namespace) {
-    throw unsupported("checkNamespaceExists");
+  default PolarisResult<Void, E> namespaceExists(Namespace namespace) {
+    throw unsupported("namespaceExists");
   }
 
-  default PolarisResult<Void, E> deleteNamespace(Namespace namespace) {
-    throw unsupported("deleteNamespace");
+  default PolarisResult<Void, E> dropNamespace(Namespace namespace) {
+    throw unsupported("dropNamespace");
   }
 
   default PolarisResult<UpdateNamespacePropertiesResponse, E> updateNamespaceProperties(
@@ -166,8 +167,8 @@ public interface IcebergCatalogOps<E extends ExtensionPayload> {
     throw unsupported("dropTableWithPurge");
   }
 
-  default PolarisResult<Void, E> checkTableExists(TableIdentifier tableIdentifier) {
-    throw unsupported("checkTableExists");
+  default PolarisResult<Void, E> tableExists(TableIdentifier tableIdentifier) {
+    throw unsupported("tableExists");
   }
 
   default PolarisResult<Void, E> renameTable(RenameTableRequest request) {
@@ -189,9 +190,9 @@ public interface IcebergCatalogOps<E extends ExtensionPayload> {
     throw unsupported("reportMetrics");
   }
 
-  default PolarisResult<Boolean, E> submitNotification(
+  default PolarisResult<Boolean, E> sendNotification(
       TableIdentifier identifier, NotificationRequest request) {
-    throw unsupported("submitNotification");
+    throw unsupported("sendNotification");
   }
 
   default PolarisResult<ConfigResponse, E> getConfig() {

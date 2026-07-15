@@ -86,8 +86,10 @@ public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTe
 
   /**
    * Builds the merged Iceberg catalog directly (mirroring {@link LocalIcebergCatalogFactory}) from
-   * the substrate collaborators injected here plus the base class. The anonymous {@code initialize}
-   * override forces the in-memory FileIO the base test fixtures write to.
+   * the substrate collaborators injected here plus the base class. The {@code
+   * finalizeLocalCatalogProperties} override forces the in-memory FileIO the base test fixtures
+   * write to (this hook replaces an {@code initialize} override since Issue 29 Rework R4 moved
+   * {@code initialize} to the composed {@code PolarisIcebergCatalog} delegate).
    */
   private LocalIcebergCatalog buildMergedCatalog(
       String catalogName, PolarisPrincipal principal, CallContext ctx) {
@@ -114,11 +116,11 @@ public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTe
         metricsReporter,
         prefixParser) {
       @Override
-      public void initialize(String name, Map<String, String> properties) {
+      protected Map<String, String> finalizeLocalCatalogProperties(Map<String, String> properties) {
         Map<String, String> withInMemoryIo = new HashMap<>(properties);
         withInMemoryIo.put(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
-        super.initialize(name, withInMemoryIo);
+        return withInMemoryIo;
       }
     };
   }

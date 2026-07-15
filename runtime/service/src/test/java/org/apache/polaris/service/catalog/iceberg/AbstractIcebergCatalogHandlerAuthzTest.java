@@ -159,9 +159,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
 
   /**
    * Builds the merged Iceberg catalog directly (mirroring {@link LocalIcebergCatalogFactory}) from
-   * the substrate collaborators injected here plus the base class. The anonymous {@code initialize}
-   * override forces the in-memory FileIO the base test fixtures write to, exactly as {@code
-   * PolarisAuthzTestBase.TestPolarisLocalCatalogFactory} did for the retired handler.
+   * the substrate collaborators injected here plus the base class. The {@code
+   * finalizeLocalCatalogProperties} override forces the in-memory FileIO the base test fixtures
+   * write to, exactly as {@code PolarisAuthzTestBase.TestPolarisLocalCatalogFactory} did for the
+   * retired handler (this hook replaces an {@code initialize} override since Issue 29 Rework R4
+   * moved {@code initialize} to the composed {@code PolarisIcebergCatalog} delegate).
    */
   private LocalIcebergCatalog buildMergedCatalog(
       String catalogName, PolarisPrincipal principal, CallContext ctx) {
@@ -188,11 +190,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
         metricsReporter,
         prefixParser) {
       @Override
-      public void initialize(String name, Map<String, String> properties) {
+      protected Map<String, String> finalizeLocalCatalogProperties(Map<String, String> properties) {
         Map<String, String> withInMemoryIo = new HashMap<>(properties);
         withInMemoryIo.put(
             CatalogProperties.FILE_IO_IMPL, "org.apache.iceberg.inmemory.InMemoryFileIO");
-        super.initialize(name, withInMemoryIo);
+        return withInMemoryIo;
       }
     };
   }
@@ -230,15 +232,15 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     }
 
     GetNamespaceResponse loadNamespaceMetadata(Namespace namespace) {
-      return catalog().getNamespaceMetadata(namespace).body();
+      return catalog().loadNamespaceMetadata(namespace).body();
     }
 
     void namespaceExists(Namespace namespace) {
-      catalog().checkNamespaceExists(namespace);
+      catalog().namespaceExists(namespace);
     }
 
     void dropNamespace(Namespace namespace) {
-      catalog().deleteNamespace(namespace);
+      catalog().dropNamespace(namespace);
     }
 
     UpdateNamespacePropertiesResponse updateNamespaceProperties(
@@ -367,7 +369,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     }
 
     void tableExists(TableIdentifier tableIdentifier) {
-      catalog().checkTableExists(tableIdentifier);
+      catalog().tableExists(tableIdentifier);
     }
 
     void renameTable(RenameTableRequest request) {
@@ -387,7 +389,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     }
 
     LoadViewResponse loadView(TableIdentifier viewIdentifier) {
-      return catalog().getView(viewIdentifier).body();
+      return catalog().loadView(viewIdentifier).body();
     }
 
     LoadViewResponse replaceView(TableIdentifier viewIdentifier, UpdateTableRequest request) {
@@ -395,11 +397,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     }
 
     void dropView(TableIdentifier viewIdentifier) {
-      catalog().deleteView(viewIdentifier);
+      catalog().dropView(viewIdentifier);
     }
 
     void viewExists(TableIdentifier viewIdentifier) {
-      catalog().checkViewExists(viewIdentifier);
+      catalog().viewExists(viewIdentifier);
     }
 
     void renameView(RenameTableRequest request) {
@@ -407,7 +409,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
     }
 
     boolean sendNotification(TableIdentifier identifier, NotificationRequest request) {
-      return catalog().submitNotification(identifier, request).body();
+      return catalog().sendNotification(identifier, request).body();
     }
 
     void reportMetrics(TableIdentifier identifier, ReportMetricsRequest request) {

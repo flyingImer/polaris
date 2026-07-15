@@ -49,7 +49,7 @@ import org.apache.polaris.extension.io.DefaultStorageIoProvider;
 import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
-import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
+import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.task.TaskFileIOSupplier;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
@@ -69,7 +69,7 @@ import software.amazon.awssdk.services.sts.model.Credentials;
  * Exercises {@link DefaultStorageIoProvider} directly (via a spy overriding its package-private
  * {@code fileIoForInternal} hook) through the real call sites that build a {@code
  * VendedServerStorageAccess} and invoke the {@link StorageIoProvider} seam: {@link
- * LocalIcebergCatalog} and {@link TaskFileIOSupplier}.
+ * PolarisIcebergCatalog} and {@link TaskFileIOSupplier}.
  */
 public class DefaultStorageIoProviderTest {
 
@@ -153,7 +153,7 @@ public class DefaultStorageIoProviderTest {
   @ParameterizedTest
   @ValueSource(strings = {"s3a", "s3"})
   public void testLoadFileIOForTableLike(String scheme) {
-    LocalIcebergCatalog catalog = createCatalog(testServices, scheme);
+    PolarisIcebergCatalog catalog = createCatalog(testServices, scheme);
     catalog.createNamespace(NS);
     catalog.createTable(TABLE, SCHEMA);
 
@@ -164,7 +164,7 @@ public class DefaultStorageIoProviderTest {
   @ParameterizedTest
   @ValueSource(strings = {"s3a", "s3"})
   public void testLoadFileIOForCleanupTask(String scheme) {
-    LocalIcebergCatalog catalog = createCatalog(testServices, scheme);
+    PolarisIcebergCatalog catalog = createCatalog(testServices, scheme);
     catalog.createNamespace(NS);
     catalog.createTable(TABLE, SCHEMA);
     catalog.dropTable(TABLE, true);
@@ -190,7 +190,7 @@ public class DefaultStorageIoProviderTest {
     Mockito.verify(testServices.fileIOFactory(), Mockito.times(3)).fileIoFor(Mockito.any());
   }
 
-  LocalIcebergCatalog createCatalog(TestServices services, String scheme) {
+  PolarisIcebergCatalog createCatalog(TestServices services, String scheme) {
     String storageLocation = scheme + "://my-bucket/path/to/data";
     AwsStorageConfigInfo awsStorageConfigInfo =
         AwsStorageConfigInfo.builder()
@@ -215,8 +215,8 @@ public class DefaultStorageIoProviderTest {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(
             services.entityResolver(), services.principal(), CATALOG_NAME);
-    LocalIcebergCatalog polarisCatalog =
-        new LocalIcebergCatalog(
+    PolarisIcebergCatalog polarisCatalog =
+        new PolarisIcebergCatalog(
             services.polarisDiagnostics(),
             services.entityResolver(),
             services.metaStoreManager(),

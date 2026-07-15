@@ -181,7 +181,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.getNamespaceMetadata(ns).body()).build());
+        catalog -> Response.ok(catalog.loadNamespaceMetadata(ns).body()).build());
   }
 
   @Override
@@ -193,7 +193,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.checkNamespaceExists(ns);
+          catalog.namespaceExists(ns);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -211,7 +211,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.deleteNamespace(ns);
+          catalog.dropNamespace(ns);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -400,7 +400,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.checkTableExists(tableIdentifier);
+          catalog.tableExists(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -609,7 +609,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.getView(tableIdentifier).body()).build());
+        catalog -> Response.ok(catalog.loadView(tableIdentifier).body()).build());
   }
 
   @Override
@@ -626,7 +626,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.checkViewExists(tableIdentifier);
+          catalog.viewExists(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -646,7 +646,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.deleteView(tableIdentifier);
+          catalog.dropView(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -764,7 +764,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.submitNotification(tableIdentifier, notificationRequest);
+          catalog.sendNotification(tableIdentifier, notificationRequest);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }

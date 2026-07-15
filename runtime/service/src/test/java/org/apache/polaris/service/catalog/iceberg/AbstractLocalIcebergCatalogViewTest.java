@@ -48,7 +48,6 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
@@ -66,6 +65,7 @@ import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
 import org.apache.polaris.spi.feature.PolarisEventListener;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
@@ -80,7 +80,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public abstract class AbstractLocalIcebergCatalogViewTest
-    extends ViewCatalogTests<LocalIcebergCatalog> {
+    extends ViewCatalogTests<PolarisIcebergCatalog> {
   static {
     Assumptions.setPreferredAssumptionException(PreferredAssumptionException.JUNIT5);
   }
@@ -115,7 +115,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject StorageIoProvider fileIOFactory;
 
-  private LocalIcebergCatalog catalog;
+  private PolarisIcebergCatalog catalog;
 
   private String realmName;
   private PolarisCallContext polarisContext;
@@ -195,7 +195,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
     testPolarisEventListener.clear();
     this.catalog =
-        new LocalIcebergCatalog(
+        new PolarisIcebergCatalog(
             diagServices,
             entityResolver,
             metaStoreManager,
@@ -222,7 +222,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   }
 
   @Override
-  protected LocalIcebergCatalog catalog() {
+  protected PolarisIcebergCatalog catalog() {
     return catalog;
   }
 
@@ -238,7 +238,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
 
   @Test
   public void testEventsAreEmitted() {
-    LocalIcebergCatalog catalog = catalog();
+    PolarisIcebergCatalog catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     View view =
         catalog
