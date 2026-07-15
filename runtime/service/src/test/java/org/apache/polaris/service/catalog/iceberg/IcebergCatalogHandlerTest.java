@@ -21,6 +21,7 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.polaris.service.catalog.AccessDelegationMode.VENDED_CREDENTIALS;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
 import static org.mockito.Mockito.verify;
@@ -44,11 +45,12 @@ import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PolarisPrincipal;
-import org.apache.polaris.core.catalog.LocalCatalogFactory;
+import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
+import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -57,7 +59,6 @@ import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
@@ -65,12 +66,39 @@ import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.service.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
+import org.apache.polaris.service.events.PolarisEventDispatcher;
+import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
+import org.apache.polaris.spi.substrate.StorageIoProvider;
+import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.junit.jupiter.api.Test;
 
+/**
+ * Unit tests for the credential-vending branches of the merged Iceberg catalog feature-SPI
+ * implementation ({@link LocalIcebergCatalog}), which absorbed the retired {@code
+ * IcebergCatalogHandler} (Issue 29). These drive the three {@code loadCredentials} branches the
+ * handler exposed:
+ *
+ * <ul>
+ *   <li>federated/external catalog -> full-loadTable fallback (the handler branched on {@code
+ *       baseCatalog instanceof LocalIcebergCatalog}; the merged class branches on {@code
+ *       isFederated}, so "external (non-Polaris)" maps to a federated catalog here)
+ *   <li>native catalog with the table location in entity internal properties -> optimized path (no
+ *       loadTable on the delegate)
+ *   <li>native catalog missing the location property -> full-loadTable fallback
+ * </ul>
+ *
+ * <p>The merge removed the handler's mockable {@code localCatalogFactory} seam (the merged instance
+ * IS the local catalog), so {@link #buildMergedCatalog} pins the post-authorization local-vs-
+ * federated dispatch state (isFederated + delegate baseCatalog + resolved view) via an anonymous
+ * {@code ensureBaseInitialized} override instead, and the tests verify the delegated loadTable call
+ * against that injected delegate exactly as they did against the handler's baseCatalog.
+ */
+@SuppressWarnings("resource")
 class IcebergCatalogHandlerTest {
 
   private static final String CATALOG_NAME = "test";
@@ -80,22 +108,34 @@ class IcebergCatalogHandlerTest {
   private final PolarisResolvedPathWrapper resolvedPath = mock(PolarisResolvedPathWrapper.class);
   private final CallContext callContext = mock(CallContext.class);
   private final RealmConfig realmConfig = mock(RealmConfig.class);
-  private final LocalCatalogFactory localCatalogFactory = mock(LocalCatalogFactory.class);
   private final AccessDelegationModeResolver accessDelegationModeResolver =
       mock(AccessDelegationModeResolver.class);
   private final StorageAccessConfigProvider storageAccessConfigProvider =
       mock(StorageAccessConfigProvider.class);
 
-  @SuppressWarnings({"unchecked"})
-  private IcebergCatalogHandler newHandler() {
+  /**
+   * Builds the merged Iceberg catalog the same way {@link LocalIcebergCatalogFactory} does, but
+   * with mock substrate collaborators. The anonymous {@code ensureBaseInitialized} override pins
+   * the dispatch state a real resolve would establish, without a live metastore/FileIO: it reuses
+   * the authorizer's resolved view (already populated by the preceding {@code authorizeLoadTable})
+   * and injects the delegate {@code baseCatalog}, standing in for the retired handler's {@code
+   * localCatalogFactory} seam.
+   *
+   * @param federated whether the resolved catalog behaves as a federated/external catalog; the
+   *     merged {@code loadCredentials} branches on this to take the full-loadTable fallback
+   * @param underlyingBaseCatalog the catalog the merged instance delegates {@code loadTable} to
+   *     once initialized (a mock, so the tests can verify or deny the delegated call)
+   */
+  @SuppressWarnings("unchecked")
+  private LocalIcebergCatalog buildMergedCatalog(boolean federated, Catalog underlyingBaseCatalog) {
     when(callContext.getRealmConfig()).thenReturn(realmConfig);
     when(callContext.getRealmContext()).thenReturn(mock(RealmContext.class));
 
-    // Authorization + operational data path: entityResolver().resolve(...) always returns a
+    // Authorization + operational data path: entityResolver.resolve(...) always returns a
     // ResolutionResult wrapping resolvedPath's current leaf entity (read now, after any per-test
-    // stub already ran) plus a bare, non-federated catalog entity, so the "not found" check in
-    // CatalogHandler#authorizeBasicTableLikeOperationsOrThrow passes and initializeCatalog() takes
-    // the local (non-federated) catalog path.
+    // stub already ran) plus a bare, non-federated catalog entity, so the not-found check in
+    // CatalogAuthorizer#authorizeBasicTableLikeOperation passes and the resolved view exposes the
+    // table path to getTableEntity() / vendCredentials().
     PolarisDiagnostics diagnostics = mock(PolarisDiagnostics.class);
     PolarisEntity leafEntity = resolvedPath.getRawLeafEntity();
     if (leafEntity == null) {
@@ -110,8 +150,7 @@ class IcebergCatalogHandlerTest {
     ResolvedPolarisEntity resolvedTableEntity =
         new ResolvedPolarisEntity(diagnostics, leafEntity, List.of(), 0);
     // The resolved-path list must have one entry per ResolvedPathKey.entityNames() segment (here,
-    // the "ns1" namespace and the "table2" leaf) or the adapter's partial-resolve check (mirroring
-    // the retired manifest's same check) treats it as a not-found optional path.
+    // the "ns1" namespace and the "table2" leaf) or the manifest treats it as a not-found path.
     PolarisEntity namespaceEntity =
         new PolarisEntity(
             new PolarisBaseEntity.Builder()
@@ -143,36 +182,49 @@ class IcebergCatalogHandlerTest {
     when(entityResolver.resolve(any())).thenReturn(resolutionResult);
 
     // Grant the decision-native per-op check so authorizeLoadTable's write-delegation probe yields
-    // a non-null decision; these tests exercise credential loading, not the authz outcome.
+    // an allow decision; these tests exercise credential loading, not the authz outcome.
     PolarisAuthorizer authorizer = mock(PolarisAuthorizer.class);
     when(authorizer.authorize(any(AuthorizationRequest.class)))
         .thenReturn(AuthorizationDecision.allow());
 
-    return ImmutableIcebergCatalogHandler.builder()
-        .catalogName(CATALOG_NAME)
-        .polarisPrincipal(PolarisPrincipal.of("test", Map.of(), Set.of()))
-        .callContext(callContext)
-        .metaStoreManager(mock(DurableManager.class))
-        .entityResolver(entityResolver)
-        .authorizer(authorizer)
-        .diagnostics(diagnostics)
-        .credentialManager(mock(PolarisCredentialManager.class))
-        .federatedCatalogFactories(mock(Instance.class))
-        .prefixParser(mock(CatalogPrefixParser.class))
-        .localCatalogFactory(localCatalogFactory)
-        .reservedProperties(mock(ReservedProperties.class))
-        .catalogHandlerUtils(mock(CatalogHandlerUtils.class))
-        .storageAccessConfigProvider(storageAccessConfigProvider)
-        .eventAttributeMap(mock(EventAttributeMap.class))
-        .metricsReporter(mock(PolarisMetricsReporter.class))
-        .clock(mock(Clock.class))
-        .accessDelegationModeResolver(accessDelegationModeResolver)
-        .build();
+    return new LocalIcebergCatalog(
+        CATALOG_NAME,
+        PolarisPrincipal.of("test", Map.of(), Set.of()),
+        callContext,
+        diagnostics,
+        entityResolver,
+        authorizer,
+        mock(DurableManager.class),
+        mock(TaskExecutor.class),
+        storageAccessConfigProvider,
+        mock(StorageIoProvider.class),
+        mock(PolarisEventDispatcher.class),
+        mock(PolarisEventMetadataFactory.class),
+        mock(PolarisCredentialManager.class),
+        mock(Instance.class),
+        mock(ReservedProperties.class),
+        mock(CatalogHandlerUtils.class),
+        mock(EventAttributeMap.class),
+        mock(Clock.class),
+        accessDelegationModeResolver,
+        mock(PolarisMetricsReporter.class),
+        mock(CatalogPrefixParser.class)) {
+      @Override
+      protected void ensureBaseInitialized() {
+        // Pin the local-vs-federated dispatch state ensureBaseInitialized() would establish after a
+        // real resolve, but without a live metastore/FileIO: reuse the authorizer's resolved view
+        // (populated by the preceding authorizeLoadTable) and inject the delegate catalog.
+        this.resolvedEntityView = authz.resolvedEntityView();
+        this.isFederated = federated;
+        this.baseCatalog = underlyingBaseCatalog;
+        this.baseInitialized = true;
+      }
+    };
   }
 
   /**
-   * For external (non-Polaris) catalogs, loadCredentials must skip the optimized
-   * entity-properties-based path and fall through to a full loadTable on the underlying catalog,
+   * For federated (external, non-Polaris) catalogs, loadCredentials must skip the optimized
+   * entity-properties-based path and fall through to a full loadTable on the delegate catalog,
    * propagating the credentials the storage provider returns for that table.
    */
   @Test
@@ -191,9 +243,16 @@ class IcebergCatalogHandlerTest {
 
     Catalog externalCatalog = mock(Catalog.class);
     when(externalCatalog.loadTable(TABLE2)).thenReturn(table);
-    when(localCatalogFactory.createCatalog(any())).thenReturn(externalCatalog);
 
-    // VENDED_CREDENTIALS is what triggers the handler to attach credentials to the response.
+    // A federated catalog forces loadCredentials to skip the optimized path and fall through to a
+    // full loadTable on the delegate. Enable federated credential vending so the fallback still
+    // attaches the vended credentials to the response.
+    when(realmConfig.getConfig(
+            eq(FeatureConfiguration.ALLOW_FEDERATED_CATALOGS_CREDENTIAL_VENDING),
+            any(CatalogEntity.class)))
+        .thenReturn(true);
+
+    // VENDED_CREDENTIALS is what triggers the fallback to attach credentials to the response.
     when(accessDelegationModeResolver.resolve(any(), any()))
         .thenReturn(Optional.of(VENDED_CREDENTIALS));
 
@@ -205,10 +264,10 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    @SuppressWarnings("resource")
-    IcebergCatalogHandler handler = newHandler();
+    LocalIcebergCatalog catalog = buildMergedCatalog(true, externalCatalog);
 
-    ImmutableLoadCredentialsResponse response = handler.loadCredentials(TABLE2, Optional.empty());
+    ImmutableLoadCredentialsResponse response =
+        catalog.loadCredentials(TABLE2, Optional.empty()).body();
 
     verify(externalCatalog).loadTable(TABLE2);
     assertThat(response.credentials())
@@ -231,8 +290,8 @@ class IcebergCatalogHandlerTest {
     Map<String, String> fakeCredentials =
         Map.of("fake.access.key", "AKIAFAKE", "fake.secret.key", "fakeSecret");
 
-    // The entity returned via the resolution manifest carries the table location in its internal
-    // properties; that's what lets the optimized path skip a full loadTable.
+    // The entity resolved via the manifest carries the table location in its internal properties;
+    // that's what lets the optimized path skip a full loadTable.
     PolarisEntity leafEntity =
         new PolarisEntity(
             new PolarisBaseEntity.Builder()
@@ -244,7 +303,6 @@ class IcebergCatalogHandlerTest {
     when(resolvedPath.getRawLeafEntity()).thenReturn(leafEntity);
 
     LocalIcebergCatalog icebergCatalog = mock(LocalIcebergCatalog.class);
-    when(localCatalogFactory.createCatalog(any())).thenReturn(icebergCatalog);
 
     StorageAccessConfig storageAccessConfig =
         StorageAccessConfig.builder()
@@ -254,10 +312,10 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    @SuppressWarnings("resource")
-    IcebergCatalogHandler handler = newHandler();
+    LocalIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
 
-    ImmutableLoadCredentialsResponse response = handler.loadCredentials(TABLE2, Optional.empty());
+    ImmutableLoadCredentialsResponse response =
+        catalog.loadCredentials(TABLE2, Optional.empty()).body();
 
     // The whole point of the optimized path is to skip loadTable on the underlying catalog.
     verify(icebergCatalog, never()).loadTable(any());
@@ -273,8 +331,8 @@ class IcebergCatalogHandlerTest {
   /**
    * If the entity's internal properties are missing the LOCATION key, the optimized path cannot
    * vend credentials (it has nothing to scope them to), so loadCredentials must fall back to a full
-   * loadTable on the underlying catalog. This guards the backfill path noted in the handler: an
-   * entity that pre-dates the location-in-properties write should still serve credentials.
+   * loadTable on the underlying catalog. This guards the backfill path noted in the merged catalog:
+   * an entity that pre-dates the location-in-properties write should still serve credentials.
    */
   @Test
   void loadCredentialsFallsBackWhenEntityLocationMissing() {
@@ -306,7 +364,6 @@ class IcebergCatalogHandlerTest {
 
     LocalIcebergCatalog icebergCatalog = mock(LocalIcebergCatalog.class);
     when(icebergCatalog.loadTable(TABLE2)).thenReturn(table);
-    when(localCatalogFactory.createCatalog(any())).thenReturn(icebergCatalog);
 
     when(accessDelegationModeResolver.resolve(any(), any()))
         .thenReturn(Optional.of(VENDED_CREDENTIALS));
@@ -319,10 +376,10 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    @SuppressWarnings("resource")
-    IcebergCatalogHandler handler = newHandler();
+    LocalIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
 
-    ImmutableLoadCredentialsResponse response = handler.loadCredentials(TABLE2, Optional.empty());
+    ImmutableLoadCredentialsResponse response =
+        catalog.loadCredentials(TABLE2, Optional.empty()).body();
 
     // Missing LOCATION on the entity must force the fallback — loadTable is the proof.
     verify(icebergCatalog).loadTable(TABLE2);
