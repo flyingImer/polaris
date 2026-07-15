@@ -52,26 +52,29 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisResourcePaths;
-import org.apache.polaris.operation.model.ConditionalLoadOutcome;
-import org.apache.polaris.operation.model.OperationMetadata;
 import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.catalog.validation.EntityNameValidator;
 import org.apache.polaris.service.config.ReservedProperties;
-import org.apache.polaris.service.http.IcebergHttpUtil;
 import org.apache.polaris.service.http.IfNoneMatch;
 import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
 import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * An adapter between generated service types like `IcebergRestCatalogApiService` and
- * `IcebergCatalogHandler`.
+ * An adapter between generated service types like `IcebergRestCatalogApiService` and the merged
+ * Iceberg catalog feature-SPI implementation {@link LocalIcebergCatalog}. It extracts the caller
+ * identity, maps REST wire types to the feature-SPI's plain method calls, and unwraps each {@link
+ * org.apache.polaris.spi.feature.catalog.PolarisResult} onto the HTTP response (reading only the
+ * OSS-carried ETag, never the provider extension). It makes no authorization or resolution decision
+ * -- those live inside the feature-SPI instance.
  */
 @RequestScoped
 public class IcebergCatalogAdapter
@@ -82,28 +85,28 @@ public class IcebergCatalogAdapter
   private final RealmConfig realmConfig;
   private final CatalogPrefixParser prefixParser;
   private final ReservedProperties reservedProperties;
-  private final IcebergCatalogHandlerFactory handlerFactory;
+  private final LocalIcebergCatalogFactory catalogFactory;
 
   @Inject
   public IcebergCatalogAdapter(
       CallContext callContext,
       CatalogPrefixParser prefixParser,
       ReservedProperties reservedProperties,
-      IcebergCatalogHandlerFactory handlerFactory) {
+      LocalIcebergCatalogFactory catalogFactory) {
     this.realmConfig = callContext.getRealmConfig();
     this.prefixParser = prefixParser;
     this.reservedProperties = reservedProperties;
-    this.handlerFactory = handlerFactory;
+    this.catalogFactory = catalogFactory;
   }
 
   /**
-   * Execute operations on a catalog wrapper and ensure we close the BaseCatalog afterward. This
-   * will typically ensure the underlying FileIO is closed.
+   * Execute operations on a catalog instance and ensure we close it afterward. This will typically
+   * ensure the underlying FileIO is closed.
    */
   private Response withCatalog(
       SecurityContext securityContext,
       String prefix,
-      Function<IcebergCatalogHandler, Response> action) {
+      Function<LocalIcebergCatalog, Response> action) {
     String catalogName = prefixParser.prefixToCatalogName(prefix);
     return withCatalogByName(securityContext, catalogName, action);
   }
@@ -111,9 +114,9 @@ public class IcebergCatalogAdapter
   private Response withCatalogByName(
       SecurityContext securityContext,
       String catalogName,
-      Function<IcebergCatalogHandler, Response> action) {
-    try (IcebergCatalogHandler wrapper = newHandler(securityContext, catalogName)) {
-      return action.apply(wrapper);
+      Function<LocalIcebergCatalog, Response> action) {
+    try (LocalIcebergCatalog catalog = newCatalog(securityContext, catalogName)) {
+      return action.apply(catalog);
     } catch (RuntimeException e) {
       LOGGER.debug("RuntimeException while operating on catalog. Propagating to caller.", e);
       throw e;
@@ -124,9 +127,9 @@ public class IcebergCatalogAdapter
   }
 
   @VisibleForTesting
-  IcebergCatalogHandler newHandler(SecurityContext securityContext, String catalogName) {
+  LocalIcebergCatalog newCatalog(SecurityContext securityContext, String catalogName) {
     PolarisPrincipal principal = validatePrincipal(securityContext);
-    return handlerFactory.createHandler(catalogName, principal);
+    return catalogFactory.create(catalogName, principal);
   }
 
   @Override
@@ -141,7 +144,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.createNamespace(createNamespaceRequest)).build());
+        catalog -> Response.ok(catalog.createNamespace(createNamespaceRequest).body()).build());
   }
 
   @Override
@@ -163,8 +166,10 @@ public class IcebergCatalogAdapter
         prefix,
         catalog ->
             Response.ok(
-                    catalog.listNamespaces(
-                        namespaceOptional.orElse(Namespace.of()), pageToken, pageSize))
+                    catalog
+                        .listNamespaces(
+                            namespaceOptional.orElse(Namespace.of()), pageToken, pageSize)
+                        .body())
                 .build());
   }
 
@@ -174,32 +179,9 @@ public class IcebergCatalogAdapter
     Namespace ns =
         NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     return withCatalog(
-        securityContext, prefix, catalog -> Response.ok(catalog.loadNamespaceMetadata(ns)).build());
-  }
-
-  /**
-   * For situations where we typically expect a metadataLocation to be present in the response and
-   * so expect to insert an etag header, this helper gracefully falls back to omitting the header if
-   * unable to get metadata location and logs a warning.
-   */
-  private Response.ResponseBuilder tryInsertETagHeader(
-      Response.ResponseBuilder builder,
-      LoadTableResponse response,
-      String namespace,
-      String tableName) {
-    if (response.metadataLocation() != null) {
-      builder =
-          builder.header(
-              HttpHeaders.ETAG,
-              IcebergHttpUtil.generateETagForMetadataFileLocation(response.metadataLocation()));
-    } else {
-      LOGGER
-          .atWarn()
-          .addKeyValue("namespace", namespace)
-          .addKeyValue("tableName", tableName)
-          .log("Response has null metadataLocation; omitting etag");
-    }
-    return builder;
+        securityContext,
+        prefix,
+        catalog -> Response.ok(catalog.getNamespaceMetadata(ns).body()).build());
   }
 
   @Override
@@ -211,7 +193,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.namespaceExists(ns);
+          catalog.checkNamespaceExists(ns);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -229,7 +211,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.dropNamespace(ns);
+          catalog.deleteNamespace(ns);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -258,12 +240,13 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.updateNamespaceProperties(ns, revisedRequest)).build());
+        catalog ->
+            Response.ok(catalog.updateNamespaceProperties(ns, revisedRequest).body()).build());
   }
 
   private EnumSet<AccessDelegationMode> parseAccessDelegationModes(String accessDelegationMode) {
     // Parse the access delegation modes - validation will happen after mode resolution
-    // in IcebergCatalogHandler.resolveAccessDelegationModes()
+    // in LocalIcebergCatalog.resolveAccessDelegationModes()
     return AccessDelegationMode.fromProtocolValuesList(accessDelegationMode);
   }
 
@@ -294,16 +277,16 @@ public class IcebergCatalogAdapter
                   TableIdentifier.of(namespace, createTableRequest.name()));
           if (createTableRequest.stageCreate()) {
             return Response.ok(
-                    catalog.createTableStaged(
-                        ns, createTableRequest, delegationModes, refreshCredentialsEndpoint))
+                    catalog
+                        .createTableStaged(
+                            ns, createTableRequest, delegationModes, refreshCredentialsEndpoint)
+                        .body())
                 .build();
           } else {
-            LoadTableResponse response =
+            var result =
                 catalog.createTableDirect(
                     ns, createTableRequest, delegationModes, refreshCredentialsEndpoint);
-            return tryInsertETagHeader(
-                    Response.ok(response), response, namespace, createTableRequest.name())
-                .build();
+            return withEtagHeader(Response.ok(result.body()), result.etag()).build();
           }
         });
   }
@@ -321,7 +304,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.listTables(ns, pageToken, pageSize)).build());
+        catalog -> Response.ok(catalog.listTables(ns, pageToken, pageSize).body()).build());
   }
 
   @Override
@@ -351,7 +334,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          ConditionalLoadOutcome<LoadTableResponse> outcome =
+          var outcome =
               catalog.loadTable(
                   tableIdentifier,
                   snapshots,
@@ -364,29 +347,31 @@ public class IcebergCatalogAdapter
 
   /**
    * Maps the sealed conditional-load outcome to the wire-level response: {@code Loaded} becomes 200
-   * + body + ETag header, {@code NotModified} becomes 304 + ETag header. The impl (not this
-   * adapter) derived the etag (ADR-0003). Package-private + static so it is directly unit-testable.
+   * + body + ETag header, {@code NotModified} becomes 304 + ETag header. The feature-SPI impl (not
+   * this adapter) derived the etag and made the not-modified decision (ADR-0003). Package-private +
+   * static so it is directly unit-testable.
    *
-   * <p>Reads only {@link OperationMetadata#etag()}. {@code providerPayload()} is a
-   * managed-runtime-interpreted extension slot (ADR-0003 amendment refinement 4) and MUST NEVER be
-   * read here -- enforced by {@code loadTableResponseMapping_neverReadsProviderPayload} in
-   * IcebergCatalogAdapterTest.
+   * <p>Reads only the OSS-carried ETag. The provider {@link ExtensionPayload} extension is
+   * managed-runtime-interpreted (ADR-0003 amendment refinement 4) and MUST NEVER be read here --
+   * enforced by {@code toLoadTableResponse_neverReadsProviderPayload} in IcebergCatalogAdapterTest.
+   * Generic over {@code E} to make that "etag-only, extension-untouched" contract hold for any
+   * provider extension type, not just the OSS {@code NoExtension}.
    */
-  static Response toLoadTableResponse(ConditionalLoadOutcome<LoadTableResponse> outcome) {
+  static <E extends ExtensionPayload> Response toLoadTableResponse(
+      ConditionalLoadOutcome<LoadTableResponse, E> outcome) {
     return switch (outcome) {
-      case ConditionalLoadOutcome.Loaded<LoadTableResponse> loaded ->
-          withEtagHeader(Response.ok(loaded.result().icebergResponse()), loaded.result().metadata())
-              .build();
-      case ConditionalLoadOutcome.NotModified<LoadTableResponse> notModified ->
-          withEtagHeader(Response.notModified(), notModified.metadata()).build();
+      case ConditionalLoadOutcome.Loaded<LoadTableResponse, E> loaded ->
+          withEtagHeader(Response.ok(loaded.result().body()), loaded.result().etag()).build();
+      case ConditionalLoadOutcome.NotModified<LoadTableResponse, E> notModified ->
+          withEtagHeader(Response.notModified(), notModified.etag()).build();
       default ->
           throw new IllegalStateException("Unreachable: unknown ConditionalLoadOutcome case");
     };
   }
 
   private static Response.ResponseBuilder withEtagHeader(
-      Response.ResponseBuilder builder, OperationMetadata metadata) {
-    metadata.etag().ifPresent(etag -> builder.header(HttpHeaders.ETAG, etag));
+      Response.ResponseBuilder builder, Optional<String> etag) {
+    etag.ifPresent(e -> builder.header(HttpHeaders.ETAG, e));
     return builder;
   }
 
@@ -415,7 +400,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.tableExists(tableIdentifier);
+          catalog.checkTableExists(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -465,15 +450,13 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          LoadTableResponse response =
+          var result =
               catalog.registerTable(
                   ns,
                   registerTableRequest,
                   delegationModes,
                   getRefreshCredentialsEndpoint(delegationModes, prefix, tableIdentifier));
-          return tryInsertETagHeader(
-                  Response.ok(response), response, namespace, registerTableRequest.name())
-              .build();
+          return withEtagHeader(Response.ok(result.body()), result.etag()).build();
         });
   }
 
@@ -523,10 +506,11 @@ public class IcebergCatalogAdapter
         prefix,
         catalog -> {
           if (CatalogHandlerUtils.isCreate(revisedRequest)) {
-            return Response.ok(catalog.updateTableForStagedCreate(tableIdentifier, revisedRequest))
+            return Response.ok(
+                    catalog.updateTableForStagedCreate(tableIdentifier, revisedRequest).body())
                 .build();
           } else {
-            return Response.ok(catalog.updateTable(tableIdentifier, revisedRequest)).build();
+            return Response.ok(catalog.updateTable(tableIdentifier, revisedRequest).body()).build();
           }
         });
   }
@@ -551,7 +535,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.createView(ns, revisedRequest)).build());
+        catalog -> Response.ok(catalog.createView(ns, revisedRequest).body()).build());
   }
 
   @Override
@@ -569,7 +553,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.registerView(ns, registerViewRequest)).build());
+        catalog -> Response.ok(catalog.registerView(ns, registerViewRequest).body()).build());
   }
 
   @Override
@@ -585,7 +569,7 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.listViews(ns, pageToken, pageSize)).build());
+        catalog -> Response.ok(catalog.listViews(ns, pageToken, pageSize).body()).build());
   }
 
   @Override
@@ -607,7 +591,8 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.loadCredentials(tableIdentifier, refreshEndpoint)).build());
+        catalog ->
+            Response.ok(catalog.loadCredentials(tableIdentifier, refreshEndpoint).body()).build());
   }
 
   @Override
@@ -622,7 +607,9 @@ public class IcebergCatalogAdapter
         NamespaceUtils.splitNamespace(namespace, NamespaceUtils.DEFAULT_NAMESPACE_SEPARATOR);
     TableIdentifier tableIdentifier = TableIdentifier.of(ns, view);
     return withCatalog(
-        securityContext, prefix, catalog -> Response.ok(catalog.loadView(tableIdentifier)).build());
+        securityContext,
+        prefix,
+        catalog -> Response.ok(catalog.getView(tableIdentifier).body()).build());
   }
 
   @Override
@@ -639,7 +626,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.viewExists(tableIdentifier);
+          catalog.checkViewExists(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -659,7 +646,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.dropView(tableIdentifier);
+          catalog.deleteView(tableIdentifier);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -703,7 +690,8 @@ public class IcebergCatalogAdapter
     return withCatalog(
         securityContext,
         prefix,
-        catalog -> Response.ok(catalog.replaceView(tableIdentifier, revisedRequest)).build());
+        catalog ->
+            Response.ok(catalog.replaceView(tableIdentifier, revisedRequest).body()).build());
   }
 
   @Override
@@ -776,7 +764,7 @@ public class IcebergCatalogAdapter
         securityContext,
         prefix,
         catalog -> {
-          catalog.sendNotification(tableIdentifier, notificationRequest);
+          catalog.submitNotification(tableIdentifier, notificationRequest);
           return Response.status(Response.Status.NO_CONTENT).build();
         });
   }
@@ -789,6 +777,6 @@ public class IcebergCatalogAdapter
       throw new BadRequestException("Please specify a warehouse");
     }
     return withCatalogByName(
-        securityContext, warehouse, catalog -> Response.ok(catalog.getConfig()).build());
+        securityContext, warehouse, catalog -> Response.ok(catalog.getConfig().body()).build());
   }
 }

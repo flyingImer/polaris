@@ -338,8 +338,9 @@ public class IcebergAllowedLocationTest {
     var updateResponse =
         services
             .catalogAdapter()
-            .newHandler(services.securityContext(), catalog)
-            .replaceView(viewId, updateRequest);
+            .newCatalog(services.securityContext(), catalog)
+            .replaceView(viewId, updateRequest)
+            .body();
     assertEquals(
         updateResponse.metadata().properties().get(USER_SPECIFIED_WRITE_METADATA_LOCATION_KEY),
         customAllowedLocation3);
@@ -396,7 +397,7 @@ public class IcebergAllowedLocationTest {
         () ->
             services
                 .catalogAdapter()
-                .newHandler(services.securityContext(), catalog)
+                .newCatalog(services.securityContext(), catalog)
                 .replaceView(viewId, updateRequest));
 
     // Test 2: Try to create a view with location not allowed
@@ -488,8 +489,9 @@ public class IcebergAllowedLocationTest {
     var updateResponse =
         services
             .catalogAdapter()
-            .newHandler(services.securityContext(), catalog)
-            .updateTable(tableId, updateRequest);
+            .newCatalog(services.securityContext(), catalog)
+            .updateTable(tableId, updateRequest)
+            .body();
 
     assertThat(updateResponse.tableMetadata().properties())
         .containsEntry("write.data.path", writeDataPath);
@@ -628,8 +630,8 @@ public class IcebergAllowedLocationTest {
 
     // Credential vending for the existing table (which has stale location in its entity)
     // must now be rejected.
-    IcebergCatalogHandler handler =
-        services.catalogAdapter().newHandler(services.securityContext(), catalog);
+    LocalIcebergCatalog handler =
+        services.catalogAdapter().newCatalog(services.securityContext(), catalog);
 
     assertThatThrownBy(() -> handler.loadCredentials(tableId, Optional.empty()))
         .isInstanceOf(ForbiddenException.class)

@@ -44,10 +44,11 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.ExternalCatalog;
 import org.apache.polaris.core.admin.model.IcebergRestConnectionConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
-import org.apache.polaris.operation.model.ConditionalLoadOutcome;
-import org.apache.polaris.operation.model.OperationMetadata;
-import org.apache.polaris.operation.model.OperationResult;
 import org.apache.polaris.service.TestServices;
+import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
+import org.apache.polaris.spi.feature.catalog.NoExtension;
+import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -200,38 +201,36 @@ public class IcebergCatalogAdapterTest {
   }
 
   private void mockCatalogAdapter(org.apache.iceberg.catalog.Catalog catalog) {
-    // Override handler creation to inject in-memory catalog and suppress actual close()
+    // Override catalog creation to inject the in-memory catalog as the federated delegate and
+    // suppress the real close(). Presetting baseInitialized short-circuits the merged catalog's
+    // lazy ensureBaseInitialized() so it does not overwrite the injected fields with a real
+    // federated catalog during the post-authorization init.
     Mockito.doAnswer(
             invocation -> {
-              IcebergCatalogHandler realHandler =
-                  (IcebergCatalogHandler) invocation.callRealMethod();
-              IcebergCatalogHandler wrappedHandler = Mockito.spy(realHandler);
+              LocalIcebergCatalog realCatalog = (LocalIcebergCatalog) invocation.callRealMethod();
+              LocalIcebergCatalog wrappedCatalog = Mockito.spy(realCatalog);
 
-              // Override initializeCatalog to inject test catalog using reflection
-              Mockito.doAnswer(
-                      innerInvocation -> {
-                        for (String fieldName :
-                            List.of("baseCatalog", "namespaceCatalog", "viewCatalog")) {
-                          Field field = IcebergCatalogHandler.class.getDeclaredField(fieldName);
-                          field.setAccessible(true);
-                          field.set(wrappedHandler, catalog);
-                        }
-                        Field federatedField =
-                            IcebergCatalogHandler.class.getDeclaredField("isFederated");
-                        federatedField.setAccessible(true);
-                        federatedField.set(wrappedHandler, true);
-                        return null;
-                      })
-                  .when(wrappedHandler)
-                  .initializeCatalog();
+              // Inject test catalog + federated flag using reflection.
+              for (String fieldName : List.of("baseCatalog", "namespaceCatalog", "viewCatalog")) {
+                Field field = LocalIcebergCatalog.class.getDeclaredField(fieldName);
+                field.setAccessible(true);
+                field.set(wrappedCatalog, catalog);
+              }
+              Field federatedField = LocalIcebergCatalog.class.getDeclaredField("isFederated");
+              federatedField.setAccessible(true);
+              federatedField.set(wrappedCatalog, true);
+              Field baseInitializedField =
+                  LocalIcebergCatalog.class.getDeclaredField("baseInitialized");
+              baseInitializedField.setAccessible(true);
+              baseInitializedField.set(wrappedCatalog, true);
 
               // Prevent catalog from being closed during test lifecycle
-              Mockito.doNothing().when(wrappedHandler).close();
+              Mockito.doNothing().when(wrappedCatalog).close();
 
-              return wrappedHandler;
+              return wrappedCatalog;
             })
         .when(catalogAdapter)
-        .newHandler(Mockito.any(), Mockito.any());
+        .newCatalog(Mockito.any(), Mockito.any());
   }
 
   private static Stream<Arguments> paginationTestCases() {
@@ -258,12 +257,11 @@ public class IcebergCatalogAdapterTest {
   @Test
   void toLoadTableResponse_loadedMapsTo200WithEtagHeader() {
     LoadTableResponse body = Mockito.mock(LoadTableResponse.class);
-    OperationMetadata metadata =
-        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
 
     Response response =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, metadata)));
+            new ConditionalLoadOutcome.Loaded<>(
+                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), NoExtension.INSTANCE)));
 
     Assertions.assertThat(response.getStatus()).isEqualTo(200);
     Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
@@ -272,12 +270,10 @@ public class IcebergCatalogAdapterTest {
 
   @Test
   void toLoadTableResponse_notModifiedMapsTo304WithEtagHeader() {
-    OperationMetadata metadata =
-        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
-
     Response response =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.NotModified<>(metadata));
+            new ConditionalLoadOutcome.NotModified<LoadTableResponse, NoExtension>(
+                Optional.of("W/\"etag-1\""), NoExtension.INSTANCE));
 
     Assertions.assertThat(response.getStatus()).isEqualTo(304);
     Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
@@ -286,25 +282,24 @@ public class IcebergCatalogAdapterTest {
   @Test
   void toLoadTableResponse_neverReadsProviderPayload() {
     LoadTableResponse body = Mockito.mock(LoadTableResponse.class);
-    OperationMetadata sentinelPayload =
-        new OperationMetadata(
-            Optional.of("W/\"etag-1\""),
-            Optional.of(
-                new Object() {
-                  @Override
-                  public String toString() {
-                    throw new AssertionError("providerPayload must never be read by the adapter");
-                  }
-                }));
-    OperationMetadata noPayload =
-        new OperationMetadata(Optional.of("W/\"etag-1\""), Optional.empty());
+    // A poison provider extension whose access throws. The adapter reads only the OSS-carried
+    // etag, never the extension, so mapping must succeed identically with or without it.
+    ExtensionPayload sentinelExtension =
+        new ExtensionPayload() {
+          @Override
+          public String toString() {
+            throw new AssertionError("provider extension must never be read by the adapter");
+          }
+        };
 
     Response withSentinel =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, sentinelPayload)));
+            new ConditionalLoadOutcome.Loaded<>(
+                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), sentinelExtension)));
     Response withoutPayload =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(new OperationResult<>(body, noPayload)));
+            new ConditionalLoadOutcome.Loaded<>(
+                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), NoExtension.INSTANCE)));
 
     Assertions.assertThat(withSentinel.getStatus()).isEqualTo(withoutPayload.getStatus());
     Assertions.assertThat(withSentinel.getHeaderString(HttpHeaders.ETAG))

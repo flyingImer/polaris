@@ -40,7 +40,6 @@ import org.apache.polaris.core.auth.AuthorizationDecision;
 import org.apache.polaris.core.auth.AuthorizationRequest;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
-import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
@@ -54,10 +53,9 @@ import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
-import org.apache.polaris.core.persistence.internal.EntityCache;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
+import org.apache.polaris.core.persistence.internal.EntityCache;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
@@ -80,15 +78,13 @@ import org.apache.polaris.service.catalog.generic.GenericTableCatalogHandlerFact
 import org.apache.polaris.service.catalog.generic.ImmutableGenericTableCatalogHandler;
 import org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogAdapter;
-import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandler;
-import org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFactory;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventServiceDelegator;
-import org.apache.polaris.service.catalog.iceberg.ImmutableIcebergCatalogHandler;
+import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
+import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
-import org.apache.polaris.service.context.catalog.PolarisLocalCatalogFactory;
 import org.apache.polaris.service.credentials.DefaultPolarisCredentialManager;
 import org.apache.polaris.service.credentials.connection.SigV4ConnectionCredentialVendor;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
@@ -102,6 +98,7 @@ import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
@@ -313,18 +310,6 @@ public record TestServices(
       TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
 
       PolarisEventDispatcher polarisEventDispatcher = new InMemoryEventCollector();
-      LocalCatalogFactory localCatalogFactory =
-          new PolarisLocalCatalogFactory(
-              diagnostics,
-              entityResolver,
-              taskExecutor,
-              storageAccessConfigProvider,
-              fileIOFactory,
-              polarisEventDispatcher,
-              eventMetadataFactory,
-              metaStoreManager,
-              callContext,
-              principal);
 
       ReservedProperties reservedProperties = ReservedProperties.NONE;
 
@@ -337,38 +322,38 @@ public record TestServices(
 
       EventAttributeMap eventAttributeMap = new EventAttributeMap();
 
-      IcebergCatalogHandlerFactory handlerFactory =
-          new IcebergCatalogHandlerFactory() {
+      LocalIcebergCatalogFactory catalogFactory =
+          new LocalIcebergCatalogFactory() {
             @Override
-            public IcebergCatalogHandler createHandler(
-                String catalogName, PolarisPrincipal principal) {
-              return ImmutableIcebergCatalogHandler.builder()
-                  .catalogName(catalogName)
-                  .polarisPrincipal(principal)
-                  .diagnostics(diagnostics)
-                  .callContext(callContext)
-                  .prefixParser(new DefaultCatalogPrefixParser())
-                  .entityResolver(entityResolver)
-                  .metaStoreManager(metaStoreManager)
-                  .credentialManager(credentialManager)
-                  .localCatalogFactory(localCatalogFactory)
-                  .authorizer(authorizer)
-                  .reservedProperties(reservedProperties)
-                  .catalogHandlerUtils(catalogHandlerUtils)
-                  .federatedCatalogFactories(federatedCatalogFactory)
-                  .storageAccessConfigProvider(storageAccessConfigProvider)
-                  .eventAttributeMap(eventAttributeMap)
-                  .metricsReporter(new DefaultMetricsReporter())
-                  .clock(clock)
-                  .accessDelegationModeResolver(
-                      new DefaultAccessDelegationModeResolver(realmConfig))
-                  .build();
+            public LocalIcebergCatalog create(String catalogName, PolarisPrincipal principal) {
+              return new LocalIcebergCatalog(
+                  catalogName,
+                  principal,
+                  callContext,
+                  diagnostics,
+                  entityResolver,
+                  authorizer,
+                  metaStoreManager,
+                  taskExecutor,
+                  storageAccessConfigProvider,
+                  fileIOFactory,
+                  polarisEventDispatcher,
+                  eventMetadataFactory,
+                  credentialManager,
+                  federatedCatalogFactory,
+                  reservedProperties,
+                  catalogHandlerUtils,
+                  eventAttributeMap,
+                  clock,
+                  new DefaultAccessDelegationModeResolver(realmConfig),
+                  new DefaultMetricsReporter(),
+                  new DefaultCatalogPrefixParser());
             }
           };
 
       IcebergCatalogAdapter catalogService =
           new IcebergCatalogAdapter(
-              callContext, new DefaultCatalogPrefixParser(), reservedProperties, handlerFactory);
+              callContext, new DefaultCatalogPrefixParser(), reservedProperties, catalogFactory);
 
       // Optionally wrap with event delegator
       IcebergRestCatalogApiService finalRestCatalogService = catalogService;
