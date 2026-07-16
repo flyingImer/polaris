@@ -142,9 +142,9 @@ import org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
-import org.apache.polaris.service.types.NotificationRequest;
-import org.apache.polaris.service.types.NotificationType;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.feature.catalog.NotificationRequest;
+import org.apache.polaris.spi.feature.catalog.NotificationType;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;

@@ -59,12 +59,12 @@ import org.apache.polaris.service.catalog.validation.EntityNameValidator;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
-import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
 import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
 import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
 import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
+import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

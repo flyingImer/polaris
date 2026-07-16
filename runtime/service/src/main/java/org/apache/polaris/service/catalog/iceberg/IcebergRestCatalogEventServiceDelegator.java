@@ -57,8 +57,8 @@ import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
-import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
+import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 
 @Decorator
 @Priority(1000)

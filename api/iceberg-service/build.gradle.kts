@@ -117,9 +117,9 @@ openApiGenerate {
       "CommitViewRequest" to "org.apache.polaris.service.types.CommitViewRequest",
       "TokenType" to "org.apache.polaris.service.types.TokenType",
       "CommitTableRequest" to "org.apache.polaris.service.types.CommitTableRequest",
-      "NotificationRequest" to "org.apache.polaris.service.types.NotificationRequest",
-      "TableUpdateNotification" to "org.apache.polaris.service.types.TableUpdateNotification",
-      "NotificationType" to "org.apache.polaris.service.types.NotificationType",
+      "NotificationRequest" to "org.apache.polaris.spi.feature.catalog.NotificationRequest",
+      "TableUpdateNotification" to "org.apache.polaris.spi.feature.catalog.TableUpdateNotification",
+      "NotificationType" to "org.apache.polaris.spi.feature.catalog.NotificationType",
     )
 }
 

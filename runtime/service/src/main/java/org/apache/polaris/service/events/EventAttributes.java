@@ -67,8 +67,8 @@ import org.apache.polaris.service.types.DetachPolicyRequest;
 import org.apache.polaris.service.types.GenericTable;
 import org.apache.polaris.service.types.GetApplicablePoliciesResponse;
 import org.apache.polaris.service.types.LoadPolicyResponse;
-import org.apache.polaris.service.types.NotificationRequest;
 import org.apache.polaris.service.types.UpdatePolicyRequest;
+import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 
 /**
  * Standard attribute keys for Polaris events. These keys provide type-safe access to common event

@@ -38,7 +38,6 @@ import org.apache.iceberg.rest.responses.ListNamespacesResponse;
 import org.apache.iceberg.rest.responses.ListTablesResponse;
 import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
-import org.apache.polaris.service.types.NotificationRequest;
 
 /**
  * The iceberg-table-catalog L0 feature SPI (ADR-0001): the provider-replaceable contract for the
@@ -69,11 +68,11 @@ import org.apache.polaris.service.types.NotificationRequest;
  * BasePolarisCatalog}), which permanently removes the collision, so the natural names are reverted
  * here for good (the 3 view-side collisions are on {@link IcebergViewCatalogOps}).
  *
- * <p>Lives in {@code api-iceberg-service} (not bare {@code polaris-core}) because {@link
- * #sendNotification} needs {@link NotificationRequest}, a Polaris-owned OpenAPI-generated type that
- * this module owns; {@code api-iceberg-service} depends on {@code polaris-core} (never the
- * reverse), so this is the lowest layer that can see both the Iceberg SDK types, the generic {@link
- * PolarisResult}/{@link ExtensionPayload} wrapper types, and {@link NotificationRequest} together.
+ * <p>Moved to {@code polaris-core} in Issue 29 Rework S Stage S1, now that {@code
+ * NotificationRequest} (the one dependency that previously required living in {@code
+ * api-iceberg-service}) has moved here too. {@link BasePolarisCatalog}, the OSS default
+ * implementation of this interface, is one stage behind: it remains in {@code api-iceberg-service}
+ * until a later stage relocates and renames it into {@code extensions/}.
  *
  * @param <E> the provider-private extension payload type
  */

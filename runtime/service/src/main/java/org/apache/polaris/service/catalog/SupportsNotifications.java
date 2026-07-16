@@ -19,7 +19,7 @@
 package org.apache.polaris.service.catalog;
 
 import org.apache.iceberg.catalog.TableIdentifier;
-import org.apache.polaris.service.types.NotificationRequest;
+import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 
 public interface SupportsNotifications {
 
