@@ -25,6 +25,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
+import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 
 /** An event dispatcher that publishes events to the Vert.x event bus. */
 @ApplicationScoped

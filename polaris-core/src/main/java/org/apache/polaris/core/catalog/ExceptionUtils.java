@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.catalog.common;
+package org.apache.polaris.core.catalog;
 
 import java.util.List;
 import org.apache.iceberg.catalog.Namespace;
@@ -44,7 +44,7 @@ public class ExceptionUtils {
     if (subTypes.size() > 1) {
       return new NoSuchTableException("Table does not exist: %s", identifier);
     } else {
-      return notFoundExceptionForTableLikeEntity(identifier, subTypes.getFirst());
+      return notFoundExceptionForTableLikeEntity(identifier, subTypes.get(0));
     }
   }
 

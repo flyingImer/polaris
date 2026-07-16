@@ -20,8 +20,8 @@ package org.apache.polaris.service.admin;
 
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkState;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
 import com.google.common.base.Strings;
 import jakarta.enterprise.context.RequestScoped;
@@ -117,7 +117,6 @@ import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.ImmutableResolverEntityName;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
@@ -138,6 +137,7 @@ import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.validation;
+package org.apache.polaris.core.storage;
 
 import static org.apache.polaris.core.config.FeatureConfiguration.ALLOW_INSECURE_STORAGE_TYPES;
 import static org.apache.polaris.core.config.FeatureConfiguration.ALLOW_SPECIFYING_FILE_IO_IMPL;
@@ -26,7 +26,6 @@ import java.util.Map;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;

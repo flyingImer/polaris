@@ -18,7 +18,7 @@
  */
 package org.apache.polaris.service.catalog.iceberg;
 
-import static org.apache.polaris.service.catalog.validation.IcebergPropertiesValidation.validateIcebergProperties;
+import static org.apache.polaris.core.storage.IcebergPropertiesValidation.validateIcebergProperties;
 
 import com.google.common.annotations.VisibleForTesting;
 import jakarta.enterprise.context.RequestScoped;

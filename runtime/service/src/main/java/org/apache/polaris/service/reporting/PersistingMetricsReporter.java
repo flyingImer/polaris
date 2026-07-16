@@ -33,8 +33,9 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.core.metrics.iceberg.MetricsRecordConverter;
 import org.apache.polaris.core.persistence.metrics.CommitMetricsRecord;
-import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.core.persistence.metrics.ScanMetricsRecord;
+import org.apache.polaris.spi.durable.MetricsPersistence;
+import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

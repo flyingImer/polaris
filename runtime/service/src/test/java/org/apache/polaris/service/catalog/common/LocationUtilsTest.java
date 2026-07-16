@@ -20,6 +20,7 @@
 package org.apache.polaris.service.catalog.common;
 
 import java.util.List;
+import org.apache.polaris.core.storage.LocationUtils;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 

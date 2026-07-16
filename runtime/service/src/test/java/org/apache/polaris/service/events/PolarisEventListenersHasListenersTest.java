@@ -31,6 +31,7 @@ import java.util.Map;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.spi.feature.PolarisEventListener;
+import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.junit.jupiter.api.Test;
 
 @QuarkusTest

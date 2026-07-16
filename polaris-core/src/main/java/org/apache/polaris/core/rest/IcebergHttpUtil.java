@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.http;
+package org.apache.polaris.core.rest;
 
 import org.apache.polaris.core.DigestUtils;
 

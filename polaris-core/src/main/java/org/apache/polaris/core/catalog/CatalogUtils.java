@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.catalog.common;
+package org.apache.polaris.core.catalog;
 
 import java.util.List;
 import java.util.Set;

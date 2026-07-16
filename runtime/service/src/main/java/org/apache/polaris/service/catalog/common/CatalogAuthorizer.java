@@ -18,10 +18,10 @@
  */
 package org.apache.polaris.service.catalog.common;
 
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionWithSameNameForTableLikeEntity;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.entityNameForSubType;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.alreadyExistsExceptionWithSameNameForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.entityNameForSubType;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
 import java.util.ArrayList;
 import java.util.Arrays;

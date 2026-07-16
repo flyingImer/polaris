@@ -18,7 +18,7 @@
  */
 package org.apache.polaris.service.catalog.policy;
 
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
 
 import com.google.common.base.Strings;
 import java.util.ArrayList;

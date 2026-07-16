@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.catalog.common;
+package org.apache.polaris.core.storage;
 
 import com.google.common.hash.HashCode;
 import com.google.common.hash.HashFunction;

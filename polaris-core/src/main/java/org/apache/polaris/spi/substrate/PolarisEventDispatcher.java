@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.events;
+package org.apache.polaris.spi.substrate;
 
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;

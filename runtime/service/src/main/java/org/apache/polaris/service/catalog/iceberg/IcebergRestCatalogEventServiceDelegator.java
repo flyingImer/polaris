@@ -53,12 +53,12 @@ import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.NotificationRequest;
+import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 
 @Decorator
 @Priority(1000)

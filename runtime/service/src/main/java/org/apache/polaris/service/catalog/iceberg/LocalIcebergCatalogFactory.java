@@ -31,14 +31,14 @@ import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
 import org.apache.polaris.service.config.ReservedProperties;
-import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
-import org.apache.polaris.service.reporting.PolarisMetricsReporter;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
+import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
+import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 

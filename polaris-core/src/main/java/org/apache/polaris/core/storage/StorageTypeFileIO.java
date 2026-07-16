@@ -16,12 +16,11 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.validation;
+package org.apache.polaris.core.storage;
 
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.Map;
-import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 
 enum StorageTypeFileIO {
   S3("org.apache.iceberg.aws.s3.S3FileIO", true),

@@ -21,8 +21,8 @@ package org.apache.polaris.service.catalog.iceberg;
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_TOTAL_RETRY_TIME_MS_DEFAULT;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Preconditions;

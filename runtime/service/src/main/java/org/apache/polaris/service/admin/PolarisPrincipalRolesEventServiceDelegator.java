@@ -35,8 +35,8 @@ import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.admin.api.PolarisPrincipalRolesApiService;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEventDispatcher;
 import org.apache.polaris.service.events.PolarisEventMetadataFactory;
+import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 
 @Decorator
 @Priority(1000)

@@ -19,9 +19,9 @@
 package org.apache.polaris.service.catalog.generic;
 
 import static java.util.Objects.requireNonNull;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
 import java.util.List;
 import java.util.Map;

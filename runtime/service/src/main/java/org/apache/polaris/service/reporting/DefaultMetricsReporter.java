@@ -24,6 +24,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import java.time.Instant;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.metrics.MetricsReport;
+import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 

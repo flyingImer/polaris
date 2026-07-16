@@ -18,8 +18,8 @@
  */
 package org.apache.polaris.service.catalog.policy;
 
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.noSuchNamespaceException;
-import static org.apache.polaris.service.catalog.common.ExceptionUtils.notFoundExceptionForTableLikeEntity;
+import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
+import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
 
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;

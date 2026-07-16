@@ -16,8 +16,9 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.io;
+package org.apache.polaris.core.storage;
 
+import com.google.common.collect.Lists;
 import java.util.Optional;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
@@ -41,7 +42,7 @@ public class FileIOUtil {
   public static Optional<PolarisEntity> findStorageInfoFromHierarchy(
       PolarisResolvedPathWrapper resolvedStorageEntity) {
     Optional<PolarisEntity> storageInfoEntity =
-        resolvedStorageEntity.getRawFullPath().reversed().stream()
+        Lists.reverse(resolvedStorageEntity.getRawFullPath()).stream()
             .filter(
                 e ->
                     e.getInternalPropertiesAsMap()
