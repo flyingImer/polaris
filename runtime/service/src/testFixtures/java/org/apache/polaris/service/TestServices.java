@@ -83,11 +83,9 @@ import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventS
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
-import org.apache.polaris.service.catalog.io.StorageAccessConfigProvider;
-import org.apache.polaris.service.config.ReservedProperties;
+import org.apache.polaris.service.catalog.io.QuarkusStorageAccessConfigProvider;
 import org.apache.polaris.service.credentials.DefaultPolarisCredentialManager;
 import org.apache.polaris.service.credentials.connection.SigV4ConnectionCredentialVendor;
-import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
 import org.apache.polaris.service.identity.provider.DefaultServiceIdentityProvider;
 import org.apache.polaris.service.persistence.InMemoryPolarisMetaStoreManagerFactory;
@@ -100,6 +98,9 @@ import org.apache.polaris.spi.durable.SecretsManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
+import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
+import org.apache.polaris.spi.substrate.ReservedProperties;
+import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.mockito.Mockito;
@@ -303,7 +304,7 @@ public record TestServices(
           new DefaultPolarisCredentialManager(realmContext, mockCredentialVendors);
 
       StorageAccessConfigProvider storageAccessConfigProvider =
-          new StorageAccessConfigProvider(
+          new QuarkusStorageAccessConfigProvider(
               callContext, principal, realmContext, storageIntegrationProvider);
       StorageIoProvider fileIOFactory = fileIOFactorySupplier.get();
 

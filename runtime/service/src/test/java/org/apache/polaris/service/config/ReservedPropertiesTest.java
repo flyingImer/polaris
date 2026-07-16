@@ -23,6 +23,7 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.util.List;
 import java.util.Map;
+import org.apache.polaris.spi.substrate.ReservedProperties;
 import org.junit.jupiter.api.Test;
 
 class ReservedPropertiesTest {

@@ -41,6 +41,7 @@ import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.PolarisStorageIntegration;
 import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 import org.apache.polaris.core.storage.StorageAccessConfig;
+import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -51,9 +52,10 @@ import org.slf4j.LoggerFactory;
  * {@link CredentialVendingContext} from request-scoped state, and delegates to the integration.
  */
 @RequestScoped
-public class StorageAccessConfigProvider {
+public class QuarkusStorageAccessConfigProvider implements StorageAccessConfigProvider {
 
-  private static final Logger LOGGER = LoggerFactory.getLogger(StorageAccessConfigProvider.class);
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(QuarkusStorageAccessConfigProvider.class);
 
   private final CallContext callContext;
   private final PolarisPrincipal polarisPrincipal;
@@ -61,7 +63,7 @@ public class StorageAccessConfigProvider {
   private final PolarisStorageIntegrationProvider storageIntegrationProvider;
 
   @Inject
-  public StorageAccessConfigProvider(
+  public QuarkusStorageAccessConfigProvider(
       CallContext callContext,
       PolarisPrincipal polarisPrincipal,
       RealmContext realmContext,
@@ -72,6 +74,7 @@ public class StorageAccessConfigProvider {
     this.storageIntegrationProvider = storageIntegrationProvider;
   }
 
+  @Override
   public StorageAccessConfig getStorageAccessConfig(
       @NonNull TableIdentifier tableIdentifier,
       @NonNull Set<String> tableLocations,

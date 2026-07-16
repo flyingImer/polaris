@@ -37,12 +37,13 @@ import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.service.tracing.RequestIdFilter;
+import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.jboss.resteasy.reactive.server.core.CurrentRequestManager;
 import org.jboss.resteasy.reactive.server.core.ResteasyReactiveRequestContext;
 import org.jboss.resteasy.reactive.server.jaxrs.ContainerRequestContextImpl;
 
 @ApplicationScoped
-public class PolarisEventMetadataFactory {
+public class QuarkusPolarisEventMetadataFactory implements PolarisEventMetadataFactory {
 
   @Inject Clock clock;
   @Inject CurrentIdentityAssociation currentIdentityAssociation;
@@ -54,6 +55,7 @@ public class PolarisEventMetadataFactory {
    * <p>This method should only be called with the request scope active in production. It may be
    * called outside the request scope in tests, in which case some fields may be missing.
    */
+  @Override
   public PolarisEventMetadata create() {
     return PolarisEventMetadata.builder()
         .timestamp(clock.instant())
@@ -70,6 +72,7 @@ public class PolarisEventMetadataFactory {
    * <p>Contrary to {@link #create()}, this method does not require an active request scope, and is
    * safe to use from any thread, e.g. from a task executor thread.
    */
+  @Override
   public PolarisEventMetadata copy(PolarisEventMetadata original) {
     return PolarisEventMetadata.builder()
         .from(original)

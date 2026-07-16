@@ -32,7 +32,6 @@ import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.catalog.api.PolarisCatalogPolicyApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
 import org.apache.polaris.service.events.EventAttributes;
-import org.apache.polaris.service.events.PolarisEventMetadataFactory;
 import org.apache.polaris.service.types.AttachPolicyRequest;
 import org.apache.polaris.service.types.CreatePolicyRequest;
 import org.apache.polaris.service.types.DetachPolicyRequest;
@@ -41,6 +40,7 @@ import org.apache.polaris.service.types.LoadPolicyResponse;
 import org.apache.polaris.service.types.UpdatePolicyRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
+import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 
 @Decorator
 @Priority(1000)
