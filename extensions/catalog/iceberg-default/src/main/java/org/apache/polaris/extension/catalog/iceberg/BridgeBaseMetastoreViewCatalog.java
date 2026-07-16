@@ -16,14 +16,14 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
+package org.apache.polaris.extension.catalog.iceberg;
 
 import static org.apache.polaris.core.catalog.ExceptionUtils.alreadyExistsExceptionForTableLikeEntity;
 import static org.apache.polaris.core.catalog.ExceptionUtils.alreadyExistsExceptionWithSameNameForTableLikeEntity;
 import static org.apache.polaris.core.catalog.ExceptionUtils.entityNameForSubType;
 import static org.apache.polaris.core.catalog.ExceptionUtils.noSuchNamespaceException;
 import static org.apache.polaris.core.catalog.ExceptionUtils.notFoundExceptionForTableLikeEntity;
-import static org.apache.polaris.service.exception.IcebergExceptionMapper.isStorageProviderRetryableException;
+import static org.apache.polaris.extension.catalog.iceberg.StorageProviderExceptionClassifier.isStorageProviderRetryableException;
 
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Joiner;
@@ -113,6 +113,7 @@ import org.apache.polaris.core.entity.PolarisEntityUtils;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
@@ -137,7 +138,6 @@ import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.StorageUtil;
-import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 import org.apache.polaris.spi.feature.catalog.NotificationType;
@@ -156,26 +156,34 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * The Iceberg-SDK-facing half of the merged Iceberg catalog feature-SPI implementation.
+ * The Iceberg-SDK-facing half of the merged Iceberg catalog feature-SPI implementation: an
+ * encapsulated bridge that speaks the Iceberg SDK's {@code Catalog}/{@code ViewCatalog}/{@code
+ * SupportsNamespaces}/{@code SupportsNotifications} contracts, composed (never extended) by {@link
+ * BasePolarisIcebergCatalog}.
  *
- * <p>This class holds ONLY the Iceberg {@code Catalog}/{@code ViewCatalog}/{@code
- * SupportsNamespaces}/{@code SupportsNotifications} mechanics that used to live directly on {@link
- * LocalIcebergCatalog} before Issue 29 added the feature-SPI operations ({@code
- * IcebergCatalogOps}/{@code IcebergViewCatalogOps}) to that class. It exists because a single class
+ * <p>This class holds ONLY the Iceberg-mechanics: table/view operations, namespace CRUD, and
+ * notification handling against the plain Iceberg SDK shapes. It exists because a single class
  * cannot simultaneously extend/implement the Iceberg SDK's {@code Catalog}/{@code
- * ViewCatalog}/{@code SupportsNamespaces} AND implement the Polaris feature-SPI contracts: several
- * feature-SPI operation names collide with Iceberg SDK method names (same name and parameters,
- * different return type), which Java forbids on one class regardless of inheritance shape.
+ * ViewCatalog}/{@code SupportsNamespaces} AND implement the Polaris feature-SPI contracts ({@code
+ * IcebergCatalogOps}/{@code IcebergViewCatalogOps}): several feature-SPI operation names collide
+ * with Iceberg SDK method names (same name and parameters, different return type), which Java
+ * forbids on one class regardless of inheritance shape.
  *
- * <p>{@code PolarisIcebergCatalog} is the Iceberg-mechanics delegate that a future composing class
- * (the feature-SPI half) will hold and call into, instead of a single class inheriting both shapes.
- * As of this increment it is purely additive: nothing constructs or calls it yet, and {@link
- * LocalIcebergCatalog} is unmodified. Defines the relationship between PolarisEntities and
+ * <p>Public, but not part of the feature-SPI: it carries no {@code IcebergCatalogOps}/{@code
+ * IcebergViewCatalogOps} surface, only the Iceberg-SDK-shaped mechanics. Visibility is public (not
+ * package-private) specifically so a provider can override the {@code
+ * createBridgeBaseMetastoreViewCatalog} factory seam on {@link BasePolarisIcebergCatalog} with a
+ * subclass of this type from its own module (e.g. to customize {@code newTableOps}/{@code
+ * newViewOps}/{@code defaultWarehouseLocation}) — a package-private bridge cannot be named in a
+ * cross-module override signature. {@link BasePolarisIcebergCatalog#ensureBaseInitialized()}
+ * constructs it and holds it as the local-path delegate for {@code baseCatalog}/{@code
+ * namespaceCatalog}/{@code viewCatalog}. Defines the relationship between PolarisEntities and
  * Iceberg's business logic.
  */
-public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
+public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
     implements SupportsNamespaces, SupportsNotifications, Closeable {
-  private static final Logger LOGGER = LoggerFactory.getLogger(PolarisIcebergCatalog.class);
+  private static final Logger LOGGER =
+      LoggerFactory.getLogger(BridgeBaseMetastoreViewCatalog.class);
 
   private static final Joiner SLASH = Joiner.on("/");
 
@@ -224,7 +232,7 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
    *     this catalog instance only interacts with authorized resolved paths.
    * @param taskExecutor Executor we use to register cleanup task handlers
    */
-  public PolarisIcebergCatalog(
+  public BridgeBaseMetastoreViewCatalog(
       PolarisDiagnostics diagnostics,
       EntityResolver entityResolver,
       DurableManager metaStoreManager,
@@ -455,12 +463,12 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
 
   @Override
   public TableBuilder buildTable(TableIdentifier identifier, Schema schema) {
-    return new PolarisIcebergCatalogTableBuilder(identifier, schema);
+    return new BridgeBaseMetastoreViewCatalogTableBuilder(identifier, schema);
   }
 
   @Override
   public ViewBuilder buildView(TableIdentifier identifier) {
-    return new PolarisIcebergCatalogViewBuilder(identifier);
+    return new BridgeBaseMetastoreViewCatalogViewBuilder(identifier);
   }
 
   @VisibleForTesting
@@ -710,7 +718,7 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
         .reversed()
         .stream()
         .map(entity -> baseLocation(diagnostics, entity))
-        .map(PolarisIcebergCatalog::stripLeadingTrailingSlash)
+        .map(BridgeBaseMetastoreViewCatalog::stripLeadingTrailingSlash)
         .collect(Collectors.joining("/"));
   }
 
@@ -1531,11 +1539,11 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
     return result;
   }
 
-  private class PolarisIcebergCatalogTableBuilder
+  private class BridgeBaseMetastoreViewCatalogTableBuilder
       extends BaseMetastoreViewCatalog.BaseMetastoreViewCatalogTableBuilder {
     private final TableIdentifier identifier;
 
-    public PolarisIcebergCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
+    public BridgeBaseMetastoreViewCatalogTableBuilder(TableIdentifier identifier, Schema schema) {
       super(identifier, schema);
       this.identifier = identifier;
     }
@@ -1546,14 +1554,15 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
     }
   }
 
-  private class PolarisIcebergCatalogViewBuilder extends BaseMetastoreViewCatalog.BaseViewBuilder {
+  private class BridgeBaseMetastoreViewCatalogViewBuilder
+      extends BaseMetastoreViewCatalog.BaseViewBuilder {
     private final TableIdentifier identifier;
 
-    public PolarisIcebergCatalogViewBuilder(TableIdentifier identifier) {
+    public BridgeBaseMetastoreViewCatalogViewBuilder(TableIdentifier identifier) {
       super(identifier);
       withProperties(
           PropertyUtil.propertiesWithPrefix(
-              PolarisIcebergCatalog.this.properties(), "table-default."));
+              BridgeBaseMetastoreViewCatalog.this.properties(), "table-default."));
       this.identifier = identifier;
     }
 
@@ -1565,7 +1574,7 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
 
   /**
    * An implementation of {@link TableOperations} that integrates with {@link
-   * PolarisIcebergCatalog}. Much of this code was originally copied from {@link
+   * BridgeBaseMetastoreViewCatalog}. Much of this code was originally copied from {@link
    * org.apache.iceberg.BaseMetastoreTableOperations}. CODE_COPIED_TO_POLARIS From Apache Iceberg
    * Version: 1.8
    */
@@ -1693,8 +1702,8 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
                   PolarisEventType.BEFORE_REFRESH_TABLE,
                   eventMetadataFactory.create(),
                   new EventAttributeMap()
-                      .put(EventAttributes.CATALOG_NAME, catalogName)
-                      .put(EventAttributes.TABLE_IDENTIFIER, tableIdentifier)));
+                      .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
+                      .put(IcebergEventAttributes.TABLE_IDENTIFIER, tableIdentifier)));
         }
         refreshFromMetadataLocation(
             latestLocation,
@@ -1721,8 +1730,8 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
                   PolarisEventType.AFTER_REFRESH_TABLE,
                   eventMetadataFactory.create(),
                   new EventAttributeMap()
-                      .put(EventAttributes.CATALOG_NAME, catalogName)
-                      .put(EventAttributes.TABLE_IDENTIFIER, tableIdentifier)));
+                      .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
+                      .put(IcebergEventAttributes.TABLE_IDENTIFIER, tableIdentifier)));
         }
       }
     }
@@ -2028,8 +2037,8 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
   }
 
   /**
-   * An implementation of {@link ViewOperations} that integrates with {@link PolarisIcebergCatalog}.
-   * Much of this code was originally copied from {@link
+   * An implementation of {@link ViewOperations} that integrates with {@link
+   * BridgeBaseMetastoreViewCatalog}. Much of this code was originally copied from {@link
    * org.apache.iceberg.view.BaseViewOperations}. CODE_COPIED_TO_POLARIS From Apache Iceberg
    * Version: 1.8
    */
@@ -2134,8 +2143,8 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
                   PolarisEventType.BEFORE_REFRESH_VIEW,
                   eventMetadataFactory.create(),
                   new EventAttributeMap()
-                      .put(EventAttributes.CATALOG_NAME, catalogName)
-                      .put(EventAttributes.VIEW_IDENTIFIER, identifier)));
+                      .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
+                      .put(IcebergEventAttributes.VIEW_IDENTIFIER, identifier)));
         }
         refreshFromMetadataLocation(
             latestLocation,
@@ -2164,8 +2173,8 @@ public class PolarisIcebergCatalog extends BaseMetastoreViewCatalog
                   PolarisEventType.AFTER_REFRESH_VIEW,
                   eventMetadataFactory.create(),
                   new EventAttributeMap()
-                      .put(EventAttributes.CATALOG_NAME, catalogName)
-                      .put(EventAttributes.VIEW_IDENTIFIER, identifier)));
+                      .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
+                      .put(IcebergEventAttributes.VIEW_IDENTIFIER, identifier)));
         }
       }
     }

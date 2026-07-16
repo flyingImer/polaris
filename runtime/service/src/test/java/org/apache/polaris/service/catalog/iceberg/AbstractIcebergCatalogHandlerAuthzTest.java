@@ -91,6 +91,8 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
@@ -111,8 +113,8 @@ import org.mockito.Mockito;
 
 /**
  * Authorization test class for the merged Iceberg catalog feature-SPI implementation ({@link
- * LocalIcebergCatalog}), which absorbed the retired {@code IcebergCatalogHandler} (Issue 29). Runs
- * with the default value for ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES (currently true).
+ * PolarisIcebergCatalog}), which absorbed the retired {@code IcebergCatalogHandler} (Issue 29).
+ * Runs with the default value for ENABLE_FINE_GRAINED_UPDATE_TABLE_PRIVILEGES (currently true).
  *
  * <p>Each test builds the merged catalog with real principal roles + the real PolarisAuthorizer
  * (via {@link PolarisAuthzTestBase}), composed through {@code CatalogAuthorizer}, so the
@@ -163,11 +165,11 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
    * finalizeLocalCatalogProperties} override forces the in-memory FileIO the base test fixtures
    * write to, exactly as {@code PolarisAuthzTestBase.TestPolarisLocalCatalogFactory} did for the
    * retired handler (this hook replaces an {@code initialize} override since Issue 29 Rework R4
-   * moved {@code initialize} to the composed {@code PolarisIcebergCatalog} delegate).
+   * moved {@code initialize} to the composed {@code BridgeBaseMetastoreViewCatalog} delegate).
    */
-  private LocalIcebergCatalog buildMergedCatalog(
+  private PolarisIcebergCatalog buildMergedCatalog(
       String catalogName, PolarisPrincipal principal, CallContext ctx) {
-    return new LocalIcebergCatalog(
+    return new PolarisIcebergCatalog(
         catalogName,
         principal,
         ctx,
@@ -200,26 +202,26 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
   }
 
   /**
-   * Thin test shim over the merged {@link LocalIcebergCatalog}: exposes the retired {@code
+   * Thin test shim over the merged {@link PolarisIcebergCatalog}: exposes the retired {@code
    * IcebergCatalogHandler} method names/signatures the tests below call, and unwraps the
    * feature-SPI PolarisResult / ConditionalLoadOutcome return types so the privilege assertions are
    * preserved verbatim. Every call runs the real merged-catalog op with real authorization via the
    * composed {@code CatalogAuthorizer}.
    */
   static final class MergedCatalogHandle {
-    private final Supplier<LocalIcebergCatalog> catalogSupplier;
+    private final Supplier<PolarisIcebergCatalog> catalogSupplier;
 
-    MergedCatalogHandle(Supplier<LocalIcebergCatalog> catalogSupplier) {
+    MergedCatalogHandle(Supplier<PolarisIcebergCatalog> catalogSupplier) {
       this.catalogSupplier = catalogSupplier;
     }
 
     /**
      * A fresh merged catalog per op, matching production where {@code IcebergCatalogAdapter} builds
-     * a new catalog instance per REST request. A merged {@link LocalIcebergCatalog} snapshots its
+     * a new catalog instance per REST request. A merged {@link PolarisIcebergCatalog} snapshots its
      * resolved-entity view once (in {@code ensureBaseInitialized}), so reusing a single instance
      * across ops on different namespaces would read a stale view; each op gets its own instance.
      */
-    private LocalIcebergCatalog catalog() {
+    private PolarisIcebergCatalog catalog() {
       return catalogSupplier.get();
     }
 

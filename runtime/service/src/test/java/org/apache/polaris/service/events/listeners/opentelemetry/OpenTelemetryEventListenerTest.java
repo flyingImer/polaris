@@ -68,6 +68,7 @@ import org.apache.polaris.core.admin.model.TablePrivilege;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.core.events.PolarisEventType;
@@ -89,7 +90,7 @@ class OpenTelemetryEventListenerTest {
             PolarisEventType.AFTER_CREATE_TABLE,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, "test_catalog")
+                .put(IcebergEventAttributes.CATALOG_NAME, "test_catalog")
                 .put(EventAttributes.NAMESPACE, Namespace.of("test_namespace"))
                 .put(EventAttributes.TABLE_NAME, "test_table")
                 .put(EventAttributes.PURGE_REQUESTED, true)));
@@ -141,7 +142,7 @@ class OpenTelemetryEventListenerTest {
                 .put(EventAttributes.NAMESPACE, Namespace.of("test_namespace"))
                 .put(EventAttributes.TABLE_NAME, "test_table")
                 .put(
-                    EventAttributes.TABLE_IDENTIFIER,
+                    IcebergEventAttributes.TABLE_IDENTIFIER,
                     TableIdentifier.of(Namespace.of("explicit_namespace"), "explicit_table"))));
 
     LogRecordData record = singleRecord(exporter);
@@ -185,7 +186,7 @@ class OpenTelemetryEventListenerTest {
             PolarisEventType.AFTER_ADD_GRANT_TO_CATALOG_ROLE,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, "test_catalog")
+                .put(IcebergEventAttributes.CATALOG_NAME, "test_catalog")
                 .put(EventAttributes.CATALOG_ROLE_NAME, "test_catalog_role")
                 .put(EventAttributes.PRIVILEGE, PolarisPrivilege.TABLE_WRITE_DATA)
                 .put(EventAttributes.GRANT_RESOURCE, grant)));
@@ -224,7 +225,7 @@ class OpenTelemetryEventListenerTest {
             PolarisEventType.BEFORE_ADD_GRANT_TO_CATALOG_ROLE,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, "test_catalog")
+                .put(IcebergEventAttributes.CATALOG_NAME, "test_catalog")
                 .put(EventAttributes.CATALOG_ROLE_NAME, "test_catalog_role")
                 .put(
                     EventAttributes.ADD_GRANT_REQUEST,

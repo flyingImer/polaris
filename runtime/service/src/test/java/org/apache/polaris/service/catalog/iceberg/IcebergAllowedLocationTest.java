@@ -53,6 +53,7 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.core.admin.model.UpdateCatalogRequest;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.TestServices;
 import org.jetbrains.annotations.NotNull;
 import org.junit.jupiter.api.Test;
@@ -630,7 +631,7 @@ public class IcebergAllowedLocationTest {
 
     // Credential vending for the existing table (which has stale location in its entity)
     // must now be rejected.
-    LocalIcebergCatalog handler =
+    PolarisIcebergCatalog handler =
         services.catalogAdapter().newCatalog(services.securityContext(), catalog);
 
     assertThatThrownBy(() -> handler.loadCredentials(tableId, Optional.empty()))

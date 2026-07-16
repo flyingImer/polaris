@@ -31,6 +31,7 @@ import java.util.Set;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.events.AttributeKey;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 
 /**
@@ -113,13 +114,13 @@ public class DefaultEventSanitizer implements EventSanitizer {
   }
 
   private static void extractDerivedAttributes(PolarisEvent event, EventAttributeMap filtered) {
-    if (!filtered.contains(EventAttributes.CATALOG_NAME)) {
+    if (!filtered.contains(IcebergEventAttributes.CATALOG_NAME)) {
       event
           .attributes()
           .get(EventAttributes.CATALOG)
           .map(Catalog::getName)
           .filter(name -> !name.isBlank())
-          .ifPresent(name -> filtered.put(EventAttributes.CATALOG_NAME, name));
+          .ifPresent(name -> filtered.put(IcebergEventAttributes.CATALOG_NAME, name));
     }
   }
 

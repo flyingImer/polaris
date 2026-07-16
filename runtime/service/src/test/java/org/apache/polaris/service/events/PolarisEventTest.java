@@ -21,6 +21,7 @@ package org.apache.polaris.service.events;
 import static org.assertj.core.api.Assertions.assertThat;
 
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.ImmutablePolarisEventMetadata;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventMetadata;
@@ -43,12 +44,12 @@ class PolarisEventTest {
             PolarisEventType.BEFORE_CREATE_TABLE,
             TEST_METADATA,
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, TEST_CATALOG)
+                .put(IcebergEventAttributes.CATALOG_NAME, TEST_CATALOG)
                 .put(EventAttributes.TABLE_NAME, TEST_TABLE));
 
     assertThat(event.type()).isEqualTo(PolarisEventType.BEFORE_CREATE_TABLE);
     assertThat(event.metadata()).isEqualTo(TEST_METADATA);
-    assertThat(event.attributes().getRequired(EventAttributes.CATALOG_NAME))
+    assertThat(event.attributes().getRequired(IcebergEventAttributes.CATALOG_NAME))
         .isEqualTo(TEST_CATALOG);
     assertThat(event.attributes().getRequired(EventAttributes.TABLE_NAME)).isEqualTo(TEST_TABLE);
   }

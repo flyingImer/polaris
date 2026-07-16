@@ -29,6 +29,8 @@ import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
@@ -43,7 +45,7 @@ import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 
 /**
- * Builds the OSS-default Iceberg catalog feature-SPI instance ({@link LocalIcebergCatalog}) per
+ * Builds the OSS-default Iceberg catalog feature-SPI instance ({@link PolarisIcebergCatalog}) per
  * request from the per-request {@code (catalogName, principal)} plus the injected substrate
  * collaborators (Issue 29).
  *
@@ -78,8 +80,8 @@ public class LocalIcebergCatalogFactory {
   @Inject AccessDelegationModeResolver accessDelegationModeResolver;
   @Inject PolarisMetricsReporter metricsReporter;
 
-  public LocalIcebergCatalog create(String catalogName, PolarisPrincipal principal) {
-    return new LocalIcebergCatalog(
+  public PolarisIcebergCatalog create(String catalogName, PolarisPrincipal principal) {
+    return new PolarisIcebergCatalog(
         catalogName,
         principal,
         callContext,

@@ -60,6 +60,8 @@ import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheConfig;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.admin.PolarisServiceImpl;
 import org.apache.polaris.service.admin.api.PolarisCatalogsApi;
@@ -76,11 +78,9 @@ import org.apache.polaris.service.catalog.generic.GenericTableCatalogAdapter;
 import org.apache.polaris.service.catalog.generic.GenericTableCatalogHandler;
 import org.apache.polaris.service.catalog.generic.GenericTableCatalogHandlerFactory;
 import org.apache.polaris.service.catalog.generic.ImmutableGenericTableCatalogHandler;
-import org.apache.polaris.service.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.service.catalog.iceberg.IcebergCatalogAdapter;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventServiceDelegator;
-import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalog;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.catalog.io.QuarkusStorageAccessConfigProvider;
@@ -326,8 +326,8 @@ public record TestServices(
       LocalIcebergCatalogFactory catalogFactory =
           new LocalIcebergCatalogFactory() {
             @Override
-            public LocalIcebergCatalog create(String catalogName, PolarisPrincipal principal) {
-              return new LocalIcebergCatalog(
+            public PolarisIcebergCatalog create(String catalogName, PolarisPrincipal principal) {
+              return new PolarisIcebergCatalog(
                   catalogName,
                   principal,
                   callContext,

@@ -30,7 +30,10 @@ import org.apache.polaris.core.catalog.LocalCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
-import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
+// FIXME: this class appears to have no remaining CDI consumer (LocalCatalogFactory has no other
+// injector) now that BasePolarisIcebergCatalog.ensureBaseInitialized() builds its own local
+// delegate directly via createBridgeBaseMetastoreViewCatalog(...), bypassing this factory.
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
@@ -89,8 +92,8 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
     String catalogKey = realm + "/" + catalogName;
     LOGGER.debug("Initializing new BasePolarisCatalog for key: {}", catalogKey);
 
-    PolarisIcebergCatalog catalogInstance =
-        new PolarisIcebergCatalog(
+    BridgeBaseMetastoreViewCatalog catalogInstance =
+        new BridgeBaseMetastoreViewCatalog(
             diagnostics,
             entityResolver,
             metaStoreManager,

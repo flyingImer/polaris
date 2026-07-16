@@ -26,6 +26,7 @@ import static org.mockito.Mockito.when;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class DefaultEventSanitizerTest {
     PolarisEvent sanitized = sanitizer.sanitize(input);
 
     assertThat(sanitized.attributes().contains(EventAttributes.CATALOG)).isFalse();
-    assertThat(sanitized.attributes().get(EventAttributes.CATALOG_NAME)).hasValue("derived");
+    assertThat(sanitized.attributes().get(IcebergEventAttributes.CATALOG_NAME)).hasValue("derived");
   }
 
   @Test
@@ -81,12 +82,13 @@ class DefaultEventSanitizerTest {
             PolarisEventType.AFTER_CREATE_CATALOG,
             null,
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, "explicit")
+                .put(IcebergEventAttributes.CATALOG_NAME, "explicit")
                 .put(EventAttributes.CATALOG, catalog));
 
     PolarisEvent sanitized = sanitizer.sanitize(input);
 
-    assertThat(sanitized.attributes().get(EventAttributes.CATALOG_NAME)).hasValue("explicit");
+    assertThat(sanitized.attributes().get(IcebergEventAttributes.CATALOG_NAME))
+        .hasValue("explicit");
   }
 
   @Test

@@ -19,22 +19,16 @@
 package org.apache.polaris.service.exception;
 
 import com.azure.core.exception.AzureException;
-import com.azure.core.exception.HttpResponseException;
-import com.google.cloud.BaseServiceException;
 import com.google.cloud.storage.StorageException;
 import com.google.common.annotations.VisibleForTesting;
 import com.google.common.base.Throwables;
-import com.google.common.collect.ImmutableSet;
 import jakarta.ws.rs.WebApplicationException;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.Response.Status;
 import jakarta.ws.rs.ext.ExceptionMapper;
 import jakarta.ws.rs.ext.Provider;
-import java.util.Collection;
-import java.util.Locale;
 import java.util.Optional;
-import java.util.Set;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.CherrypickAncestorCommitException;
 import org.apache.iceberg.exceptions.CleanableFailure;
@@ -57,35 +51,17 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.polaris.core.exceptions.FileIOUnknownHostException;
+import org.apache.polaris.extension.catalog.iceberg.StorageProviderExceptionClassifier;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.slf4j.event.Level;
-import software.amazon.awssdk.core.exception.SdkException;
 import software.amazon.awssdk.services.s3.model.S3Exception;
 
 @Provider
 public class IcebergExceptionMapper implements ExceptionMapper<RuntimeException> {
   /** Signifies that we could not extract an HTTP code from a given cloud exception */
-  public static final int UNKNOWN_CLOUD_HTTP_CODE = -1;
-
-  public static final Set<Integer> RETRYABLE_AZURE_HTTP_CODES =
-      Set.of(
-          Response.Status.REQUEST_TIMEOUT.getStatusCode(),
-          Response.Status.TOO_MANY_REQUESTS.getStatusCode(),
-          Response.Status.INTERNAL_SERVER_ERROR.getStatusCode(),
-          Response.Status.SERVICE_UNAVAILABLE.getStatusCode(),
-          Response.Status.GATEWAY_TIMEOUT.getStatusCode(),
-          IcebergExceptionMapper.UNKNOWN_CLOUD_HTTP_CODE);
-
   private static final Logger LOGGER = LoggerFactory.getLogger(IcebergExceptionMapper.class);
-
-  // Case-insensitive parts of exception messages that a request to a cloud provider was denied due
-  // to lack of permissions
-  // We may want to consider a change to Iceberg Core to wrap cloud provider IO exceptions to
-  // Iceberg ForbiddenException
-  private static final Set<String> ACCESS_DENIED_HINTS =
-      Set.of("access denied", "not authorized", "forbidden");
 
   @Override
   public Response toResponse(RuntimeException runtimeException) {
@@ -115,46 +91,6 @@ public class IcebergExceptionMapper implements ExceptionMapper<RuntimeException>
             .build();
     LOGGER.debug("Mapped exception to errorResp: {}", errorResp);
     return errorResp;
-  }
-
-  public static boolean containsAnyAccessDeniedHint(String message) {
-    String messageLower = message.toLowerCase(Locale.ENGLISH);
-    return ACCESS_DENIED_HINTS.stream().anyMatch(messageLower::contains);
-  }
-
-  /**
-   * Check if the Throwable is retryable for the storage provider
-   *
-   * @param t the Throwable
-   * @return true if the Throwable is retryable
-   */
-  public static boolean isStorageProviderRetryableException(Throwable t) {
-    if (t == null) {
-      return false;
-    }
-
-    if (t.getMessage() != null && containsAnyAccessDeniedHint(t.getMessage())) {
-      return false;
-    }
-
-    return switch (t) {
-      // GCS
-      case BaseServiceException bse -> bse.isRetryable();
-
-      // S3
-      case SdkException se -> se.retryable();
-
-      // Azure exceptions don't have a retryable property so we just check the HTTP code
-      case HttpResponseException hre ->
-          RETRYABLE_AZURE_HTTP_CODES.contains(
-              IcebergExceptionMapper.extractHttpCodeFromCloudException(hre));
-      default -> true;
-    };
-  }
-
-  @VisibleForTesting
-  public static Collection<String> getAccessDeniedHints() {
-    return ImmutableSet.copyOf(ACCESS_DENIED_HINTS);
   }
 
   static int mapExceptionToResponseCode(RuntimeException rex) {
@@ -198,23 +134,6 @@ public class IcebergExceptionMapper implements ExceptionMapper<RuntimeException>
   }
 
   /**
-   * We typically call cloud providers over HTTP, so when there's an exception there's typically an
-   * associated HTTP code. This extracts the HTTP code if possible.
-   *
-   * @param t The cloud provider throwable
-   * @return UNKNOWN_CLOUD_HTTP_CODE if the throwable is not a cloud exception that we know how to
-   *     extract the code from
-   */
-  public static int extractHttpCodeFromCloudException(Throwable t) {
-    return switch (t) {
-      case S3Exception s3e -> s3e.statusCode();
-      case HttpResponseException hre -> hre.getResponse().getStatusCode();
-      case StorageException se -> se.getCode();
-      default -> UNKNOWN_CLOUD_HTTP_CODE;
-    };
-  }
-
-  /**
    * Tries mapping a cloud exception to the HTTP code that Polaris should return
    *
    * @param t the throwable/exception
@@ -228,11 +147,11 @@ public class IcebergExceptionMapper implements ExceptionMapper<RuntimeException>
       return Optional.empty();
     }
 
-    if (containsAnyAccessDeniedHint(t.getMessage())) {
+    if (StorageProviderExceptionClassifier.containsAnyAccessDeniedHint(t.getMessage())) {
       return Optional.of(Status.FORBIDDEN.getStatusCode());
     }
 
-    int httpCode = extractHttpCodeFromCloudException(t);
+    int httpCode = StorageProviderExceptionClassifier.extractHttpCodeFromCloudException(t);
     Status httpStatus = Status.fromStatusCode(httpCode);
     Status.Family httpFamily = Status.Family.familyOf(httpCode);
 

@@ -24,12 +24,10 @@ import java.lang.reflect.Field;
 import java.lang.reflect.Modifier;
 import java.util.Collections;
 import java.util.LinkedHashMap;
-import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.catalog.Namespace;
-import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -96,8 +94,6 @@ public final class EventAttributes {
   }
 
   // Catalog attributes
-  public static final AttributeKey<String> CATALOG_NAME =
-      new AttributeKey<>("catalog_name", String.class);
   public static final AttributeKey<Catalog> CATALOG = new AttributeKey<>("catalog", Catalog.class);
   public static final AttributeKey<UpdateCatalogRequest> UPDATE_CATALOG_REQUEST =
       new AttributeKey<>("update_catalog_request", UpdateCatalogRequest.class);
@@ -126,8 +122,6 @@ public final class EventAttributes {
   // Table attributes
   public static final AttributeKey<String> TABLE_NAME =
       new AttributeKey<>("table_name", String.class);
-  public static final AttributeKey<TableIdentifier> TABLE_IDENTIFIER =
-      new AttributeKey<>("table_identifier", TableIdentifier.class);
   public static final AttributeKey<CreateTableRequest> CREATE_TABLE_REQUEST =
       new AttributeKey<>("create_table_request", CreateTableRequest.class);
   public static final AttributeKey<UpdateTableRequest> UPDATE_TABLE_REQUEST =
@@ -140,9 +134,6 @@ public final class EventAttributes {
       new AttributeKey<>("load_table_response", LoadTableResponse.class);
   public static final AttributeKey<TableMetadata> TABLE_METADATA =
       new AttributeKey<>("table_metadata", TableMetadata.class);
-  // Used internally only. Not for external usage.
-  public static final AttributeKey<List<TableMetadata>> TABLE_METADATAS =
-      new AttributeKey<>("table_metadatas", new TypeToken<>() {});
   public static final AttributeKey<String> ACCESS_DELEGATION_MODE =
       new AttributeKey<>("access_delegation_mode", String.class);
   public static final AttributeKey<String> IF_NONE_MATCH_STRING =
@@ -155,8 +146,6 @@ public final class EventAttributes {
   // View attributes
   public static final AttributeKey<String> VIEW_NAME =
       new AttributeKey<>("view_name", String.class);
-  public static final AttributeKey<TableIdentifier> VIEW_IDENTIFIER =
-      new AttributeKey<>("view_identifier", TableIdentifier.class);
   public static final AttributeKey<CreateViewRequest> CREATE_VIEW_REQUEST =
       new AttributeKey<>("create_view_request", CreateViewRequest.class);
   public static final AttributeKey<RegisterViewRequest> REGISTER_VIEW_REQUEST =

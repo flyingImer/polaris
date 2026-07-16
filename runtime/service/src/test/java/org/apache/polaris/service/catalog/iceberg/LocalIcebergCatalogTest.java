@@ -39,13 +39,14 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.substrate.EntityResolver;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +69,7 @@ class LocalIcebergCatalogTest {
 
   private final PolarisPrincipal principal = PolarisPrincipal.of("test", Map.of(), Set.of());
 
-  private LocalIcebergCatalog catalog;
+  private PolarisIcebergCatalog catalog;
   private ResolvedPolarisEntity rns1 = new ResolvedPolarisEntity(ns1, List.of(), List.of());
   private ResolvedPolarisEntity rns2 = new ResolvedPolarisEntity(ns2, List.of(), List.of());
   private ResolvedPolarisEntity rt3 = new ResolvedPolarisEntity(table3, List.of(), List.of());
@@ -96,7 +97,7 @@ class LocalIcebergCatalogTest {
         };
 
     catalog =
-        new LocalIcebergCatalog(
+        new PolarisIcebergCatalog(
             diagnostics,
             entityResolver,
             null,

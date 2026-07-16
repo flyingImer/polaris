@@ -36,11 +36,11 @@ import java.util.concurrent.TimeUnit;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.config.PolarisIcebergObjectMapperCustomizer;
-import org.apache.polaris.service.events.EventAttributes;
 import org.awaitility.Awaitility;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
@@ -195,8 +195,8 @@ class AwsCloudWatchEventListenerTest {
               PolarisEventType.AFTER_REFRESH_TABLE,
               PolarisEventMetadata.builder().realmId(REALM).user(PRINCIPAL).build(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, "test_catalog")
-                  .put(EventAttributes.TABLE_IDENTIFIER, testTable)));
+                  .put(IcebergEventAttributes.CATALOG_NAME, "test_catalog")
+                  .put(IcebergEventAttributes.TABLE_IDENTIFIER, testTable)));
 
       Awaitility.await("expected amount of records should be sent to CloudWatch")
           .atMost(Duration.ofSeconds(30))
@@ -257,8 +257,8 @@ class AwsCloudWatchEventListenerTest {
               PolarisEventType.AFTER_REFRESH_TABLE,
               PolarisEventMetadata.builder().realmId(REALM).user(PRINCIPAL).build(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, "test_catalog")
-                  .put(EventAttributes.TABLE_IDENTIFIER, syncTestTable)));
+                  .put(IcebergEventAttributes.CATALOG_NAME, "test_catalog")
+                  .put(IcebergEventAttributes.TABLE_IDENTIFIER, syncTestTable)));
 
       Awaitility.await("expected amount of records should be sent to CloudWatch")
           .atMost(Duration.ofSeconds(30))

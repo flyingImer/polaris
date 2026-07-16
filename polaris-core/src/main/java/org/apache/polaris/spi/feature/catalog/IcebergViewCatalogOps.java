@@ -41,12 +41,13 @@ import org.apache.iceberg.rest.responses.LoadViewResponse;
  * <p>Method names match the OSS Iceberg-REST operationIds directly ({@code viewExists}, {@code
  * dropView}, {@code loadView}). These 3 were temporarily renamed off their natural names ({@code
  * checkViewExists}, {@code deleteView}, {@code getView}) during Issue 29 Rework R1-R3, to avoid a
- * compile-blocking signature collision on the OSS default implementation {@code
- * LocalIcebergCatalog}, which still {@code extends BaseMetastoreViewCatalog implements ViewCatalog}
- * at the time. Rework R4 removed that inheritance (composing a separate {@code
- * PolarisIcebergCatalog} Iceberg-mechanics delegate instead via {@link BasePolarisCatalog}), which
+ * compile-blocking signature collision on the OSS default implementation (then named {@code
+ * LocalIcebergCatalog}), which still {@code extends BaseMetastoreViewCatalog implements
+ * ViewCatalog} at the time. Rework R4 removed that inheritance (composing a separate
+ * Iceberg-mechanics delegate instead, now {@code BridgeBaseMetastoreViewCatalog}), which
  * permanently removes the collision, so the natural names are reverted here for good (see {@link
- * IcebergCatalogOps} for the 5 table/namespace-side ones).
+ * IcebergCatalogOps} for the 5 table/namespace-side ones, and its javadoc for the OSS default
+ * implementation's current name and location post-Stage-S3b).
  *
  * @param <E> the provider-private extension payload type
  */

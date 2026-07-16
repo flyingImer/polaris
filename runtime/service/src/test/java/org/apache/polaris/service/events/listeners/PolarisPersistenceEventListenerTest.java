@@ -45,6 +45,7 @@ import org.apache.iceberg.types.Types;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.core.events.PolarisEventType;
@@ -130,13 +131,13 @@ class PolarisPersistenceEventListenerTest {
             PolarisEventType.BEFORE_LIST_TABLES,
             metadataWithOpenTelemetry(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+                .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
                 .put(EventAttributes.NAMESPACE, NAMESPACE)));
 
     Map<String, String> properties =
         additionalProperties(listener.persistedEvent(PolarisEventType.BEFORE_LIST_TABLES));
     assertThat(properties)
-        .containsEntry(EventAttributes.CATALOG_NAME.name(), CATALOG_NAME)
+        .containsEntry(IcebergEventAttributes.CATALOG_NAME.name(), CATALOG_NAME)
         .containsKey(EventAttributes.NAMESPACE.name())
         .containsEntry(OPEN_TELEMETRY_TRACE_ID_KEY, "trace-123")
         .containsEntry(OPEN_TELEMETRY_SPAN_ID_KEY, "span-456");
@@ -151,7 +152,7 @@ class PolarisPersistenceEventListenerTest {
     Map<String, String> properties =
         additionalProperties(listener.persistedEvent(PolarisEventType.BEFORE_LIST_TABLES));
     assertThat(properties)
-        .containsEntry(EventAttributes.CATALOG_NAME.name(), CATALOG_NAME)
+        .containsEntry(IcebergEventAttributes.CATALOG_NAME.name(), CATALOG_NAME)
         .containsKey(EventAttributes.NAMESPACE.name())
         .containsEntry(OPEN_TELEMETRY_TRACE_ID_KEY, "trace-123")
         .containsEntry(OPEN_TELEMETRY_SPAN_ID_KEY, "span-456");
@@ -173,7 +174,7 @@ class PolarisPersistenceEventListenerTest {
         new PolarisEvent(
             PolarisEventType.AFTER_CREATE_CATALOG,
             metadata(),
-            new EventAttributeMap().put(EventAttributes.CATALOG_NAME, CATALOG_NAME)));
+            new EventAttributeMap().put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)));
 
     EventEntity persisted = listener.persistedEvent(PolarisEventType.AFTER_CREATE_CATALOG);
     assertThat(listener.persistedRealm(PolarisEventType.AFTER_CREATE_CATALOG)).isEqualTo(REALM_ID);
@@ -181,7 +182,7 @@ class PolarisPersistenceEventListenerTest {
     assertThat(persisted.getResourceType()).isEqualTo(EventEntity.ResourceType.CATALOG);
     assertThat(persisted.getResourceIdentifier()).isEqualTo(CATALOG_NAME);
     assertThat(additionalProperties(persisted))
-        .containsEntry(EventAttributes.CATALOG_NAME.name(), CATALOG_NAME);
+        .containsEntry(IcebergEventAttributes.CATALOG_NAME.name(), CATALOG_NAME);
   }
 
   @Test
@@ -248,7 +249,7 @@ class PolarisPersistenceEventListenerTest {
             PolarisEventType.AFTER_CREATE_TABLE,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+                .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
                 .put(EventAttributes.NAMESPACE, NAMESPACE)
                 .put(EventAttributes.TABLE_NAME, TABLE_NAME)
                 .put(EventAttributes.LOAD_TABLE_RESPONSE, response)));
@@ -277,7 +278,7 @@ class PolarisPersistenceEventListenerTest {
             PolarisEventType.BEFORE_RENAME_VIEW,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+                .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
                 .put(
                     EventAttributes.RENAME_TABLE_REQUEST,
                     RenameTableRequest.builder()
@@ -290,7 +291,7 @@ class PolarisPersistenceEventListenerTest {
             PolarisEventType.AFTER_RENAME_VIEW,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+                .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
                 .put(
                     EventAttributes.RENAME_TABLE_REQUEST,
                     RenameTableRequest.builder()
@@ -316,7 +317,7 @@ class PolarisPersistenceEventListenerTest {
             PolarisEventType.AFTER_CREATE_GENERIC_TABLE,
             metadata(),
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+                .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
                 .put(EventAttributes.NAMESPACE, NAMESPACE)
                 .put(EventAttributes.TABLE_NAME, "generic_tbl")));
 
@@ -328,7 +329,7 @@ class PolarisPersistenceEventListenerTest {
 
   private static PolarisEvent tableEvent(PolarisEventType eventType) {
     EventAttributeMap attributes =
-        new EventAttributeMap().put(EventAttributes.CATALOG_NAME, CATALOG_NAME);
+        new EventAttributeMap().put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME);
 
     switch (eventType) {
       case BEFORE_CREATE_TABLE ->
@@ -368,7 +369,7 @@ class PolarisPersistenceEventListenerTest {
               .put(EventAttributes.TABLE_NAME, TABLE_NAME)
               .put(EventAttributes.TABLE_METADATA, TABLE_METADATA);
       case BEFORE_REFRESH_TABLE, AFTER_REFRESH_TABLE ->
-          attributes.put(EventAttributes.TABLE_IDENTIFIER, REFRESH_TABLE_IDENTIFIER);
+          attributes.put(IcebergEventAttributes.TABLE_IDENTIFIER, REFRESH_TABLE_IDENTIFIER);
       default -> throw new IllegalArgumentException("Unexpected table event type " + eventType);
     }
 
@@ -393,7 +394,7 @@ class PolarisPersistenceEventListenerTest {
         PolarisEventType.BEFORE_LIST_TABLES,
         metadata,
         new EventAttributeMap()
-            .put(EventAttributes.CATALOG_NAME, CATALOG_NAME)
+            .put(IcebergEventAttributes.CATALOG_NAME, CATALOG_NAME)
             .put(EventAttributes.NAMESPACE, NAMESPACE));
   }
 

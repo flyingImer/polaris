@@ -34,6 +34,7 @@ import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.EventEntity.ResourceType;
 import org.apache.polaris.core.events.AttributeKey;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.events.EventAttributes;
@@ -69,7 +70,10 @@ public abstract class PolarisPersistenceEventListener implements PolarisEventLis
   }
 
   private static String resolveCatalogName(PolarisEvent event) {
-    return event.attributes().get(EventAttributes.CATALOG_NAME).orElse(EventEntity.REALM_SCOPED);
+    return event
+        .attributes()
+        .get(IcebergEventAttributes.CATALOG_NAME)
+        .orElse(EventEntity.REALM_SCOPED);
   }
 
   /**
@@ -113,7 +117,7 @@ public abstract class PolarisPersistenceEventListener implements PolarisEventLis
     EventAttributeMap attributes = event.attributes();
 
     Optional<String> identifierFromTableAttribute =
-        attributes.get(EventAttributes.TABLE_IDENTIFIER).map(TableIdentifier::toString);
+        attributes.get(IcebergEventAttributes.TABLE_IDENTIFIER).map(TableIdentifier::toString);
     if (identifierFromTableAttribute.isPresent()) {
       return identifierFromTableAttribute.get();
     }
@@ -152,7 +156,7 @@ public abstract class PolarisPersistenceEventListener implements PolarisEventLis
   private static String resolveViewResourceIdentifier(PolarisEvent event, String catalogName) {
     EventAttributeMap attributes = event.attributes();
     return attributes
-        .get(EventAttributes.VIEW_IDENTIFIER)
+        .get(IcebergEventAttributes.VIEW_IDENTIFIER)
         .map(TableIdentifier::toString)
         .or(() -> resolveRenameIdentifier(event))
         .or(
@@ -226,7 +230,7 @@ public abstract class PolarisPersistenceEventListener implements PolarisEventLis
   private static String resolveCatalogResourceIdentifier(PolarisEvent event, String catalogName) {
     return event
         .attributes()
-        .get(EventAttributes.CATALOG_NAME)
+        .get(IcebergEventAttributes.CATALOG_NAME)
         .orElseGet(() -> fallbackResourceIdentifier(event, catalogName));
   }
 

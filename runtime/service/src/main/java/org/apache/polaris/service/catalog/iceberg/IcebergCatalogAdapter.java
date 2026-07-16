@@ -52,6 +52,8 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisResourcePaths;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.catalog.api.IcebergRestCatalogApiService;
 import org.apache.polaris.service.catalog.api.IcebergRestConfigurationApiService;
 import org.apache.polaris.service.catalog.common.CatalogAdapter;
@@ -70,7 +72,7 @@ import org.slf4j.LoggerFactory;
 
 /**
  * An adapter between generated service types like `IcebergRestCatalogApiService` and the merged
- * Iceberg catalog feature-SPI implementation {@link LocalIcebergCatalog}. It extracts the caller
+ * Iceberg catalog feature-SPI implementation {@link PolarisIcebergCatalog}. It extracts the caller
  * identity, maps REST wire types to the feature-SPI's plain method calls, and unwraps each {@link
  * org.apache.polaris.spi.feature.catalog.PolarisResult} onto the HTTP response (reading only the
  * OSS-carried ETag, never the provider extension). It makes no authorization or resolution decision
@@ -106,7 +108,7 @@ public class IcebergCatalogAdapter
   private Response withCatalog(
       SecurityContext securityContext,
       String prefix,
-      Function<LocalIcebergCatalog, Response> action) {
+      Function<PolarisIcebergCatalog, Response> action) {
     String catalogName = prefixParser.prefixToCatalogName(prefix);
     return withCatalogByName(securityContext, catalogName, action);
   }
@@ -114,8 +116,8 @@ public class IcebergCatalogAdapter
   private Response withCatalogByName(
       SecurityContext securityContext,
       String catalogName,
-      Function<LocalIcebergCatalog, Response> action) {
-    try (LocalIcebergCatalog catalog = newCatalog(securityContext, catalogName)) {
+      Function<PolarisIcebergCatalog, Response> action) {
+    try (PolarisIcebergCatalog catalog = newCatalog(securityContext, catalogName)) {
       return action.apply(catalog);
     } catch (RuntimeException e) {
       LOGGER.debug("RuntimeException while operating on catalog. Propagating to caller.", e);
@@ -127,7 +129,7 @@ public class IcebergCatalogAdapter
   }
 
   @VisibleForTesting
-  LocalIcebergCatalog newCatalog(SecurityContext securityContext, String catalogName) {
+  PolarisIcebergCatalog newCatalog(SecurityContext securityContext, String catalogName) {
     PolarisPrincipal principal = validatePrincipal(securityContext);
     return catalogFactory.create(catalogName, principal);
   }
@@ -246,7 +248,7 @@ public class IcebergCatalogAdapter
 
   private EnumSet<AccessDelegationMode> parseAccessDelegationModes(String accessDelegationMode) {
     // Parse the access delegation modes - validation will happen after mode resolution
-    // in LocalIcebergCatalog.resolveAccessDelegationModes()
+    // in PolarisIcebergCatalog.resolveAccessDelegationModes()
     return AccessDelegationMode.fromProtocolValuesList(accessDelegationMode);
   }
 

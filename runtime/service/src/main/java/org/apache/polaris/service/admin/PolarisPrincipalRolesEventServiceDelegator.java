@@ -31,6 +31,7 @@ import org.apache.polaris.core.admin.model.PrincipalRole;
 import org.apache.polaris.core.admin.model.UpdatePrincipalRoleRequest;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.admin.api.PolarisPrincipalRolesApiService;
@@ -177,7 +178,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.CATALOG_ROLE_NAME, request.getCatalogRole().getName())));
     }
     Response resp =
@@ -191,7 +192,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.CATALOG_ROLE_NAME, request.getCatalogRole().getName())));
     }
     return resp;
@@ -212,7 +213,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.CATALOG_ROLE_NAME, catalogRoleName)));
     }
     Response resp =
@@ -226,7 +227,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.CATALOG_ROLE_NAME, catalogRoleName)));
     }
     return resp;
@@ -271,7 +272,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)));
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)));
     }
     Response resp =
         delegate.listCatalogRolesForPrincipalRole(
@@ -284,7 +285,7 @@ public class PolarisPrincipalRolesEventServiceDelegator implements PolarisPrinci
               eventMetadataFactory.create(),
               new EventAttributeMap()
                   .put(EventAttributes.PRINCIPAL_ROLE_NAME, principalRoleName)
-                  .put(EventAttributes.CATALOG_NAME, catalogName)));
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)));
     }
     return resp;
   }

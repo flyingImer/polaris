@@ -61,18 +61,23 @@ import org.apache.iceberg.rest.responses.UpdateNamespacePropertiesResponse;
  * These 5 were temporarily renamed off their natural names ({@code checkNamespaceExists}, {@code
  * checkTableExists}, {@code deleteNamespace}, {@code getNamespaceMetadata}, {@code
  * submitNotification}) during Issue 29 Rework R1-R3, to avoid a compile-blocking signature
- * collision (same name + params, different return type) while the OSS default implementation {@code
- * LocalIcebergCatalog} still extended Iceberg's {@code BaseMetastoreViewCatalog}/{@code
- * SupportsNamespaces}/{@code SupportsNotifications} directly. Rework R4 removed that inheritance
- * (composing a separate {@code PolarisIcebergCatalog} Iceberg-mechanics delegate instead via {@link
- * BasePolarisCatalog}), which permanently removes the collision, so the natural names are reverted
- * here for good (the 3 view-side collisions are on {@link IcebergViewCatalogOps}).
+ * collision (same name + params, different return type) while the OSS default implementation (then
+ * named {@code LocalIcebergCatalog}) still extended Iceberg's {@code
+ * BaseMetastoreViewCatalog}/{@code SupportsNamespaces}/{@code SupportsNotifications} directly.
+ * Rework R4 removed that inheritance (composing a separate Iceberg-mechanics delegate instead, now
+ * {@code BridgeBaseMetastoreViewCatalog}), which permanently removes the collision, so the natural
+ * names are reverted here for good (the 3 view-side collisions are on {@link
+ * IcebergViewCatalogOps}).
  *
  * <p>Moved to {@code polaris-core} in Issue 29 Rework S Stage S1, now that {@code
  * NotificationRequest} (the one dependency that previously required living in {@code
- * api-iceberg-service}) has moved here too. {@link BasePolarisCatalog}, the OSS default
- * implementation of this interface, is one stage behind: it remains in {@code api-iceberg-service}
- * until a later stage relocates and renames it into {@code extensions/}.
+ * api-iceberg-service}) has moved here too. The OSS default implementation of this interface is
+ * {@code BasePolarisIcebergCatalog} (generic over {@code E}, with the OSS default concrete subclass
+ * {@code PolarisIcebergCatalog} instantiating {@code E = NoExtension}), relocated and renamed into
+ * {@code extensions/catalog/iceberg-default} in Stage S3b -- it implements this interface directly
+ * rather than extending an intermediate base (the {@code BasePolarisCatalog} empty abstract base
+ * this javadoc previously pointed to was retired in that same stage as unneeded: no second
+ * implementation of this interface ever materialized to justify it).
  *
  * @param <E> the provider-private extension payload type
  */

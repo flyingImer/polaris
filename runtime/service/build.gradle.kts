@@ -41,6 +41,12 @@ dependencies {
   // bean is jandex-discovered here.
   implementation(project(":polaris-extensions-auth-rbac"))
 
+  // OSS default Iceberg catalog feature-SPI implementation (BasePolarisIcebergCatalog /
+  // PolarisIcebergCatalog / the package-private BridgeBaseMetastoreViewCatalog bridge) relocated
+  // to an extensions module (Issue 29 Rework S Stage S3b); kept on the serving runtime classpath so
+  // LocalIcebergCatalogFactory can construct it.
+  implementation(project(":polaris-extensions-catalog-iceberg-default"))
+
   runtimeOnly(project(":polaris-relational-jdbc"))
 
   implementation(project(":polaris-runtime-defaults"))
@@ -182,6 +188,7 @@ dependencies {
 
   testFixturesImplementation(project(":polaris-core"))
   testFixturesImplementation(project(":polaris-extensions-io-default"))
+  testFixturesImplementation(project(":polaris-extensions-catalog-iceberg-default"))
   testFixturesImplementation(project(":polaris-api-management-model"))
   testFixturesImplementation(project(":polaris-api-management-service"))
   testFixturesImplementation(project(":polaris-api-iceberg-service"))

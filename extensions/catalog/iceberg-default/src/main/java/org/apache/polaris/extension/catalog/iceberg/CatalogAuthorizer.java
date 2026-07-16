@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.common;
+package org.apache.polaris.extension.catalog.iceberg;
 
 import static org.apache.polaris.core.catalog.ExceptionUtils.alreadyExistsExceptionWithSameNameForTableLikeEntity;
 import static org.apache.polaris.core.catalog.ExceptionUtils.entityNameForSubType;

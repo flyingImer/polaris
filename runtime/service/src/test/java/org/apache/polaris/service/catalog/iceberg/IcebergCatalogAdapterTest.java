@@ -44,6 +44,8 @@ import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.ExternalCatalog;
 import org.apache.polaris.core.admin.model.IcebergRestConnectionConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.extension.catalog.iceberg.BasePolarisIcebergCatalog;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
 import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
@@ -207,20 +209,26 @@ public class IcebergCatalogAdapterTest {
     // federated catalog during the post-authorization init.
     Mockito.doAnswer(
             invocation -> {
-              LocalIcebergCatalog realCatalog = (LocalIcebergCatalog) invocation.callRealMethod();
-              LocalIcebergCatalog wrappedCatalog = Mockito.spy(realCatalog);
+              PolarisIcebergCatalog realCatalog =
+                  (PolarisIcebergCatalog) invocation.callRealMethod();
+              PolarisIcebergCatalog wrappedCatalog = Mockito.spy(realCatalog);
 
-              // Inject test catalog + federated flag using reflection.
+              // Inject test catalog + federated flag using reflection. baseCatalog /
+              // namespaceCatalog / viewCatalog / isFederated / baseInitialized are declared
+              // directly on the generic base BasePolarisIcebergCatalog, not on this trivial
+              // concrete subclass, so the declaring-class literal for getDeclaredField must be
+              // the base class even though the instance being mutated is the concrete subclass.
               for (String fieldName : List.of("baseCatalog", "namespaceCatalog", "viewCatalog")) {
-                Field field = LocalIcebergCatalog.class.getDeclaredField(fieldName);
+                Field field = BasePolarisIcebergCatalog.class.getDeclaredField(fieldName);
                 field.setAccessible(true);
                 field.set(wrappedCatalog, catalog);
               }
-              Field federatedField = LocalIcebergCatalog.class.getDeclaredField("isFederated");
+              Field federatedField =
+                  BasePolarisIcebergCatalog.class.getDeclaredField("isFederated");
               federatedField.setAccessible(true);
               federatedField.set(wrappedCatalog, true);
               Field baseInitializedField =
-                  LocalIcebergCatalog.class.getDeclaredField("baseInitialized");
+                  BasePolarisIcebergCatalog.class.getDeclaredField("baseInitialized");
               baseInitializedField.setAccessible(true);
               baseInitializedField.set(wrappedCatalog, true);
 

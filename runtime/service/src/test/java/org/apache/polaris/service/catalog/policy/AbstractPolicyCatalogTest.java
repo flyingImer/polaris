@@ -68,9 +68,9 @@ import org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegration;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
-import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
@@ -141,7 +141,7 @@ public abstract class AbstractPolicyCatalogTest {
   @Inject PolarisPrincipalHolder polarisPrincipalHolder;
 
   private PolicyCatalog policyCatalog;
-  private PolarisIcebergCatalog icebergCatalog;
+  private BridgeBaseMetastoreViewCatalog icebergCatalog;
   private AwsStorageConfigInfo storageConfigModel;
   private String realmName;
   private PolarisCallContext polarisContext;
@@ -250,7 +250,7 @@ public abstract class AbstractPolicyCatalogTest {
     this.policyCatalog =
         new PolicyCatalog(metaStoreManager, policyMappingManager, polarisContext, passthroughView);
     this.icebergCatalog =
-        new PolarisIcebergCatalog(
+        new BridgeBaseMetastoreViewCatalog(
             diagServices,
             entityResolver,
             metaStoreManager,

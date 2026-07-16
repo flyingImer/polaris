@@ -37,6 +37,7 @@ import java.util.concurrent.CopyOnWriteArrayList;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.spi.feature.PolarisEventListener;
@@ -83,7 +84,7 @@ class GlobalEventSanitizationTest {
             PolarisEventType.AFTER_CREATE_NAMESPACE,
             null,
             new EventAttributeMap()
-                .put(EventAttributes.CATALOG_NAME, "my-catalog")
+                .put(IcebergEventAttributes.CATALOG_NAME, "my-catalog")
                 .put(EventAttributes.NAMESPACE, Namespace.of("ns1"))
                 .put(EventAttributes.CATALOG, sensitiveCatalog)
                 .put(EventAttributes.HTTP_METHOD, "POST")));
@@ -91,7 +92,7 @@ class GlobalEventSanitizationTest {
     await().until(() -> testListener.events.size() == 1);
 
     PolarisEvent delivered = testListener.events.getFirst();
-    assertThat(delivered.attributes().contains(EventAttributes.CATALOG_NAME)).isTrue();
+    assertThat(delivered.attributes().contains(IcebergEventAttributes.CATALOG_NAME)).isTrue();
     assertThat(delivered.attributes().contains(EventAttributes.NAMESPACE)).isTrue();
     assertThat(delivered.attributes().contains(EventAttributes.HTTP_METHOD)).isTrue();
     assertThat(delivered.attributes().contains(EventAttributes.CATALOG)).isFalse();
@@ -120,7 +121,7 @@ class GlobalEventSanitizationTest {
             .orElseThrow();
 
     assertThat(delivered.attributes().contains(EventAttributes.CATALOG)).isFalse();
-    assertThat(delivered.attributes().get(EventAttributes.CATALOG_NAME))
+    assertThat(delivered.attributes().get(IcebergEventAttributes.CATALOG_NAME))
         .hasValue("derived-catalog");
   }
 }

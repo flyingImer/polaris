@@ -114,6 +114,7 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.exceptions.CommitConflictException;
@@ -132,15 +133,16 @@ import org.apache.polaris.core.storage.StorageAccessProperty;
 import org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegration;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.StorageProviderExceptionClassifier;
 import org.apache.polaris.extension.io.ExceptionMappingFileIO;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
-import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.listeners.TestPolarisEventListener;
 import org.apache.polaris.service.exception.FakeAzureHttpResponse;
-import org.apache.polaris.service.exception.IcebergExceptionMapper;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.task.TableCleanupTaskHandler;
 import org.apache.polaris.service.task.TaskFileIOSupplier;
@@ -183,7 +185,8 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleRequest;
 import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Credentials;
 
-public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<PolarisIcebergCatalog> {
+public abstract class AbstractLocalIcebergCatalogTest
+    extends CatalogTests<BridgeBaseMetastoreViewCatalog> {
   static {
     org.assertj.core.api.Assumptions.setPreferredAssumptionException(
         PreferredAssumptionException.JUNIT5);
@@ -243,7 +246,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   @Inject EntityResolver entityResolver;
   @Inject PolarisEventDispatcher polarisEventDispatcher;
 
-  private PolarisIcebergCatalog catalog;
+  private BridgeBaseMetastoreViewCatalog catalog;
   private String realmName;
   private PolarisCallContext polarisContext;
   private InMemoryFileIO fileIO;
@@ -338,7 +341,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   }
 
   @Override
-  protected PolarisIcebergCatalog catalog() {
+  protected BridgeBaseMetastoreViewCatalog catalog() {
     return catalog;
   }
 
@@ -350,9 +353,9 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
    * @return a configured instance of IcebergCatalog
    */
   @Override
-  protected PolarisIcebergCatalog initCatalog(
+  protected BridgeBaseMetastoreViewCatalog initCatalog(
       String catalogName, Map<String, String> additionalProperties) {
-    PolarisIcebergCatalog icebergCatalog = newIcebergCatalog(CATALOG_NAME);
+    BridgeBaseMetastoreViewCatalog icebergCatalog = newIcebergCatalog(CATALOG_NAME);
     fileIO = new InMemoryFileIO();
     icebergCatalog.setCatalogFileIo(fileIO);
     ImmutableMap.Builder<String, String> propertiesBuilder =
@@ -399,21 +402,21 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     return true;
   }
 
-  protected PolarisIcebergCatalog newIcebergCatalog(String catalogName) {
+  protected BridgeBaseMetastoreViewCatalog newIcebergCatalog(String catalogName) {
     return newIcebergCatalog(catalogName, metaStoreManager);
   }
 
-  protected PolarisIcebergCatalog newIcebergCatalog(
+  protected BridgeBaseMetastoreViewCatalog newIcebergCatalog(
       String catalogName, DurableManager metaStoreManager) {
     return newIcebergCatalog(catalogName, metaStoreManager, fileIOFactory);
   }
 
-  protected PolarisIcebergCatalog newIcebergCatalog(
+  protected BridgeBaseMetastoreViewCatalog newIcebergCatalog(
       String catalogName, DurableManager metaStoreManager, StorageIoProvider fileIOFactory) {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, catalogName);
     TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);
-    return new PolarisIcebergCatalog(
+    return new BridgeBaseMetastoreViewCatalog(
         diagServices,
         entityResolver,
         metaStoreManager,
@@ -429,7 +432,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testEmptyNamespace() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     TableIdentifier tableInRootNs = TableIdentifier.of("table");
     String expectedMessage = "Namespace does not exist: ''";
 
@@ -477,7 +480,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         requiresNamespaceCreate(),
         "Only applicable if namespaces must be created before adding children");
 
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     catalog.createNamespace(NS);
 
     Assertions.assertThat(catalog.tableExists(TABLE))
@@ -521,7 +524,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     Assumptions.assumeTrue(
         supportsNestedNamespaces(), "Only applicable if nested namespaces are supoprted");
 
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace child1 = Namespace.of("parent", "child1");
 
@@ -532,7 +535,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testConcurrentWritesWithRollbackNonEmptyTable() {
-    PolarisIcebergCatalog catalog = this.catalog();
+    BridgeBaseMetastoreViewCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -638,7 +641,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testConcurrentWritesWithRollbackWithNonReplaceSnapshotInBetween() {
-    PolarisIcebergCatalog catalog = this.catalog();
+    BridgeBaseMetastoreViewCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -708,7 +711,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   @Test
   public void
       testConcurrentWritesWithRollbackEnableWithToRollbackSnapshotReferencedByOtherBranch() {
-    PolarisIcebergCatalog catalog = this.catalog();
+    BridgeBaseMetastoreViewCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -782,7 +785,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testConcurrentWritesWithRollbackWithConcurrentWritesToDifferentBranches() {
-    PolarisIcebergCatalog catalog = this.catalog();
+    BridgeBaseMetastoreViewCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -858,7 +861,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testCommitRetriesWithRefreshOnFailure() {
-    PolarisIcebergCatalog catalog = this.catalog();
+    BridgeBaseMetastoreViewCatalog catalog = this.catalog();
     if (this.requiresNamespaceCreate()) {
       catalog.createNamespace(NS);
     }
@@ -906,7 +909,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/validate_table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -968,7 +971,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     // filename.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1004,7 +1007,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     final String tableLocation = "s3://externally-owned-bucket/validate_table/";
     final String tableMetadataLocation = tableLocation + "metadata/";
     StorageIoProvider fileIOFactory = spy(this.fileIOFactory);
-    PolarisIcebergCatalog catalog =
+    BridgeBaseMetastoreViewCatalog catalog =
         newIcebergCatalog(catalog().name(), metaStoreManager, fileIOFactory);
     catalog.initialize(
         CATALOG_NAME,
@@ -1043,7 +1046,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1087,7 +1090,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     // Use a spy so we can inject a concurrency error
     DurableManager spyMetaStore = spy(metaStoreManager);
-    PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    BridgeBaseMetastoreViewCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -1151,7 +1154,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     // The location of the metadata JSON file specified in the create will be forbidden.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1203,7 +1206,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     TableMetadata tableMetadata =
         TableMetadata.buildFromEmpty()
             .assignUUID()
@@ -1263,7 +1266,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     TableMetadata tableMetadata =
         TableMetadata.buildFromEmpty()
             .assignUUID()
@@ -1320,7 +1323,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
             .addProperty(
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(), "true")
             .build());
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     fileIO.addFile(
         tableMetadataLocation,
@@ -1389,7 +1392,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
                     .build()
                     .asCatalog(serviceIdentityProvider)));
 
-    PolarisIcebergCatalog catalog = newIcebergCatalog(catalogWithoutStorage);
+    BridgeBaseMetastoreViewCatalog catalog = newIcebergCatalog(catalogWithoutStorage);
     catalog.initialize(
         catalogWithoutStorage,
         ImmutableMap.of(
@@ -1439,7 +1442,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
                 .build()
                 .asCatalog(serviceIdentityProvider)));
 
-    PolarisIcebergCatalog catalog = newIcebergCatalog(catalogName);
+    BridgeBaseMetastoreViewCatalog catalog = newIcebergCatalog(catalogName);
     catalog.initialize(
         catalogName,
         ImmutableMap.of(
@@ -1504,7 +1507,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1548,7 +1551,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1599,7 +1602,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     // The location of the metadata JSON file specified in the update will be forbidden.
     final String tableLocation = "s3://forbidden-table-location/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1643,7 +1646,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1706,7 +1709,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1753,7 +1756,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
@@ -1788,7 +1791,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1832,7 +1835,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
     final String tableLocation = "s3://externally-owned-bucket/table/";
     final String tableMetadataLocation = tableLocation + "metadata/v1.metadata.json";
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
 
     Namespace namespace = Namespace.of("parent", "child1");
 
@@ -1926,7 +1929,8 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   @Test
   public void testDropViewWithPurge() {
     MeasuredFileIOFactory measured = new MeasuredFileIOFactory();
-    PolarisIcebergCatalog viewCatalog = newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
+    BridgeBaseMetastoreViewCatalog viewCatalog =
+        newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
     viewCatalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -1991,7 +1995,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
                     realmConfig, noPurgeStorageConfigModel, storageLocation)
                 .build()
                 .asCatalog(serviceIdentityProvider)));
-    PolarisIcebergCatalog noPurgeCatalog =
+    BridgeBaseMetastoreViewCatalog noPurgeCatalog =
         newIcebergCatalog(noPurgeCatalogName, metaStoreManager, fileIOFactory);
     noPurgeCatalog.initialize(
         noPurgeCatalogName,
@@ -2030,7 +2034,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2056,7 +2060,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2081,7 +2085,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2111,7 +2115,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2141,7 +2145,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2163,7 +2167,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2189,7 +2193,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2209,7 +2213,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
         .when(spiedManager)
         .dropEntityIfExists(any(), anyList(), any(), anyMap(), anyBoolean());
 
-    PolarisIcebergCatalog spiedCatalog =
+    BridgeBaseMetastoreViewCatalog spiedCatalog =
         newIcebergCatalog(CATALOG_NAME, spiedManager, fileIOFactory);
     spiedCatalog.initialize(
         CATALOG_NAME,
@@ -2244,7 +2248,8 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   @ParameterizedTest
   @MethodSource
   public void testRetriableException(Exception exception, boolean shouldRetry) {
-    Assertions.assertThat(PolarisIcebergCatalog.SHOULD_RETRY_REFRESH_PREDICATE.test(exception))
+    Assertions.assertThat(
+            BridgeBaseMetastoreViewCatalog.SHOULD_RETRY_REFRESH_PREDICATE.test(exception))
         .isEqualTo(shouldRetry);
   }
 
@@ -2262,7 +2267,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
                 Arguments.of(new RuntimeException(new IOException("Connection reset")), true),
                 Arguments.of(RetryableException.builder().build(), true),
                 Arguments.of(NonRetryableException.builder().build(), false)),
-            IcebergExceptionMapper.getAccessDeniedHints().stream()
+            StorageProviderExceptionClassifier.getAccessDeniedHints().stream()
                 .map(hint -> Arguments.of(new RuntimeException(hint), false)),
             cloudCodeMappings.entrySet().stream()
                 .flatMap(
@@ -2274,7 +2279,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
                                 entry.getValue()),
                             Arguments.of(
                                 new StorageException(entry.getKey(), ""), entry.getValue()))),
-            IcebergExceptionMapper.RETRYABLE_AZURE_HTTP_CODES.stream()
+            StorageProviderExceptionClassifier.RETRYABLE_AZURE_HTTP_CODES.stream()
                 .map(
                     code ->
                         Arguments.of(
@@ -2286,7 +2291,8 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   @Test
   public void testFileIOWrapper() {
     MeasuredFileIOFactory measured = new MeasuredFileIOFactory();
-    PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
+    BridgeBaseMetastoreViewCatalog catalog =
+        newIcebergCatalog(CATALOG_NAME, metaStoreManager, measured);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2335,7 +2341,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testRegisterTableWithSlashlessMetadataLocation() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Assertions.assertThatThrownBy(
             () -> catalog.registerTable(TABLE, "metadata_location_without_slashes"))
         .isInstanceOf(IllegalArgumentException.class)
@@ -2344,7 +2350,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testRegisterTableOverwriteUpdatesMetadataLocation() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Namespace namespace = Namespace.of("register_overwrite_update");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
     if (requiresNamespaceCreate()) {
@@ -2399,7 +2405,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testRegisterTableOverwriteUpdatesBaseLocation() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Namespace namespace = Namespace.of("register_overwrite_base_location");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
     if (requiresNamespaceCreate()) {
@@ -2446,7 +2452,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testRegisterTableOverwriteCreatesWhenMissing() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Namespace namespace = Namespace.of("register_overwrite_create");
     TableIdentifier sourceTable = TableIdentifier.of(namespace, "source_table");
     TableIdentifier targetTable = TableIdentifier.of(namespace, "target_table");
@@ -2472,7 +2478,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testRegisterTableOverwriteFalseRejectsExistingTable() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Namespace namespace = Namespace.of("register_overwrite_conflict");
     TableIdentifier table = TableIdentifier.of(namespace, "table");
     if (requiresNamespaceCreate()) {
@@ -2491,7 +2497,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
   public void testRegisterTableRejectsExistingView() {
     // Note: there exists a similar test in ViewCatalogTests.registerTableThatAlreadyExistsAsView,
     // but it doesn't cover register with overwrite
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     Namespace namespace = Namespace.of("register_view_conflict");
     TableIdentifier identifier = TableIdentifier.of(namespace, "entity");
     if (requiresNamespaceCreate()) {
@@ -2528,7 +2534,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
     DurableManager spyMetaStore = spy(metaStoreManager);
-    final PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    final BridgeBaseMetastoreViewCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2565,7 +2571,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     // Use a spy so that non-transactional pre-requisites succeed normally, but we inject
     // a concurrency failure at final commit.
     DurableManager spyMetaStore = spy(metaStoreManager);
-    final PolarisIcebergCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
+    final BridgeBaseMetastoreViewCatalog catalog = newIcebergCatalog(CATALOG_NAME, spyMetaStore);
     catalog.initialize(
         CATALOG_NAME,
         ImmutableMap.of(
@@ -2641,10 +2647,10 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     catalog.createNamespace(NS);
     catalog.buildTable(TABLE, SCHEMA).create();
 
-    PolarisIcebergCatalog.BasePolarisTableOperations realOps =
-        (PolarisIcebergCatalog.BasePolarisTableOperations)
+    BridgeBaseMetastoreViewCatalog.BasePolarisTableOperations realOps =
+        (BridgeBaseMetastoreViewCatalog.BasePolarisTableOperations)
             catalog.newTableOps(TABLE, updateMetadataOnCommit);
-    PolarisIcebergCatalog.BasePolarisTableOperations ops = Mockito.spy(realOps);
+    BridgeBaseMetastoreViewCatalog.BasePolarisTableOperations ops = Mockito.spy(realOps);
 
     try (MockedStatic<TableMetadataParser> mocked =
         Mockito.mockStatic(TableMetadataParser.class, Mockito.CALLS_REAL_METHODS)) {
@@ -2882,7 +2888,7 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
 
   @Test
   public void testEventsAreEmitted() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     Table table = catalog.buildTable(TestData.TABLE, TestData.SCHEMA).create();
 
@@ -2895,13 +2901,13 @@ public abstract class AbstractLocalIcebergCatalogTest extends CatalogTests<Polar
     PolarisEvent beforeRefreshEvent =
         testPolarisEventListener.getLatest(PolarisEventType.BEFORE_REFRESH_TABLE);
     Assertions.assertThat(
-            beforeRefreshEvent.attributes().getRequired(EventAttributes.TABLE_IDENTIFIER))
+            beforeRefreshEvent.attributes().getRequired(IcebergEventAttributes.TABLE_IDENTIFIER))
         .isEqualTo(TestData.TABLE);
 
     PolarisEvent afterRefreshEvent =
         testPolarisEventListener.getLatest(PolarisEventType.AFTER_REFRESH_TABLE);
     Assertions.assertThat(
-            afterRefreshEvent.attributes().getRequired(EventAttributes.TABLE_IDENTIFIER))
+            afterRefreshEvent.attributes().getRequired(IcebergEventAttributes.TABLE_IDENTIFIER))
         .isEqualTo(TestData.TABLE);
   }
 

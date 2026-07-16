@@ -69,9 +69,9 @@ import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalog;
-import org.apache.polaris.service.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.catalog.policy.PolicyCatalog;
 import org.apache.polaris.service.context.catalog.PolarisLocalCatalogFactory;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -177,7 +177,7 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected RealmContextHolder realmContextHolder;
   @Inject protected PolarisEventDispatcher polarisEventDispatcher;
 
-  protected PolarisIcebergCatalog baseCatalog;
+  protected BridgeBaseMetastoreViewCatalog baseCatalog;
   protected PolarisGenericTableCatalog genericTableCatalog;
   protected PolicyCatalog policyCatalog;
   protected PolarisAdminService adminService;
@@ -460,7 +460,7 @@ public abstract class PolarisAuthzTestBase {
     PolarisPassthroughResolutionView passthroughView =
         new PolarisPassthroughResolutionView(entityResolver, authenticatedRoot, CATALOG_NAME);
     this.baseCatalog =
-        new PolarisIcebergCatalog(
+        new BridgeBaseMetastoreViewCatalog(
             diagServices,
             entityResolver,
             metaStoreManager,

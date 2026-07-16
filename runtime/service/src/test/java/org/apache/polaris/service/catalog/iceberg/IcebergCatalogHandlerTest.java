@@ -63,6 +63,9 @@ import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.storage.StorageAccessConfig;
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
@@ -79,14 +82,15 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Unit tests for the credential-vending branches of the merged Iceberg catalog feature-SPI
- * implementation ({@link LocalIcebergCatalog}), which absorbed the retired {@code
+ * implementation ({@link PolarisIcebergCatalog}), which absorbed the retired {@code
  * IcebergCatalogHandler} (Issue 29). These drive the three {@code loadCredentials} branches the
  * handler exposed:
  *
  * <ul>
- *   <li>federated/external catalog -> full-loadTable fallback (the handler branched on {@code
- *       baseCatalog instanceof LocalIcebergCatalog}; the merged class branches on {@code
- *       isFederated}, so "external (non-Polaris)" maps to a federated catalog here)
+ *   <li>federated/external catalog -> full-loadTable fallback (the retired handler branched on
+ *       whether {@code baseCatalog} was the native local-catalog delegate (now {@link
+ *       BridgeBaseMetastoreViewCatalog}); the merged class branches on {@code isFederated}, so
+ *       "external (non-Polaris)" maps to a federated catalog here)
  *   <li>native catalog with the table location in entity internal properties -> optimized path (no
  *       loadTable on the delegate)
  *   <li>native catalog missing the location property -> full-loadTable fallback
@@ -127,7 +131,8 @@ class IcebergCatalogHandlerTest {
    *     once initialized (a mock, so the tests can verify or deny the delegated call)
    */
   @SuppressWarnings("unchecked")
-  private LocalIcebergCatalog buildMergedCatalog(boolean federated, Catalog underlyingBaseCatalog) {
+  private PolarisIcebergCatalog buildMergedCatalog(
+      boolean federated, Catalog underlyingBaseCatalog) {
     when(callContext.getRealmConfig()).thenReturn(realmConfig);
     when(callContext.getRealmContext()).thenReturn(mock(RealmContext.class));
 
@@ -187,7 +192,7 @@ class IcebergCatalogHandlerTest {
     when(authorizer.authorize(any(AuthorizationRequest.class)))
         .thenReturn(AuthorizationDecision.allow());
 
-    return new LocalIcebergCatalog(
+    return new PolarisIcebergCatalog(
         CATALOG_NAME,
         PolarisPrincipal.of("test", Map.of(), Set.of()),
         callContext,
@@ -264,7 +269,7 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    LocalIcebergCatalog catalog = buildMergedCatalog(true, externalCatalog);
+    PolarisIcebergCatalog catalog = buildMergedCatalog(true, externalCatalog);
 
     ImmutableLoadCredentialsResponse response =
         catalog.loadCredentials(TABLE2, Optional.empty()).body();
@@ -302,7 +307,7 @@ class IcebergCatalogHandlerTest {
                 .build());
     when(resolvedPath.getRawLeafEntity()).thenReturn(leafEntity);
 
-    PolarisIcebergCatalog icebergCatalog = mock(PolarisIcebergCatalog.class);
+    BridgeBaseMetastoreViewCatalog icebergCatalog = mock(BridgeBaseMetastoreViewCatalog.class);
 
     StorageAccessConfig storageAccessConfig =
         StorageAccessConfig.builder()
@@ -312,7 +317,7 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    LocalIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
+    PolarisIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
 
     ImmutableLoadCredentialsResponse response =
         catalog.loadCredentials(TABLE2, Optional.empty()).body();
@@ -362,7 +367,7 @@ class IcebergCatalogHandlerTest {
     BaseTable table = mock(BaseTable.class);
     when(table.operations()).thenReturn(ops);
 
-    PolarisIcebergCatalog icebergCatalog = mock(PolarisIcebergCatalog.class);
+    BridgeBaseMetastoreViewCatalog icebergCatalog = mock(BridgeBaseMetastoreViewCatalog.class);
     when(icebergCatalog.loadTable(TABLE2)).thenReturn(table);
 
     when(accessDelegationModeResolver.resolve(any(), any()))
@@ -376,7 +381,7 @@ class IcebergCatalogHandlerTest {
     when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
-    LocalIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
+    PolarisIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
 
     ImmutableLoadCredentialsResponse response =
         catalog.loadCredentials(TABLE2, Optional.empty()).body();

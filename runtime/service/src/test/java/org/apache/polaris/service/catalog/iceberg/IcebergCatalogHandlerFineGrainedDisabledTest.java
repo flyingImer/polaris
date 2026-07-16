@@ -43,6 +43,8 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
+import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.Profiles;
 import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
@@ -56,7 +58,7 @@ import org.junit.jupiter.api.TestFactory;
  * Test class specifically for testing fine-grained authorization when the feature is DISABLED. This
  * ensures that fine-grained privileges are properly ignored when the feature flag is off.
  *
- * <p>Drives the merged Iceberg catalog feature-SPI implementation ({@link LocalIcebergCatalog}),
+ * <p>Drives the merged Iceberg catalog feature-SPI implementation ({@link PolarisIcebergCatalog}),
  * which absorbed the retired {@code IcebergCatalogHandler} (Issue 29), via a thin {@link
  * MergedCatalogHandle} shim (a smaller copy of the one in {@code
  * AbstractIcebergCatalogHandlerAuthzTest}). The FGAC-disabled behavior is driven by the real {@link
@@ -89,11 +91,11 @@ public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTe
    * the substrate collaborators injected here plus the base class. The {@code
    * finalizeLocalCatalogProperties} override forces the in-memory FileIO the base test fixtures
    * write to (this hook replaces an {@code initialize} override since Issue 29 Rework R4 moved
-   * {@code initialize} to the composed {@code PolarisIcebergCatalog} delegate).
+   * {@code initialize} to the composed {@code BridgeBaseMetastoreViewCatalog} delegate).
    */
-  private LocalIcebergCatalog buildMergedCatalog(
+  private PolarisIcebergCatalog buildMergedCatalog(
       String catalogName, PolarisPrincipal principal, CallContext ctx) {
-    return new LocalIcebergCatalog(
+    return new PolarisIcebergCatalog(
         catalogName,
         principal,
         ctx,
@@ -126,16 +128,16 @@ public class IcebergCatalogHandlerFineGrainedDisabledTest extends PolarisAuthzTe
   }
 
   /**
-   * Thin test shim over the merged {@link LocalIcebergCatalog}: exposes the retired {@code
+   * Thin test shim over the merged {@link PolarisIcebergCatalog}: exposes the retired {@code
    * IcebergCatalogHandler#updateTable} signature the test below calls and unwraps the feature-SPI
    * PolarisResult return type, so the authz assertions are preserved verbatim. A fresh merged
    * catalog per op matches production, where {@code IcebergCatalogAdapter} builds a new instance
    * per REST request.
    */
   static final class MergedCatalogHandle {
-    private final Supplier<LocalIcebergCatalog> catalogSupplier;
+    private final Supplier<PolarisIcebergCatalog> catalogSupplier;
 
-    MergedCatalogHandle(Supplier<LocalIcebergCatalog> catalogSupplier) {
+    MergedCatalogHandle(Supplier<PolarisIcebergCatalog> catalogSupplier) {
       this.catalogSupplier = catalogSupplier;
     }
 

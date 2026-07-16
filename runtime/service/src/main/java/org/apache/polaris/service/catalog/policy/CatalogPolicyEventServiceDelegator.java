@@ -27,6 +27,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.catalog.api.PolarisCatalogPolicyApiService;
@@ -66,7 +67,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_CREATE_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.CREATE_POLICY_REQUEST, createPolicyRequest)));
     }
@@ -79,7 +80,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_CREATE_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(
                       EventAttributes.LOAD_POLICY_RESPONSE,
@@ -104,7 +105,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_LIST_POLICIES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_TYPE, policyType)));
     }
@@ -117,7 +118,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_LIST_POLICIES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_TYPE, policyType)));
     }
@@ -138,7 +139,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_LOAD_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)));
     }
@@ -150,7 +151,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_LOAD_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(
                       EventAttributes.LOAD_POLICY_RESPONSE,
@@ -174,7 +175,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_UPDATE_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.UPDATE_POLICY_REQUEST, updatePolicyRequest)));
@@ -188,7 +189,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_UPDATE_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(
                       EventAttributes.LOAD_POLICY_RESPONSE,
@@ -212,7 +213,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_DROP_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.DETACH_ALL, detachAll)));
@@ -226,7 +227,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_DROP_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.DETACH_ALL, detachAll)));
@@ -249,7 +250,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_ATTACH_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.ATTACH_POLICY_REQUEST, attachPolicyRequest)));
@@ -263,7 +264,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_ATTACH_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.ATTACH_POLICY_REQUEST, attachPolicyRequest)));
@@ -286,7 +287,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_DETACH_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.DETACH_POLICY_REQUEST, detachPolicyRequest)));
@@ -300,7 +301,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_DETACH_POLICY,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.POLICY_NAME, policyName)
                   .put(EventAttributes.DETACH_POLICY_REQUEST, detachPolicyRequest)));
@@ -325,7 +326,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.BEFORE_GET_APPLICABLE_POLICIES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.TARGET_NAME, targetName)
                   .put(EventAttributes.POLICY_TYPE, policyType)));
@@ -346,7 +347,7 @@ public class CatalogPolicyEventServiceDelegator
               PolarisEventType.AFTER_GET_APPLICABLE_POLICIES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.TARGET_NAME, targetName)
                   .put(EventAttributes.POLICY_TYPE, policyType)

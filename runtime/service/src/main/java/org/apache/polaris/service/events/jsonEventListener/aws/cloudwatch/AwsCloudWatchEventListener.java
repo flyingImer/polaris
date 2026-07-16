@@ -32,8 +32,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.function.Supplier;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
-import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.spi.feature.PolarisEventListener;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -149,7 +149,7 @@ public class AwsCloudWatchEventListener implements PolarisEventListener {
     properties.put("event_type", event.type().name());
     event
         .attributes()
-        .get(EventAttributes.TABLE_IDENTIFIER)
+        .get(IcebergEventAttributes.TABLE_IDENTIFIER)
         .map(TableIdentifier::toString)
         .ifPresent(id -> properties.put("table_identifier", id));
 

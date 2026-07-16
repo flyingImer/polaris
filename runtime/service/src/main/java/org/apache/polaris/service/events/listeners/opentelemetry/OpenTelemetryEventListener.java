@@ -49,6 +49,7 @@ import java.util.function.Function;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.polaris.core.admin.model.GrantResource;
 import org.apache.polaris.core.events.AttributeKey;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventMetadata;
 import org.apache.polaris.service.events.EventAttributes;
@@ -213,15 +214,16 @@ public class OpenTelemetryEventListener implements PolarisEventListener {
   }
 
   private enum PolarisOtelAttribute {
-    CATALOG_NAME(string(CATALOG_NAME_ATTRIBUTE_NAME, EventAttributes.CATALOG_NAME)),
+    CATALOG_NAME(string(CATALOG_NAME_ATTRIBUTE_NAME, IcebergEventAttributes.CATALOG_NAME)),
     NAMESPACE(string(NAMESPACE_ATTRIBUTE_NAME, EventAttributes.NAMESPACE, Namespace::toString)),
     NAMESPACE_FQN(string(NAMESPACE_FQN_ATTRIBUTE_NAME, EventAttributes.NAMESPACE_FQN)),
     PARENT_NAMESPACE_FQN(
         string(PARENT_NAMESPACE_FQN_ATTRIBUTE_NAME, EventAttributes.PARENT_NAMESPACE_FQN)),
     TABLE_NAME(string(TABLE_NAME_ATTRIBUTE_NAME, EventAttributes.TABLE_NAME)),
-    TABLE_IDENTIFIER(string(TABLE_IDENTIFIER_ATTRIBUTE_NAME, EventAttributes.TABLE_IDENTIFIER)),
+    TABLE_IDENTIFIER(
+        string(TABLE_IDENTIFIER_ATTRIBUTE_NAME, IcebergEventAttributes.TABLE_IDENTIFIER)),
     VIEW_NAME(string(VIEW_NAME_ATTRIBUTE_NAME, EventAttributes.VIEW_NAME)),
-    VIEW_IDENTIFIER(string(VIEW_IDENTIFIER_ATTRIBUTE_NAME, EventAttributes.VIEW_IDENTIFIER)),
+    VIEW_IDENTIFIER(string(VIEW_IDENTIFIER_ATTRIBUTE_NAME, IcebergEventAttributes.VIEW_IDENTIFIER)),
     PRINCIPAL_NAME(string(PRINCIPAL_NAME_ATTRIBUTE_NAME, EventAttributes.PRINCIPAL_NAME)),
     PRINCIPAL_ROLE_NAME(
         string(PRINCIPAL_ROLE_NAME_ATTRIBUTE_NAME, EventAttributes.PRINCIPAL_ROLE_NAME)),

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.catalog.iceberg;
+package org.apache.polaris.extension.catalog.iceberg;
 
 import static org.apache.iceberg.TableProperties.COMMIT_MAX_RETRY_WAIT_MS_DEFAULT;
 import static org.apache.iceberg.TableProperties.COMMIT_MIN_RETRY_WAIT_MS_DEFAULT;
@@ -370,7 +370,7 @@ public class CatalogHandlerUtils {
     catalog.renameTable(request.source(), request.destination());
   }
 
-  static boolean isCreate(UpdateTableRequest request) {
+  public static boolean isCreate(UpdateTableRequest request) {
     boolean isCreate =
         request.requirements().stream()
             .anyMatch(UpdateRequirement.AssertTableDoesNotExist.class::isInstance);

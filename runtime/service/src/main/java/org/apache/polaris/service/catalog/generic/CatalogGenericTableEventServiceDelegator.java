@@ -28,6 +28,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.SecurityContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.catalog.api.PolarisCatalogGenericTableApiService;
@@ -79,7 +80,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.BEFORE_CREATE_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.CREATE_GENERIC_TABLE_REQUEST, createGenericTableRequest)));
     }
@@ -97,7 +98,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.AFTER_CREATE_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(
                       EventAttributes.GENERIC_TABLE,
@@ -120,7 +121,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.BEFORE_DROP_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.GENERIC_TABLE_NAME, genericTable)));
     }
@@ -132,7 +133,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.AFTER_DROP_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.GENERIC_TABLE_NAME, genericTable)));
     }
@@ -154,7 +155,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.BEFORE_LIST_GENERIC_TABLES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)));
     }
     Response resp =
@@ -166,7 +167,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.AFTER_LIST_GENERIC_TABLES,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)));
     }
     return resp;
@@ -187,7 +188,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.BEFORE_LOAD_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(EventAttributes.GENERIC_TABLE_NAME, genericTable)));
     }
@@ -205,7 +206,7 @@ public class CatalogGenericTableEventServiceDelegator
               PolarisEventType.AFTER_LOAD_GENERIC_TABLE,
               eventMetadataFactory.create(),
               new EventAttributeMap()
-                  .put(EventAttributes.CATALOG_NAME, catalogName)
+                  .put(IcebergEventAttributes.CATALOG_NAME, catalogName)
                   .put(EventAttributes.NAMESPACE_NAME, namespace)
                   .put(
                       EventAttributes.GENERIC_TABLE,

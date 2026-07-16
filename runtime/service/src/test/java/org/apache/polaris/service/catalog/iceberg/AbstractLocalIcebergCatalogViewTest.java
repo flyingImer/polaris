@@ -45,15 +45,16 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
+import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
-import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.listeners.TestPolarisEventListener;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.test.TestData;
@@ -80,7 +81,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.mockito.Mockito;
 
 public abstract class AbstractLocalIcebergCatalogViewTest
-    extends ViewCatalogTests<PolarisIcebergCatalog> {
+    extends ViewCatalogTests<BridgeBaseMetastoreViewCatalog> {
   static {
     Assumptions.setPreferredAssumptionException(PreferredAssumptionException.JUNIT5);
   }
@@ -115,7 +116,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   @Inject StorageAccessConfigProvider storageAccessConfigProvider;
   @Inject StorageIoProvider fileIOFactory;
 
-  private PolarisIcebergCatalog catalog;
+  private BridgeBaseMetastoreViewCatalog catalog;
 
   private String realmName;
   private PolarisCallContext polarisContext;
@@ -195,7 +196,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
     testPolarisEventListener.clear();
     this.catalog =
-        new PolarisIcebergCatalog(
+        new BridgeBaseMetastoreViewCatalog(
             diagServices,
             entityResolver,
             metaStoreManager,
@@ -222,7 +223,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   }
 
   @Override
-  protected PolarisIcebergCatalog catalog() {
+  protected BridgeBaseMetastoreViewCatalog catalog() {
     return catalog;
   }
 
@@ -238,7 +239,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
 
   @Test
   public void testEventsAreEmitted() {
-    PolarisIcebergCatalog catalog = catalog();
+    BridgeBaseMetastoreViewCatalog catalog = catalog();
     catalog.createNamespace(TestData.NAMESPACE);
     View view =
         catalog
@@ -257,13 +258,13 @@ public abstract class AbstractLocalIcebergCatalogViewTest
     PolarisEvent beforeRefreshEvent =
         testPolarisEventListener.getLatest(PolarisEventType.BEFORE_REFRESH_VIEW);
     Assertions.assertThat(
-            beforeRefreshEvent.attributes().getRequired(EventAttributes.VIEW_IDENTIFIER))
+            beforeRefreshEvent.attributes().getRequired(IcebergEventAttributes.VIEW_IDENTIFIER))
         .isEqualTo(TestData.TABLE);
 
     PolarisEvent afterRefreshEvent =
         testPolarisEventListener.getLatest(PolarisEventType.AFTER_REFRESH_VIEW);
     Assertions.assertThat(
-            afterRefreshEvent.attributes().getRequired(EventAttributes.VIEW_IDENTIFIER))
+            afterRefreshEvent.attributes().getRequired(IcebergEventAttributes.VIEW_IDENTIFIER))
         .isEqualTo(TestData.TABLE);
   }
 }
