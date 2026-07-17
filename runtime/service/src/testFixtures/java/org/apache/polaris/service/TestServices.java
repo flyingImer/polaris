@@ -62,6 +62,7 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheConfig;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
+import org.apache.polaris.extension.io.DefaultStorageAccessConfigProvider;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.admin.PolarisServiceImpl;
 import org.apache.polaris.service.admin.api.PolarisCatalogsApi;
@@ -83,7 +84,6 @@ import org.apache.polaris.service.catalog.iceberg.IcebergRestCatalogEventService
 import org.apache.polaris.service.catalog.iceberg.IcebergRestConfigurationEventServiceDelegator;
 import org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogFactory;
 import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
-import org.apache.polaris.service.catalog.io.QuarkusStorageAccessConfigProvider;
 import org.apache.polaris.service.credentials.DefaultPolarisCredentialManager;
 import org.apache.polaris.service.credentials.connection.SigV4ConnectionCredentialVendor;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
@@ -304,7 +304,7 @@ public record TestServices(
           new DefaultPolarisCredentialManager(realmContext, mockCredentialVendors);
 
       StorageAccessConfigProvider storageAccessConfigProvider =
-          new QuarkusStorageAccessConfigProvider(
+          new DefaultStorageAccessConfigProvider(
               callContext, principal, realmContext, storageIntegrationProvider);
       StorageIoProvider fileIOFactory = fileIOFactorySupplier.get();
 

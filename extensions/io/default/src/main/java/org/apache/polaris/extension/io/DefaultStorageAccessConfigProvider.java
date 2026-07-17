@@ -17,7 +17,7 @@
  * under the License.
  */
 
-package org.apache.polaris.service.catalog.io;
+package org.apache.polaris.extension.io;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
@@ -52,10 +52,10 @@ import org.slf4j.LoggerFactory;
  * {@link CredentialVendingContext} from request-scoped state, and delegates to the integration.
  */
 @RequestScoped
-public class QuarkusStorageAccessConfigProvider implements StorageAccessConfigProvider {
+public class DefaultStorageAccessConfigProvider implements StorageAccessConfigProvider {
 
   private static final Logger LOGGER =
-      LoggerFactory.getLogger(QuarkusStorageAccessConfigProvider.class);
+      LoggerFactory.getLogger(DefaultStorageAccessConfigProvider.class);
 
   private final CallContext callContext;
   private final PolarisPrincipal polarisPrincipal;
@@ -63,7 +63,7 @@ public class QuarkusStorageAccessConfigProvider implements StorageAccessConfigPr
   private final PolarisStorageIntegrationProvider storageIntegrationProvider;
 
   @Inject
-  public QuarkusStorageAccessConfigProvider(
+  public DefaultStorageAccessConfigProvider(
       CallContext callContext,
       PolarisPrincipal polarisPrincipal,
       RealmContext realmContext,

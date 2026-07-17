@@ -36,6 +36,10 @@ dependencies {
   implementation("org.apache.iceberg:iceberg-core")
 
   implementation(libs.guava)
+  implementation(libs.slf4j.api)
+
+  implementation(platform(libs.opentelemetry.bom))
+  implementation("io.opentelemetry:opentelemetry-api")
 
   // Storage SDK backends loaded reflectively by CatalogUtil.loadFileIO at runtime. Kept with the
   // default IO impl so this module is a self-contained peer of provider IO extensions behind the
