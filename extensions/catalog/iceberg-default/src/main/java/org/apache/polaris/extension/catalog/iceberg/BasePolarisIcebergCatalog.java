@@ -152,7 +152,7 @@ import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
-import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ETagCarrier;
 import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
 import org.apache.polaris.spi.feature.catalog.IcebergCatalogOps;
 import org.apache.polaris.spi.feature.catalog.IcebergViewCatalogOps;
@@ -182,9 +182,13 @@ import org.slf4j.LoggerFactory;
  * half). Generic over {@code E} so a provider can extend this class with its own {@link
  * ExtensionPayload} subtype to carry operation metadata the plain Iceberg response cannot express;
  * the OSS default concrete subclass ({@code PolarisIcebergCatalog}) instantiates {@code E =
- * NoExtension}. Defines the relationship between PolarisEntities and Iceberg's business logic.
+ * ETagPayload}. {@code E} is bound to {@link ETagCarrier} too (Issue 32) so the three operations
+ * with a per-call ETag -- {@code loadTable}, {@code createTableDirect}, {@code registerTable} --
+ * can always attach it via {@link #withEtag}; every other operation just threads the
+ * constructor-supplied {@link #extensionValue} through unchanged. Defines the relationship between
+ * PolarisEntities and Iceberg's business logic.
  */
-public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
+public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETagCarrier>
     implements IcebergCatalogOps<E>, IcebergViewCatalogOps<E>, Closeable {
   private static final Logger LOGGER = LoggerFactory.getLogger(BasePolarisIcebergCatalog.class);
 
@@ -230,11 +234,23 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
   private DurableManager metaStoreManager;
 
   /**
-   * The provider-private extension payload this instance attaches to every {@link PolarisResult} /
-   * {@link ConditionalLoadOutcome} it returns. Supplied by the constructor so a subclass fixes its
-   * own {@code E}; the OSS default concrete subclass always passes {@code NoExtension.INSTANCE}.
+   * The provider-private extension payload this instance attaches to every {@link PolarisResult} it
+   * returns, for every operation EXCEPT {@code loadTable}/{@code createTableDirect}/{@code
+   * registerTable} (which each need a fresh, per-call value -- see {@link #withEtag}). Supplied by
+   * the constructor so a subclass fixes its own {@code E}; the OSS default concrete subclass always
+   * passes {@code ETagPayload.NONE}.
    */
   protected final E extensionValue;
+
+  /**
+   * Constructs a fresh {@code E} carrying {@code etag}, for the three operations ({@code
+   * loadTable}, {@code createTableDirect}, {@code registerTable}) that need a per-call extension
+   * value instead of the constructor-supplied {@link #extensionValue} (Issue 32). A generic method
+   * body can never construct an arbitrary instance of its own type parameter, so this hook exists
+   * purely to let the concrete subclass -- where {@code E} is bound to an actual type -- supply
+   * one; it needs no other collaborator, business, or authz logic.
+   */
+  protected abstract E withEtag(Optional<String> etag);
 
   // --- Issue 29: merged Iceberg catalog feature-SPI collaborators + dispatch state. Set only via
   // the feature-SPI constructor below; they stay null on the legacy view-taking constructor path,
@@ -271,7 +287,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
    * @param taskExecutor Executor we use to register cleanup task handlers
    * @param extensionValue the provider-private extension payload this instance attaches to every
    *     result it returns (the OSS default concrete subclass always passes {@code
-   *     NoExtension.INSTANCE})
+   *     ETagPayload.NONE})
    */
   public BasePolarisIcebergCatalog(
       PolarisDiagnostics diagnostics,
@@ -900,7 +916,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
               .nextPageToken(results.encodedResponseToken())
               .build();
     }
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   @Override
@@ -942,7 +958,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
               .setProperties(filteredProperties)
               .build();
     }
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   @Override
@@ -952,9 +968,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     return new PolarisResult<>(
-        catalogHandlerUtils.loadNamespace(namespaceCatalog, namespace),
-        Optional.empty(),
-        this.extensionValue);
+        catalogHandlerUtils.loadNamespace(namespaceCatalog, namespace), this.extensionValue);
   }
 
   @Override
@@ -972,7 +986,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
 
     // TODO: Just skip CatalogHandlers for this one maybe
     catalogHandlerUtils.loadNamespace(namespaceCatalog, namespace);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -982,7 +996,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     catalogHandlerUtils.dropNamespace(namespaceCatalog, namespace);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -994,7 +1008,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
 
     return new PolarisResult<>(
         catalogHandlerUtils.updateNamespaceProperties(namespaceCatalog, namespace, request),
-        Optional.empty(),
         this.extensionValue);
   }
 
@@ -1034,7 +1047,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
                     .addAll(PolarisEndpoints.getSupportedPolicyEndpoints(realmConfig))
                     .build())
             .build();
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   // ---- Issue 29 Inc 4c: table ops (transcribed from IcebergCatalogHandler). ----
@@ -1061,7 +1074,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
               .nextPageToken(results.encodedResponseToken())
               .build();
     }
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   @Override
@@ -1106,7 +1119,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
                   refreshCredentialsEndpoint)
               .build();
       return new PolarisResult<>(
-          response, etagForCreatedTable(tableIdentifier, response), this.extensionValue);
+          response, withEtag(etagForCreatedTable(tableIdentifier, response)));
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
       throw notFoundExceptionForTableLikeEntity(
@@ -1160,7 +1173,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
                 Set.of(PolarisStorageActions.ALL),
                 refreshCredentialsEndpoint)
             .build();
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   private void authorizeCreateTableStaged(
@@ -1262,8 +1275,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
                   actionsRequested,
                   refreshCredentialsEndpoint)
               .build();
-      return new PolarisResult<>(
-          response, etagForCreatedTable(identifier, response), this.extensionValue);
+      return new PolarisResult<>(response, withEtag(etagForCreatedTable(identifier, response)));
     }
 
     throw new IllegalStateException(
@@ -1322,7 +1334,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
   }
 
   @Override
-  public ConditionalLoadOutcome<LoadTableResponse, E> loadTable(
+  public PolarisResult<LoadTableResponse, E> loadTable(
       TableIdentifier tableIdentifier,
       String snapshots,
       IfNoneMatch ifNoneMatch,
@@ -1349,8 +1361,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
         String tableETag =
             IcebergHttpUtil.generateETagForMetadataFileLocation(tableEntity.getMetadataLocation());
         if (ifNoneMatch.anyMatch(tableETag)) {
-          return new ConditionalLoadOutcome.NotModified<>(
-              Optional.of(tableETag), this.extensionValue);
+          return new PolarisResult<>(null, withEtag(Optional.of(tableETag)));
         }
       }
     }
@@ -1389,8 +1400,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
             .log("Response has null metadataLocation; omitting etag");
         loadedEtag = Optional.empty();
       }
-      return new ConditionalLoadOutcome.Loaded<>(
-          new PolarisResult<>(filteredResponse, loadedEtag, this.extensionValue));
+      return new PolarisResult<>(filteredResponse, withEtag(loadedEtag));
     } else if (table instanceof BaseMetadataTable) {
       // metadata tables are loaded on the client side, return NoSuchTableException for now
       throw notFoundExceptionForTableLikeEntity(
@@ -1460,7 +1470,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     }
     return new PolarisResult<>(
         catalogHandlerUtils.updateTable(baseCatalog, tableIdentifier, applyUpdateFilters(request)),
-        Optional.empty(),
         this.extensionValue);
   }
 
@@ -1477,7 +1486,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     }
     return new PolarisResult<>(
         catalogHandlerUtils.updateTable(baseCatalog, tableIdentifier, applyUpdateFilters(request)),
-        Optional.empty(),
         this.extensionValue);
   }
 
@@ -1578,7 +1586,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     catalogHandlerUtils.dropTable(baseCatalog, tableIdentifier);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1593,7 +1601,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
       throw new BadRequestException("Cannot drop table on static-facade external catalogs.");
     }
     catalogHandlerUtils.purgeTable(baseCatalog, tableIdentifier);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1605,7 +1613,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
 
     // TODO: Just skip CatalogHandlers for this one maybe
     catalogHandlerUtils.loadTable(baseCatalog, tableIdentifier);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1620,7 +1628,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
       throw new BadRequestException("Cannot rename table on static-facade external catalogs.");
     }
     catalogHandlerUtils.renameTable(baseCatalog, request);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1751,7 +1759,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     }
 
     eventAttributeMap.put(IcebergEventAttributes.TABLE_METADATAS, tableMetadataObjs);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1771,7 +1779,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     if (isFederated) {
       return new PolarisResult<>(
           fallbackToFullLoadTable(tableIdentifier, refreshCredentialsEndpoint),
-          Optional.empty(),
           this.extensionValue);
     }
 
@@ -1793,7 +1800,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
                   + "Falling back to full loadTable path");
       return new PolarisResult<>(
           fallbackToFullLoadTable(tableIdentifier, refreshCredentialsEndpoint),
-          Optional.empty(),
           this.extensionValue);
     }
 
@@ -1823,25 +1829,25 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
           tableIdentifier);
     }
 
-    return new PolarisResult<>(responseBuilder.build(), Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(responseBuilder.build(), this.extensionValue);
   }
 
   private ImmutableLoadCredentialsResponse fallbackToFullLoadTable(
       TableIdentifier tableIdentifier, Optional<String> refreshCredentialsEndpoint) {
-    ConditionalLoadOutcome<LoadTableResponse, E> outcome =
+    // ifNoneMatch=null means loadTable can never return the not-modified (null-body) outcome.
+    LoadTableResponse response =
         loadTable(
-            tableIdentifier,
-            SNAPSHOTS_ALL,
-            null,
-            EnumSet.of(AccessDelegationMode.VENDED_CREDENTIALS),
-            refreshCredentialsEndpoint);
-    if (outcome instanceof ConditionalLoadOutcome.Loaded<LoadTableResponse, E> loaded) {
-      return ImmutableLoadCredentialsResponse.builder()
-          .credentials(loaded.result().body().credentials())
-          .build();
+                tableIdentifier,
+                SNAPSHOTS_ALL,
+                null,
+                EnumSet.of(AccessDelegationMode.VENDED_CREDENTIALS),
+                refreshCredentialsEndpoint)
+            .body();
+    if (response == null) {
+      throw new IllegalStateException(
+          "loadTable returned not-modified with ifNoneMatch=null; this is unreachable by construction");
     }
-    throw new IllegalStateException(
-        "loadTable returned NotModified with ifNoneMatch=null; this is unreachable by construction");
+    return ImmutableLoadCredentialsResponse.builder().credentials(response.credentials()).build();
   }
 
   @Override
@@ -1869,7 +1875,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
 
     polarisMetricsReporter.reportMetric(
         catalogName, resolvedCatalogId, identifier, tableId, request.report(), clock.instant());
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -1908,7 +1914,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     boolean result =
         baseCatalog instanceof SupportsNotifications notificationCatalog
             && notificationCatalog.sendNotification(identifier, request);
-    return new PolarisResult<>(result, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(result, this.extensionValue);
   }
 
   protected @Nullable IcebergTableLikeEntity getTableEntity(TableIdentifier tableIdentifier) {
@@ -2080,7 +2086,9 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
   private Optional<String> etagForCreatedTable(
       TableIdentifier tableIdentifier, LoadTableResponse response) {
     // ETag derivation moved from IcebergCatalogAdapter.tryInsertETagHeader: the merged impl now
-    // supplies the ETag first-class in the result so the adapter can become pass-through in Inc6.
+    // supplies the ETag first-class in the result so the adapter can become pass-through (Issue
+    // 29 Inc6). createTableDirect/registerTable have carried this since pre-PoC OSS (#1037); only
+    // the channel it rides changed (Issue 32: withEtag, not a dedicated PolarisResult.etag slot).
     if (response.metadataLocation() != null) {
       return Optional.of(
           IcebergHttpUtil.generateETagForMetadataFileLocation(response.metadataLocation()));
@@ -2120,7 +2128,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
               .nextPageToken(results.encodedResponseToken())
               .build();
     }
-    return new PolarisResult<>(response, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(response, this.extensionValue);
   }
 
   @Override
@@ -2136,9 +2144,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
       throw new BadRequestException("Cannot create view on static-facade external catalogs.");
     }
     return new PolarisResult<>(
-        catalogHandlerUtils.createView(viewCatalog, namespace, request),
-        Optional.empty(),
-        this.extensionValue);
+        catalogHandlerUtils.createView(viewCatalog, namespace, request), this.extensionValue);
   }
 
   @Override
@@ -2150,9 +2156,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     return new PolarisResult<>(
-        catalogHandlerUtils.registerView(viewCatalog, namespace, request),
-        Optional.empty(),
-        this.extensionValue);
+        catalogHandlerUtils.registerView(viewCatalog, namespace, request), this.extensionValue);
   }
 
   @Override
@@ -2163,9 +2167,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     return new PolarisResult<>(
-        catalogHandlerUtils.loadView(viewCatalog, viewIdentifier),
-        Optional.empty(),
-        this.extensionValue);
+        catalogHandlerUtils.loadView(viewCatalog, viewIdentifier), this.extensionValue);
   }
 
   @Override
@@ -2182,7 +2184,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     }
     return new PolarisResult<>(
         catalogHandlerUtils.updateView(viewCatalog, viewIdentifier, applyUpdateFilters(request)),
-        Optional.empty(),
         this.extensionValue);
   }
 
@@ -2194,7 +2195,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
     ensureBaseInitialized();
 
     catalogHandlerUtils.dropView(viewCatalog, viewIdentifier);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -2206,7 +2207,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
 
     // TODO: Just skip CatalogHandlers for this one maybe
     catalogHandlerUtils.loadView(viewCatalog, viewIdentifier);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 
   @Override
@@ -2221,6 +2222,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload>
       throw new BadRequestException("Cannot rename view on static-facade external catalogs.");
     }
     catalogHandlerUtils.renameView(viewCatalog, request);
-    return new PolarisResult<>(null, Optional.empty(), this.extensionValue);
+    return new PolarisResult<>(null, this.extensionValue);
   }
 }

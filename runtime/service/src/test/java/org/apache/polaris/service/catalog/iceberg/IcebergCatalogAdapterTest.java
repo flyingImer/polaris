@@ -47,9 +47,9 @@ import org.apache.polaris.core.admin.model.StorageConfigInfo;
 import org.apache.polaris.extension.catalog.iceberg.BasePolarisIcebergCatalog;
 import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.TestServices;
-import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ETagCarrier;
+import org.apache.polaris.spi.feature.catalog.ETagPayload;
 import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
-import org.apache.polaris.spi.feature.catalog.NoExtension;
 import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -268,8 +268,7 @@ public class IcebergCatalogAdapterTest {
 
     Response response =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(
-                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), NoExtension.INSTANCE)));
+            new PolarisResult<>(body, new ETagPayload(Optional.of("W/\"etag-1\""))));
 
     Assertions.assertThat(response.getStatus()).isEqualTo(200);
     Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
@@ -280,8 +279,8 @@ public class IcebergCatalogAdapterTest {
   void toLoadTableResponse_notModifiedMapsTo304WithEtagHeader() {
     Response response =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.NotModified<LoadTableResponse, NoExtension>(
-                Optional.of("W/\"etag-1\""), NoExtension.INSTANCE));
+            new PolarisResult<LoadTableResponse, ETagPayload>(
+                null, new ETagPayload(Optional.of("W/\"etag-1\""))));
 
     Assertions.assertThat(response.getStatus()).isEqualTo(304);
     Assertions.assertThat(response.getHeaderString(HttpHeaders.ETAG)).isEqualTo("W/\"etag-1\"");
@@ -290,27 +289,25 @@ public class IcebergCatalogAdapterTest {
   @Test
   void toLoadTableResponse_neverReadsProviderPayload() {
     LoadTableResponse body = Mockito.mock(LoadTableResponse.class);
-    // A poison provider extension whose access throws. The adapter reads only the OSS-carried
-    // etag, never the extension, so mapping must succeed identically with or without it.
-    ExtensionPayload sentinelExtension =
-        new ExtensionPayload() {
-          @Override
-          public String toString() {
-            throw new AssertionError("provider extension must never be read by the adapter");
-          }
-        };
+    // A poison provider extension whose toString() throws. The adapter reads only the
+    // ETagCarrier#etag() contract, never anything else about the extension, so mapping must
+    // succeed identically with or without the poison.
+    record PoisonEtagExtension(Optional<String> etag) implements ExtensionPayload, ETagCarrier {
+      @Override
+      public String toString() {
+        throw new AssertionError("provider extension must never be read beyond ETagCarrier#etag()");
+      }
+    }
 
     Response withSentinel =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(
-                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), sentinelExtension)));
-    Response withoutPayload =
+            new PolarisResult<>(body, new PoisonEtagExtension(Optional.of("W/\"etag-1\""))));
+    Response withoutPoison =
         IcebergCatalogAdapter.toLoadTableResponse(
-            new ConditionalLoadOutcome.Loaded<>(
-                new PolarisResult<>(body, Optional.of("W/\"etag-1\""), NoExtension.INSTANCE)));
+            new PolarisResult<>(body, new ETagPayload(Optional.of("W/\"etag-1\""))));
 
-    Assertions.assertThat(withSentinel.getStatus()).isEqualTo(withoutPayload.getStatus());
+    Assertions.assertThat(withSentinel.getStatus()).isEqualTo(withoutPoison.getStatus());
     Assertions.assertThat(withSentinel.getHeaderString(HttpHeaders.ETAG))
-        .isEqualTo(withoutPayload.getHeaderString(HttpHeaders.ETAG));
+        .isEqualTo(withoutPoison.getHeaderString(HttpHeaders.ETAG));
   }
 }

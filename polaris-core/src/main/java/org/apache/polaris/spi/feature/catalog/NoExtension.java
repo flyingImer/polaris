@@ -19,10 +19,15 @@
 package org.apache.polaris.spi.feature.catalog;
 
 /**
- * The empty {@link ExtensionPayload}: the OSS default catalog feature-SPI implementation has no
- * provider-private operation payload to carry, so it instantiates {@code E = NoExtension}. Use the
- * shared {@link #INSTANCE} to avoid allocation.
+ * The empty {@link ExtensionPayload}: a feature-SPI implementation with no provider-private
+ * operation payload to carry at all instantiates {@code E = NoExtension}. Carries nothing -- for a
+ * feature-SPI that needs a per-call ETag (like the Iceberg catalog), see {@link ETagPayload}
+ * instead; {@code NoExtension} is not reshaped to carry one.
  */
 public record NoExtension() implements ExtensionPayload {
+  /**
+   * The shared singleton -- {@code NoExtension} carries no per-call state, so one instance
+   * suffices.
+   */
   public static final NoExtension INSTANCE = new NoExtension();
 }

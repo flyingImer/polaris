@@ -97,11 +97,11 @@ import org.apache.polaris.service.admin.PolarisAuthzTestBase;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
-import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ETagPayload;
 import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
-import org.apache.polaris.spi.feature.catalog.NoExtension;
 import org.apache.polaris.spi.feature.catalog.NotificationRequest;
 import org.apache.polaris.spi.feature.catalog.NotificationType;
+import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.apache.polaris.spi.feature.catalog.TableUpdateNotification;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.apache.polaris.spi.substrate.TaskExecutor;
@@ -119,8 +119,8 @@ import org.mockito.Mockito;
  * <p>Each test builds the merged catalog with real principal roles + the real PolarisAuthorizer
  * (via {@link PolarisAuthzTestBase}), composed through {@code CatalogAuthorizer}, so the
  * real-authorization coverage runs on the merged path. {@link MergedCatalogHandle} is a thin test
- * shim that exposes the retired handler's method names and unwraps the feature-SPI PolarisResult /
- * ConditionalLoadOutcome return types, so the privilege matrices below stay unchanged.
+ * shim that exposes the retired handler's method names and unwraps the feature-SPI {@code
+ * PolarisResult} return type, so the privilege matrices below stay unchanged.
  *
  * <p>This class tests:
  *
@@ -204,9 +204,9 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
   /**
    * Thin test shim over the merged {@link PolarisIcebergCatalog}: exposes the retired {@code
    * IcebergCatalogHandler} method names/signatures the tests below call, and unwraps the
-   * feature-SPI PolarisResult / ConditionalLoadOutcome return types so the privilege assertions are
-   * preserved verbatim. Every call runs the real merged-catalog op with real authorization via the
-   * composed {@code CatalogAuthorizer}.
+   * feature-SPI {@code PolarisResult} return type so the privilege assertions are preserved
+   * verbatim. Every call runs the real merged-catalog op with real authorization via the composed
+   * {@code CatalogAuthorizer}.
    */
   static final class MergedCatalogHandle {
     private final Supplier<PolarisIcebergCatalog> catalogSupplier;
@@ -309,7 +309,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                   Optional.empty()));
     }
 
-    ConditionalLoadOutcome<LoadTableResponse, NoExtension> loadTableIfStale(
+    PolarisResult<LoadTableResponse, ETagPayload> loadTableIfStale(
         TableIdentifier tableIdentifier, IfNoneMatch ifNoneMatch, String snapshots) {
       return catalog()
           .loadTable(
@@ -334,7 +334,7 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
                   refreshCredentialsEndpoint));
     }
 
-    ConditionalLoadOutcome<LoadTableResponse, NoExtension> loadTableWithAccessDelegationIfStale(
+    PolarisResult<LoadTableResponse, ETagPayload> loadTableWithAccessDelegationIfStale(
         TableIdentifier tableIdentifier,
         IfNoneMatch ifNoneMatch,
         String snapshots,
@@ -418,11 +418,8 @@ public abstract class AbstractIcebergCatalogHandlerAuthzTest extends PolarisAuth
       catalog().reportMetrics(identifier, request);
     }
 
-    private static LoadTableResponse loaded(
-        ConditionalLoadOutcome<LoadTableResponse, NoExtension> outcome) {
-      return ((ConditionalLoadOutcome.Loaded<LoadTableResponse, NoExtension>) outcome)
-          .result()
-          .body();
+    private static LoadTableResponse loaded(PolarisResult<LoadTableResponse, ETagPayload> result) {
+      return result.body();
     }
   }
 

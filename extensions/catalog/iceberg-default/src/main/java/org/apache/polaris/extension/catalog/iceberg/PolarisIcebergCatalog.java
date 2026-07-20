@@ -20,6 +20,7 @@ package org.apache.polaris.extension.catalog.iceberg;
 
 import jakarta.enterprise.inject.Instance;
 import java.time.Clock;
+import java.util.Optional;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.catalog.FederatedCatalogFactory;
@@ -30,7 +31,7 @@ import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCat
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
-import org.apache.polaris.spi.feature.catalog.NoExtension;
+import org.apache.polaris.spi.feature.catalog.ETagPayload;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
@@ -43,7 +44,7 @@ import org.apache.polaris.spi.substrate.TaskExecutor;
 
 /**
  * The OSS default concrete Iceberg catalog feature-SPI implementation: {@link
- * BasePolarisIcebergCatalog} instantiated with {@code E = }{@link NoExtension} (Issue 29 Rework S
+ * BasePolarisIcebergCatalog} instantiated with {@code E = }{@link ETagPayload} (Issue 29 Rework S
  * Stage S3b). This is the class the OSS runtime actually constructs (via {@code
  * LocalIcebergCatalogFactory}); a provider that needs its own provider-private extension payload
  * extends {@link BasePolarisIcebergCatalog} directly with its own {@code ExtensionPayload} subtype
@@ -54,11 +55,11 @@ import org.apache.polaris.spi.substrate.TaskExecutor;
  * package-private). The rename is intentional -- "PolarisIcebergCatalog" now names the OSS default
  * concrete feature-SPI catalog, not the bridge.
  */
-public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<NoExtension> {
+public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<ETagPayload> {
 
   /**
    * Mirrors {@link BasePolarisIcebergCatalog}'s legacy view-taking constructor, supplying {@link
-   * NoExtension#INSTANCE} as the extension value.
+   * ETagPayload#NONE} as the extension value.
    */
   public PolarisIcebergCatalog(
       PolarisDiagnostics diagnostics,
@@ -84,12 +85,12 @@ public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<NoExtension
         storageIoProvider,
         polarisEventDispatcher,
         eventMetadataFactory,
-        NoExtension.INSTANCE);
+        ETagPayload.NONE);
   }
 
   /**
    * Mirrors {@link BasePolarisIcebergCatalog}'s feature-SPI constructor, supplying {@link
-   * NoExtension#INSTANCE} as the extension value.
+   * ETagPayload#NONE} as the extension value.
    */
   public PolarisIcebergCatalog(
       String catalogName,
@@ -135,6 +136,11 @@ public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<NoExtension
         accessDelegationModeResolver,
         polarisMetricsReporter,
         prefixParser,
-        NoExtension.INSTANCE);
+        ETagPayload.NONE);
+  }
+
+  @Override
+  protected ETagPayload withEtag(Optional<String> etag) {
+    return new ETagPayload(etag);
   }
 }

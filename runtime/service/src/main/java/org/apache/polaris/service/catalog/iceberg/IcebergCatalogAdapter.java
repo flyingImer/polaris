@@ -62,10 +62,11 @@ import org.apache.polaris.service.types.CommitTableRequest;
 import org.apache.polaris.service.types.CommitViewRequest;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
-import org.apache.polaris.spi.feature.catalog.ConditionalLoadOutcome;
+import org.apache.polaris.spi.feature.catalog.ETagCarrier;
 import org.apache.polaris.spi.feature.catalog.ExtensionPayload;
 import org.apache.polaris.spi.feature.catalog.IfNoneMatch;
 import org.apache.polaris.spi.feature.catalog.NotificationRequest;
+import org.apache.polaris.spi.feature.catalog.PolarisResult;
 import org.apache.polaris.spi.substrate.ReservedProperties;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -288,7 +289,7 @@ public class IcebergCatalogAdapter
             var result =
                 catalog.createTableDirect(
                     ns, createTableRequest, delegationModes, refreshCredentialsEndpoint);
-            return withEtagHeader(Response.ok(result.body()), result.etag()).build();
+            return withEtagHeader(Response.ok(result.body()), etagOf(result.extension())).build();
           }
         });
   }
@@ -348,27 +349,28 @@ public class IcebergCatalogAdapter
   }
 
   /**
-   * Maps the sealed conditional-load outcome to the wire-level response: {@code Loaded} becomes 200
-   * + body + ETag header, {@code NotModified} becomes 304 + ETag header. The feature-SPI impl (not
-   * this adapter) derived the etag and made the not-modified decision (ADR-0003). Package-private +
-   * static so it is directly unit-testable.
-   *
-   * <p>Reads only the OSS-carried ETag. The provider {@link ExtensionPayload} extension is
-   * managed-runtime-interpreted (ADR-0003 amendment refinement 4) and MUST NEVER be read here --
-   * enforced by {@code toLoadTableResponse_neverReadsProviderPayload} in IcebergCatalogAdapterTest.
-   * Generic over {@code E} to make that "etag-only, extension-untouched" contract hold for any
-   * provider extension type, not just the OSS {@code NoExtension}.
+   * Maps the nullable-body result to the wire-level response: a non-null {@code body} becomes 200 +
+   * body + ETag header, a {@code null} body (not-modified) becomes 304 + ETag header. The
+   * feature-SPI impl (not this adapter) derived the etag and made the not-modified decision
+   * (ADR-0003). Package-private + static so it is directly unit-testable.
    */
   static <E extends ExtensionPayload> Response toLoadTableResponse(
-      ConditionalLoadOutcome<LoadTableResponse, E> outcome) {
-    return switch (outcome) {
-      case ConditionalLoadOutcome.Loaded<LoadTableResponse, E> loaded ->
-          withEtagHeader(Response.ok(loaded.result().body()), loaded.result().etag()).build();
-      case ConditionalLoadOutcome.NotModified<LoadTableResponse, E> notModified ->
-          withEtagHeader(Response.notModified(), notModified.etag()).build();
-      default ->
-          throw new IllegalStateException("Unreachable: unknown ConditionalLoadOutcome case");
-    };
+      PolarisResult<LoadTableResponse, E> result) {
+    Response.ResponseBuilder builder =
+        result.body() != null ? Response.ok(result.body()) : Response.notModified();
+    return withEtagHeader(builder, etagOf(result.extension())).build();
+  }
+
+  /**
+   * Reads only the OSS-carried ETag, via {@code instanceof ETagCarrier} -- generic over any {@link
+   * ExtensionPayload}, not coupled to a specific subtype. The provider extension is otherwise
+   * managed-runtime-interpreted (ADR-0003 amendment refinement 4) and MUST NEVER be read beyond
+   * that -- enforced by {@code toLoadTableResponse_neverReadsProviderPayload} in
+   * IcebergCatalogAdapterTest. Shared by {@code loadTable}, {@code createTableDirect}, and {@code
+   * registerTable} (the three operations with a per-call ETag; ADR-0003, Issue 32's correction).
+   */
+  private static Optional<String> etagOf(ExtensionPayload extension) {
+    return extension instanceof ETagCarrier carrier ? carrier.etag() : Optional.empty();
   }
 
   private static Response.ResponseBuilder withEtagHeader(
@@ -458,7 +460,7 @@ public class IcebergCatalogAdapter
                   registerTableRequest,
                   delegationModes,
                   getRefreshCredentialsEndpoint(delegationModes, prefix, tableIdentifier));
-          return withEtagHeader(Response.ok(result.body()), result.etag()).build();
+          return withEtagHeader(Response.ok(result.body()), etagOf(result.extension())).build();
         });
   }
 

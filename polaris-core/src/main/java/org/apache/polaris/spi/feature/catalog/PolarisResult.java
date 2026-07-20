@@ -19,23 +19,23 @@
 package org.apache.polaris.spi.feature.catalog;
 
 import java.util.Objects;
-import java.util.Optional;
 
 /**
- * The result of a catalog feature-SPI operation: the plain Iceberg response {@code body}, the
- * OSS-carried operation freshness/ETag, and a typed provider-private {@code extension}.
- *
- * <p>Per ADR-0003 the three slots are distinct:
+ * The result of a catalog feature-SPI operation: the plain Iceberg response {@code body} and a
+ * typed provider-private {@code extension}.
  *
  * <ul>
  *   <li>{@code body} -- the unchanged Iceberg response type ({@code LoadTableResponse}, {@code
  *       ListTablesResponse}, ...), or {@code null}/{@code Void} for operations with no body.
- *   <li>{@code etag} -- OSS-carried operation metadata. The implementation supplies it (a local
- *       impl derives it from the metadata location / entity version; a federated impl supplies the
- *       remote catalog's ETag), and the runtime adapter maps it to the HTTP {@code ETag} header.
- *       The adapter reads ONLY this slot for freshness, never {@code extension}.
- *   <li>{@code extension} -- a provider-private, OSS-uninterpreted {@link ExtensionPayload}. The
- *       OSS default uses {@link NoExtension}. The runtime adapter must never inspect it.
+ *   <li>{@code extension} -- a provider-private, OSS-uninterpreted {@link ExtensionPayload}. A
+ *       feature-SPI with nothing to carry uses {@link NoExtension}; the Iceberg catalog feature-SPI
+ *       specifically binds {@code E = }{@link ETagPayload}, since per ADR-0003 {@code E} is the
+ *       universal channel for everything crossing the runtime/core boundary, including the
+ *       OSS-carried operation ETag: the implementation supplies it (a local impl derives it from
+ *       the metadata location / entity version; a federated impl passes through the remote
+ *       catalog's ETag), and the runtime adapter reads it generically via {@code instanceof
+ *       ETagCarrier} on {@code result.extension()} to map it to the HTTP {@code ETag} header. The
+ *       adapter must never otherwise inspect {@code extension}.
  * </ul>
  *
  * <p>There is no request-side generic wrapper; operation inputs stay plain parameters. This wraps
@@ -44,21 +44,14 @@ import java.util.Optional;
  * @param <O> the plain Iceberg response type
  * @param <E> the provider-private extension payload type
  */
-public record PolarisResult<O, E extends ExtensionPayload>(
-    O body, Optional<String> etag, E extension) {
+public record PolarisResult<O, E extends ExtensionPayload>(O body, E extension) {
 
   public PolarisResult {
-    Objects.requireNonNull(etag, "etag");
     Objects.requireNonNull(extension, "extension");
   }
 
-  /** An OSS-default result ({@link NoExtension}) with no ETag. */
+  /** A result with no extension payload at all ({@link NoExtension}). */
   public static <O> PolarisResult<O, NoExtension> of(O body) {
-    return new PolarisResult<>(body, Optional.empty(), NoExtension.INSTANCE);
-  }
-
-  /** An OSS-default result ({@link NoExtension}) carrying an ETag. */
-  public static <O> PolarisResult<O, NoExtension> of(O body, Optional<String> etag) {
-    return new PolarisResult<>(body, etag, NoExtension.INSTANCE);
+    return new PolarisResult<>(body, NoExtension.INSTANCE);
   }
 }

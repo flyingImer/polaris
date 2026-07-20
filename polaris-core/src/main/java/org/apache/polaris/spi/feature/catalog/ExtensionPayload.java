@@ -25,10 +25,14 @@ package org.apache.polaris.spi.feature.catalog;
  * interpret -- for example Snowflake Horizon freshness/status semantics beyond the OSS-carried
  * ETag.
  *
- * <p>The OSS default implementation uses {@link NoExtension} (nothing to carry). A provider
- * supplies its own {@code ExtensionPayload} subtype. Per ADR-0003, the runtime adapter is a pure
- * pass-through and must NEVER inspect this payload; it is interpreted only by the provider's own
- * runtime. The OSS-carried ETag is a distinct, first-class slot on {@link PolarisResult}, not part
- * of this type.
+ * <p>A pure, behaviorless marker by design -- it declares no methods. A payload type that also
+ * needs to carry an ETag composes {@link ETagCarrier} separately (see {@link ETagPayload});
+ * ETag-carrying is a general, reusable capability, not a specialization of "being an extension
+ * payload," so it is deliberately not nested under this interface.
+ *
+ * <p>The OSS default implementation uses {@link NoExtension} when there is nothing to carry, or
+ * {@link ETagPayload} for feature-SPIs (like the Iceberg catalog) that need a per-call ETag. A
+ * provider supplies its own {@code ExtensionPayload} subtype, composing {@link ETagCarrier} too if
+ * it needs to carry an ETag.
  */
 public interface ExtensionPayload {}
