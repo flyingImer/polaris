@@ -1810,7 +1810,23 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
         vendCredentials(
             tableIdentifier, tableLocations, actionsRequested, refreshCredentialsEndpoint);
     if (storageAccessConfig == null) {
-      storageAccessConfig = StorageAccessConfig.builder().build();
+      // vendCredentials returns null when findResolvedStorageEntity finds NO resolved path for this
+      // table — neither a table-like path nor a fallback namespace path. That is "not resolvable
+      // here", which is distinct from "resolved, but nothing in the hierarchy carries storage
+      // configuration" (that second case is decided downstream, inside the vending coordinator).
+      //
+      // On THIS path the client asked for credentials explicitly (loadCredentials), so an
+      // unresolvable table is an error, and supportsCredentialVending(true) below is what produces
+      // it: an empty credential set combined with `true` trips the check further down. Stated
+      // explicitly rather than inherited from the field's default, because that default silently
+      // decides observable REST behavior.
+      //
+      // The sibling path deliberately differs and must stay differing:
+      // buildLoadTableResponseWithDelegationCredentials returns early with no credentials on the
+      // same check, because there the client asked for a table and only optionally for credentials.
+      // Two different REST contracts reading one shared check. See Issue 13's locked design; the
+      // REST surface for both is frozen.
+      storageAccessConfig = StorageAccessConfig.builder().supportsCredentialVending(true).build();
     }
 
     Map<String, String> credentialConfig = storageAccessConfig.credentials();
@@ -1981,6 +1997,18 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
         CatalogUtils.findResolvedStorageEntity(resolvedEntityView, tableIdentifier);
 
     if (resolvedStoragePath == null) {
+      // findResolvedStorageEntity found NO resolved path for this table — neither a table-like path
+      // nor a fallback namespace path. That is "not resolvable here", distinct from "resolved, but
+      // nothing in the hierarchy carries storage configuration" (decided downstream in the vending
+      // coordinator).
+      //
+      // Return the table with no credentials rather than failing: on THIS path the client asked for
+      // a table and only optionally for credentials (delegation is a request, not a requirement).
+      //
+      // The sibling path deliberately differs and must stay differing: loadCredentials treats the
+      // same check as an error, because there credentials are the entire point of the call. Two
+      // different REST contracts reading one shared check. See Issue 13's locked design; the REST
+      // surface for both is frozen.
       LOGGER.debug(
           "Unable to find storage configuration information for table {}", tableIdentifier);
       return responseBuilder;
