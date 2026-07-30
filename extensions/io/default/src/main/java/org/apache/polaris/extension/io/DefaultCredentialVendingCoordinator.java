@@ -21,9 +21,13 @@ package org.apache.polaris.extension.io;
 
 import io.opentelemetry.api.trace.Span;
 import io.opentelemetry.api.trace.SpanContext;
-import jakarta.enterprise.context.RequestScoped;
+import io.smallrye.common.annotation.Identifier;
+import jakarta.enterprise.context.ApplicationScoped;
+import jakarta.enterprise.inject.Any;
+import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.List;
+import java.util.Locale;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -31,47 +35,46 @@ import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.context.CallContext;
-import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.PolarisEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.storage.CredentialVendingContext;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
+import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageAccessConfig;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
+import org.apache.polaris.core.storage.StorageCredentialVendorFactory;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * Request-scoped entry point for vending scoped storage credentials. Resolves the storage
- * integration for the given entity path via {@link PolarisStorageIntegrationProvider}, builds a
- * {@link CredentialVendingContext} from request-scoped state, and delegates to the integration.
+ * Default entry point for vending scoped storage credentials. Resolves the storage-config-bearing
+ * entity for the given entity path, derives a string key from its storage type, selects the
+ * matching {@link StorageCredentialVendorFactory} out of the {@code @Any} CDI instances registered
+ * for that key, builds a {@link CredentialVendingContext} from the per-call caller/realm state, and
+ * delegates to the fresh vendor the factory returns.
+ *
+ * <p>Application-scoped rather than request-scoped: the only collaborator held at construction is
+ * the {@code Instance<StorageCredentialVendorFactory>} lookup, which is itself request-agnostic
+ * (each {@code createVendor} call is independent). The request-scoped state a given call needs
+ * (call context, principal) travels as method parameters instead of injected fields.
  */
-@RequestScoped
-public class DefaultStorageAccessConfigProvider implements StorageAccessConfigProvider {
+@ApplicationScoped
+public class DefaultCredentialVendingCoordinator implements CredentialVendingCoordinator {
 
   private static final Logger LOGGER =
-      LoggerFactory.getLogger(DefaultStorageAccessConfigProvider.class);
+      LoggerFactory.getLogger(DefaultCredentialVendingCoordinator.class);
 
-  private final CallContext callContext;
-  private final PolarisPrincipal polarisPrincipal;
-  private final RealmContext realmContext;
-  private final PolarisStorageIntegrationProvider storageIntegrationProvider;
+  private final Instance<StorageCredentialVendorFactory> vendorFactories;
 
   @Inject
-  public DefaultStorageAccessConfigProvider(
-      CallContext callContext,
-      PolarisPrincipal polarisPrincipal,
-      RealmContext realmContext,
-      PolarisStorageIntegrationProvider storageIntegrationProvider) {
-    this.callContext = callContext;
-    this.polarisPrincipal = polarisPrincipal;
-    this.realmContext = realmContext;
-    this.storageIntegrationProvider = storageIntegrationProvider;
+  public DefaultCredentialVendingCoordinator(
+      @Any Instance<StorageCredentialVendorFactory> vendorFactories) {
+    this.vendorFactories = vendorFactories;
   }
 
   @Override
@@ -80,7 +83,9 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
       @NonNull Set<String> tableLocations,
       @NonNull Set<PolarisStorageActions> storageActions,
       @NonNull Optional<String> refreshCredentialsEndpoint,
-      @NonNull PolarisResolvedPathWrapper resolvedPath) {
+      @NonNull PolarisResolvedPathWrapper resolvedPath,
+      @NonNull CallContext callContext,
+      @NonNull PolarisPrincipal principal) {
     LOGGER
         .atDebug()
         .addKeyValue("tableIdentifier", tableIdentifier)
@@ -92,7 +97,9 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
             resolvedPath.getRawFullPath(),
             tableLocations,
             storageActions,
-            refreshCredentialsEndpoint);
+            refreshCredentialsEndpoint,
+            callContext,
+            principal);
 
     LOGGER
         .atDebug()
@@ -110,7 +117,9 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
       @NonNull List<PolarisEntity> resolvedEntityPath,
       @NonNull Set<String> locations,
       @NonNull Set<PolarisStorageActions> storageActions,
-      @NonNull Optional<String> refreshCredentialsEndpoint) {
+      @NonNull Optional<String> refreshCredentialsEndpoint,
+      @NonNull CallContext callContext,
+      @NonNull PolarisPrincipal principal) {
 
     boolean skipCredentialSubscopingIndirection =
         callContext
@@ -120,29 +129,43 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
       return StorageAccessConfig.builder().supportsCredentialVending(false).build();
     }
 
-    PolarisStorageIntegration integration =
-        storageIntegrationProvider.getStorageIntegration(resolvedEntityPath);
-    if (integration == null) {
+    Optional<PolarisEntity> resolvedStorageEntity =
+        PolarisStorageConfigurationInfo.findStorageInfoFromHierarchy(resolvedEntityPath);
+    if (resolvedStorageEntity.isEmpty()) {
       return StorageAccessConfig.builder().supportsCredentialVending(false).build();
     }
 
+    PolarisEntity storageEntity = resolvedStorageEntity.get();
+    PolarisStorageConfigurationInfo storageConfig =
+        PolarisStorageConfigurationInfo.deserialize(
+            storageEntity
+                .getInternalPropertiesAsMap()
+                .get(PolarisEntityConstants.getStorageConfigInfoPropertyName()));
+    String storageTypeKey = storageConfig.getStorageType().name().toLowerCase(Locale.ROOT);
+
+    Instance<StorageCredentialVendorFactory> selectedFactory =
+        vendorFactories.select(Identifier.Literal.of(storageTypeKey));
+    if (selectedFactory.isUnsatisfied()) {
+      return StorageAccessConfig.builder().supportsCredentialVending(false).build();
+    }
+
+    StorageCredentialVendor vendor = selectedFactory.get().createVendor(storageEntity);
+
     CredentialVendingContext credentialVendingContext =
-        buildCredentialVendingContext(resolvedEntityPath);
+        buildCredentialVendingContext(resolvedEntityPath, callContext, principal);
 
     // Non-delegated loadTable still calls in here to fetch storage extra-properties
-    // (endpoint/region/path-style) and passes no actions; treat that as a READ grant so
-    // the integration emits a well-formed inline policy rather than calling STS empty-handed.
-    Set<PolarisStorageActions> effectiveActions =
-        storageActions.isEmpty() ? Set.of(PolarisStorageActions.READ) : storageActions;
-
-    return integration.getStorageAccessConfig(
-        List.of(new LocationGrant(locations, effectiveActions)),
+    // (endpoint/region/path-style) and passes no actions. An empty-actions grant is normalized to
+    // a READ grant by the vendor contract itself (see
+    // StorageCredentialVendor#normalizeEmptyActionsToRead), so it is passed straight through here.
+    return vendor.getStorageAccessConfig(
+        List.of(new LocationGrant(locations, storageActions)),
         refreshCredentialsEndpoint,
         credentialVendingContext);
   }
 
   private CredentialVendingContext buildCredentialVendingContext(
-      List<PolarisEntity> resolvedEntityPath) {
+      List<PolarisEntity> resolvedEntityPath, CallContext callContext, PolarisPrincipal principal) {
     CredentialVendingContext.Builder builder = CredentialVendingContext.builder();
 
     List<String> sessionTagFields =
@@ -150,7 +173,7 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
             .getRealmConfig()
             .getConfig(FeatureConfiguration.SESSION_TAGS_IN_SUBSCOPED_CREDENTIAL);
 
-    builder.realm(Optional.of(realmContext.getRealmIdentifier()));
+    builder.realm(Optional.of(callContext.getRealmContext().getRealmIdentifier()));
 
     if (!resolvedEntityPath.isEmpty()) {
       // First entity is the catalog
@@ -173,9 +196,9 @@ public class DefaultStorageAccessConfigProvider implements StorageAccessConfigPr
       }
     }
 
-    builder.principalName(Optional.of(polarisPrincipal.getName()));
+    builder.principalName(Optional.of(principal.getName()));
 
-    Set<String> roles = polarisPrincipal.getRoles();
+    Set<String> roles = principal.getRoles();
     if (roles != null && !roles.isEmpty()) {
       String rolesString = roles.stream().sorted().collect(Collectors.joining(","));
       builder.activatedRoles(Optional.of(rolesString));

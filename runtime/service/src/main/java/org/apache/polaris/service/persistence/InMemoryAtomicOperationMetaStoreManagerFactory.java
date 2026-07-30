@@ -25,7 +25,6 @@ import java.time.Clock;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 import org.apache.polaris.spi.durable.DurableManager;
 
 /**
@@ -39,16 +38,13 @@ public class InMemoryAtomicOperationMetaStoreManagerFactory
 
   @SuppressWarnings("unused") // Required by CDI
   protected InMemoryAtomicOperationMetaStoreManagerFactory() {
-    this(null, null, null, null);
+    this(null, null, null);
   }
 
   @Inject
   public InMemoryAtomicOperationMetaStoreManagerFactory(
-      Clock clock,
-      PolarisDiagnostics diagnostics,
-      PolarisStorageIntegrationProvider storageIntegration,
-      RootCredentialsSet rootCredentialsSet) {
-    super(clock, diagnostics, storageIntegration, rootCredentialsSet);
+      Clock clock, PolarisDiagnostics diagnostics, RootCredentialsSet rootCredentialsSet) {
+    super(clock, diagnostics, rootCredentialsSet);
   }
 
   @Override

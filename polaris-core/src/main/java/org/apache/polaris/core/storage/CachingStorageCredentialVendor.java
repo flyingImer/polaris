@@ -41,14 +41,14 @@ import org.jspecify.annotations.Nullable;
  *
  * @param <T> the concrete type of {@link PolarisStorageConfigurationInfo} this integration supports
  */
-public abstract class CachingStorageIntegration<T extends PolarisStorageConfigurationInfo>
-    implements PolarisStorageIntegration {
+public abstract class CachingStorageCredentialVendor<T extends PolarisStorageConfigurationInfo>
+    implements StorageCredentialVendor {
 
   @Nullable private final StorageCredentialCache cache;
   private final RealmConfig realmConfig;
   private final T storageConfig;
 
-  protected CachingStorageIntegration(
+  protected CachingStorageCredentialVendor(
       @Nullable StorageCredentialCache cache,
       @NonNull RealmConfig realmConfig,
       @NonNull T storageConfig) {

@@ -80,7 +80,7 @@ public interface AwsStorageCredentialCacheKey extends StorageCredentialCacheKey 
 
   @Override
   default StorageAccessConfig load() {
-    return AwsCredentialsStorageIntegration.compute(this);
+    return AwsStorageCredentialVendor.compute(this);
   }
 
   static AwsStorageCredentialCacheKey of(

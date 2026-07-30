@@ -43,7 +43,7 @@ import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -529,7 +529,7 @@ public abstract class AbstractTransactionalPersistence implements TransactionalP
   /** {@inheritDoc} */
   @Override
   @Nullable
-  public PolarisStorageIntegration createStorageIntegration(
+  public StorageCredentialVendor createStorageIntegration(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
       long entityId,
@@ -546,7 +546,7 @@ public abstract class AbstractTransactionalPersistence implements TransactionalP
   public void persistStorageIntegrationIfNeeded(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisBaseEntity entity,
-      @Nullable PolarisStorageIntegration storageIntegration) {
+      @Nullable StorageCredentialVendor storageIntegration) {
     runActionInTransaction(
         callCtx,
         () ->

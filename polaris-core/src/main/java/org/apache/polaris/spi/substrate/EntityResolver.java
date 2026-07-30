@@ -19,9 +19,9 @@
 package org.apache.polaris.spi.substrate;
 
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
-import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolutionRequest;
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
+import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.jspecify.annotations.NonNull;
 
 /**

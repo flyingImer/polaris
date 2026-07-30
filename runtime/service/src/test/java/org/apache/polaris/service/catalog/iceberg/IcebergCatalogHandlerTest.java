@@ -67,6 +67,7 @@ import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCat
 import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
@@ -80,7 +81,6 @@ import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.junit.jupiter.api.Test;
@@ -119,13 +119,13 @@ class IcebergCatalogHandlerTest {
   private final RealmConfig realmConfig = mock(RealmConfig.class);
   private final AccessDelegationModeResolver accessDelegationModeResolver =
       mock(AccessDelegationModeResolver.class);
-  private final StorageAccessConfigProvider storageAccessConfigProvider =
-      mock(StorageAccessConfigProvider.class);
+  private final CredentialVendingCoordinator storageAccessConfigProvider =
+      mock(CredentialVendingCoordinator.class);
 
   /**
-   * Two-argument form for the tests that need the catalog's operational {@code
-   * resolvedEntityView} to be the same instance the authorizer populated, exactly as the real
-   * {@code ensureBaseInitialized} does (BasePolarisIcebergCatalog.java:764).
+   * Two-argument form for the tests that need the catalog's operational {@code resolvedEntityView}
+   * to be the same instance the authorizer populated, exactly as the real {@code
+   * ensureBaseInitialized} does (BasePolarisIcebergCatalog.java:764).
    */
   private PolarisIcebergCatalog buildMergedCatalog(
       boolean federated, Catalog underlyingBaseCatalog) {
@@ -149,10 +149,10 @@ class IcebergCatalogHandlerTest {
    *     shares one instance (BasePolarisIcebergCatalog.java:764), and
    *     CatalogUtils.findResolvedStorageEntity's first lookup is byte-for-byte the one {@code
    *     CatalogAuthorizer.authorizeBasicTableLikeOperation} already made and threw {@code
-   *     NoSuchTableException} on -- so on a shared view, authorization passing implies that
-   *     lookup is non-null. Diverging the two references is the only seam that reaches the "no
-   *     resolved storage entity" branch at all; that branch is otherwise unreachable through
-   *     every public entry point (defensive code), which is what {@link
+   *     NoSuchTableException} on -- so on a shared view, authorization passing implies that lookup
+   *     is non-null. Diverging the two references is the only seam that reaches the "no resolved
+   *     storage entity" branch at all; that branch is otherwise unreachable through every public
+   *     entry point (defensive code), which is what {@link
    *     #loadCredentialsErrorsWhenNoStorageEntityResolves} and {@link
    *     #loadTableWithDelegationReturnsTableWithoutCredentialsWhenNoStorageEntityResolves}
    *     deliberately pin.
@@ -298,7 +298,8 @@ class IcebergCatalogHandlerTest {
             .putCredential("fake.access.key", "AKIAFAKE")
             .putCredential("fake.secret.key", "fakeSecret")
             .build();
-    when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
+    when(storageAccessConfigProvider.getStorageAccessConfig(
+            any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
     PolarisIcebergCatalog catalog = buildMergedCatalog(true, externalCatalog);
@@ -346,7 +347,8 @@ class IcebergCatalogHandlerTest {
             .putCredential("fake.access.key", "AKIAFAKE")
             .putCredential("fake.secret.key", "fakeSecret")
             .build();
-    when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
+    when(storageAccessConfigProvider.getStorageAccessConfig(
+            any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
     PolarisIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
@@ -410,7 +412,8 @@ class IcebergCatalogHandlerTest {
             .putCredential("fake.access.key", "AKIAFAKE")
             .putCredential("fake.secret.key", "fakeSecret")
             .build();
-    when(storageAccessConfigProvider.getStorageAccessConfig(any(), any(), any(), any(), any()))
+    when(storageAccessConfigProvider.getStorageAccessConfig(
+            any(), any(), any(), any(), any(), any(), any()))
         .thenReturn(storageAccessConfig);
 
     PolarisIcebergCatalog catalog = buildMergedCatalog(false, icebergCatalog);
@@ -435,8 +438,8 @@ class IcebergCatalogHandlerTest {
    * this chain (CatalogAuthorizer.java:117-118) -- over a second snapshot, so the null that
    * CatalogUtils.findResolvedStorageEntity sees comes from real view semantics, not a mock default.
    *
-   * @param tableLikeLeaf leaf for ResolvedPathKey.ofTableLike(TABLE2), or null for an EMPTY path map
-   *     (neither a table-like path nor a namespace path resolves)
+   * @param tableLikeLeaf leaf for ResolvedPathKey.ofTableLike(TABLE2), or null for an EMPTY path
+   *     map (neither a table-like path nor a namespace path resolves)
    */
   private PolarisResolutionManifestCatalogView divergentOperationalView(
       PolarisEntity tableLikeLeaf) {
@@ -480,7 +483,8 @@ class IcebergCatalogHandlerTest {
             new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS),
             null,
             List.of(),
-            resolvedCatalogEntity, // bare CATALOG -> isPassthroughFacade() false (CatalogEntity.java
+            resolvedCatalogEntity, // bare CATALOG -> isPassthroughFacade() false
+            // (CatalogEntity.java
             // :227-230 keys on the connection-config-info internal property), so BOTH the
             // partial-path rule and the ICEBERG_TABLE subtype filter stay live
             null,
@@ -499,10 +503,10 @@ class IcebergCatalogHandlerTest {
    * <p>This branch is defensive: authorizeLoadTable makes the identical ICEBERG_TABLE-filtered
    * lookup first, on the view the catalog normally shares with the authorizer, and throws
    * NoSuchTableException on the same null before this method's own check would ever run. So the
-   * fixture below deliberately diverges the catalog's operational view from the authorizer's
-   * (see {@link #buildMergedCatalog(boolean, Catalog, PolarisResolutionManifestCatalogView)}) to
-   * reach the branch at all. The pin is "if this branch is ever reached, here is the contract" --
-   * both existing REST behaviors on this shared check are frozen (Issue 13's locked design).
+   * fixture below deliberately diverges the catalog's operational view from the authorizer's (see
+   * {@link #buildMergedCatalog(boolean, Catalog, PolarisResolutionManifestCatalogView)}) to reach
+   * the branch at all. The pin is "if this branch is ever reached, here is the contract" -- both
+   * existing REST behaviors on this shared check are frozen (Issue 13's locked design).
    */
   @Test
   void loadCredentialsErrorsWhenNoStorageEntityResolves() {
@@ -544,7 +548,7 @@ class IcebergCatalogHandlerTest {
     // Proof the error came from the unresolvable-path branch and not from the vendor: the config
     // was fabricated locally, and the optimized path was taken (no full loadTable fallback).
     verify(storageAccessConfigProvider, never())
-        .getStorageAccessConfig(any(), any(), any(), any(), any());
+        .getStorageAccessConfig(any(), any(), any(), any(), any(), any(), any());
     verify(icebergCatalog, never()).loadTable(any());
   }
 
@@ -557,9 +561,10 @@ class IcebergCatalogHandlerTest {
    *
    * <p>Same defensive-branch caveat as {@link #loadCredentialsErrorsWhenNoStorageEntityResolves}:
    * this branch is unreachable through the public entry point on the authorizer's own view (the
-   * table-like lookup authorizeLoadTable makes is the same one CatalogUtils.findResolvedStorageEntity
-   * makes), so the fixture diverges the catalog's operational view from the authorizer's. Both
-   * existing REST behaviors on this shared check are frozen (Issue 13's locked design).
+   * table-like lookup authorizeLoadTable makes is the same one
+   * CatalogUtils.findResolvedStorageEntity makes), so the fixture diverges the catalog's
+   * operational view from the authorizer's. Both existing REST behaviors on this shared check are
+   * frozen (Issue 13's locked design).
    */
   @Test
   void loadTableWithDelegationReturnsTableWithoutCredentialsWhenNoStorageEntityResolves() {
@@ -569,9 +574,11 @@ class IcebergCatalogHandlerTest {
     // Only metadataFileLocation() is stubbed: LoadTableResponse.Builder#withTableMetadata reads it,
     // and response.metadataLocation() is the only observable proof the response carries OUR table
     // (LoadTableResponse#tableMetadata() lazily REBUILDS via TableMetadata.buildFrom(metadata), so
-    // asserting on a mock's rebuilt tableMetadata() is not meaningful here). location()/properties()
+    // asserting on a mock's rebuilt tableMetadata() is not meaningful here).
+    // location()/properties()
     // are left UNSTUBBED on purpose as tripwires: if the early return were ever removed,
-    // StorageUtil.getLocationsUsedByTable(tableMetadata) would NPE loudly on the null properties map
+    // StorageUtil.getLocationsUsedByTable(tableMetadata) would NPE loudly on the null properties
+    // map
     // rather than silently proceed.
     TableMetadata metadata = mock(TableMetadata.class);
     when(metadata.metadataFileLocation()).thenReturn(metadataFileLocation);
@@ -605,6 +612,6 @@ class IcebergCatalogHandlerTest {
     verify(icebergCatalog).loadTable(TABLE2);
     // The early return happened: no vendor call, so nothing could have attached credentials.
     verify(storageAccessConfigProvider, never())
-        .getStorageAccessConfig(any(), any(), any(), any(), any());
+        .getStorageAccessConfig(any(), any(), any(), any(), any(), any(), any());
   }
 }

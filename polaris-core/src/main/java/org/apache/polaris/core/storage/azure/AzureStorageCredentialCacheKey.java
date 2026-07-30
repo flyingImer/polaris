@@ -67,7 +67,7 @@ public interface AzureStorageCredentialCacheKey extends StorageCredentialCacheKe
 
   @Override
   default StorageAccessConfig load() {
-    return AzureCredentialsStorageIntegration.compute(this);
+    return AzureStorageCredentialVendor.compute(this);
   }
 
   static AzureStorageCredentialCacheKey of(

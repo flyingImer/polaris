@@ -163,7 +163,7 @@ ill-formed ARN is rejected at catalog creation time.
 
 When the bucket uses SSE-KMS, supply both `currentKmsKey` (the key Polaris should use for writes)
 and `allowedKmsKeys` (every key the catalog is allowed to read from). The two fields are processed
-independently in `AwsCredentialsStorageIntegration`, so the write key must be included in
+independently in `AwsStorageCredentialVendor`, so the write key must be included in
 `allowedKmsKeys` as well if you want it readable through vended credentials:
 
 ```json

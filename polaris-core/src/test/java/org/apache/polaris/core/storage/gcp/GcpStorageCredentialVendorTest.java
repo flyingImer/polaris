@@ -83,7 +83,7 @@ import org.junit.jupiter.params.provider.MethodSource;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
-class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
+class GcpStorageCredentialVendorTest extends BaseStorageIntegrationTest {
 
   private final String gcsServiceKeyJsonFileLocation =
       System.getenv("GOOGLE_APPLICATION_CREDENTIALS");
@@ -214,8 +214,8 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
             .addAllAllowedLocations(allowedReadLoc)
             .addAllAllowedLocations(allowedWriteLoc)
             .build();
-    GcpCredentialsStorageIntegration gcpCredsIntegration =
-        new GcpCredentialsStorageIntegration(
+    GcpStorageCredentialVendor gcpCredsIntegration =
+        new GcpStorageCredentialVendor(
             GoogleCredentials.getApplicationDefault(),
             ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new),
             gcpConfig,
@@ -230,7 +230,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   }
 
   private JsonNode readResource(String name) throws IOException {
-    try (InputStream in = GcpCredentialsStorageIntegrationTest.class.getResourceAsStream(name)) {
+    try (InputStream in = GcpStorageCredentialVendorTest.class.getResourceAsStream(name)) {
       return MAPPER.readTree(in);
     }
   }
@@ -254,7 +254,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundary() throws IOException {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/path/to/data"),
             Set.of("gs://bucket1/path/to/data"),
             Set.of("gs://bucket1/path/to/data"));
@@ -267,7 +267,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundaryWithMultipleBuckets() throws IOException {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of(
                 "gs://bucket1/normal/path/to/data",
                 "gs://bucket1/awesome/path/to/data",
@@ -286,7 +286,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundaryWithoutList() throws IOException {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/path/to/data", "gs://bucket1/another/path/to/data"),
             Set.of(),
             Set.of("gs://bucket1/path/to/data"));
@@ -299,7 +299,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundaryWithoutWrites() throws IOException {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/normal/path/to/data", "gs://bucket1/awesome/path/to/data"),
             Set.of(),
             Set.of());
@@ -313,7 +313,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   public void testGenerateAccessBoundaryQuotesCelLiteralCharacters() {
     String path = "a'b\"c\\d";
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/" + path),
             Set.of("gs://bucket1/" + path),
             Set.of("gs://bucket1/" + path));
@@ -348,14 +348,14 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
         "a\tb|a\\tb",
       })
   public void testQuoteForCelString(String input, String expectedOutput) {
-    assertThat(GcpCredentialsStorageIntegration.escapeCelLiteral(input)).isEqualTo(expectedOutput);
+    assertThat(GcpStorageCredentialVendor.escapeCelLiteral(input)).isEqualTo(expectedOutput);
   }
 
   @ParameterizedTest
   @MethodSource("handledControlCharacterCases")
   public void testQuoteForCelStringEscapesHandledControlCharacters(
       String input, String expectedOutput) {
-    assertThat(GcpCredentialsStorageIntegration.escapeCelLiteral(input)).isEqualTo(expectedOutput);
+    assertThat(GcpStorageCredentialVendor.escapeCelLiteral(input)).isEqualTo(expectedOutput);
   }
 
   private static Stream<Arguments> handledControlCharacterCases() {
@@ -373,13 +373,13 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @ParameterizedTest
   @ValueSource(strings = {"\uD83D\uDE00", "prefix-\uD834\uDD1E-suffix"})
   public void testQuoteForCelStringPreservesValidSurrogatePairs(String input) {
-    assertThat(GcpCredentialsStorageIntegration.escapeCelLiteral(input)).isEqualTo(input);
+    assertThat(GcpStorageCredentialVendor.escapeCelLiteral(input)).isEqualTo(input);
   }
 
   @ParameterizedTest
   @MethodSource("unpairedSurrogateCases")
   public void testQuoteForCelStringRejectsUnpairedSurrogates(String input) {
-    Assertions.assertThatThrownBy(() -> GcpCredentialsStorageIntegration.escapeCelLiteral(input))
+    Assertions.assertThatThrownBy(() -> GcpStorageCredentialVendor.escapeCelLiteral(input))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Unsupported unpaired surrogate");
   }
@@ -397,7 +397,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   public void testQuoteForCelStringRejectsUnsupportedControlCharacters(int codePoint) {
     String input = "a" + (char) codePoint + "b";
 
-    Assertions.assertThatThrownBy(() -> GcpCredentialsStorageIntegration.escapeCelLiteral(input))
+    Assertions.assertThatThrownBy(() -> GcpStorageCredentialVendor.escapeCelLiteral(input))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Unsupported control character");
   }
@@ -406,7 +406,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   public void testGenerateAccessBoundaryRejectsUnsupportedCelLiteralCharacters() {
     Assertions.assertThatThrownBy(
             () ->
-                GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+                GcpStorageCredentialVendor.generateAccessBoundaryRules(
                     Set.of("gs://bucket1/a\u001fb"), Set.of("gs://bucket1/a\u001fb"), Set.of()))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Unsupported control character");
@@ -415,7 +415,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundaryPreservesLiteralQuestionMarksInPath() {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/path/to/data?with?question"),
             Set.of("gs://bucket1/path/to/data?with?question"),
             Set.of());
@@ -481,8 +481,8 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
             return new AccessToken("downscoped-token", new Date());
           }
         };
-    GcpCredentialsStorageIntegration integration =
-        new GcpCredentialsStorageIntegration(
+    GcpStorageCredentialVendor integration =
+        new GcpStorageCredentialVendor(
             mockCreds,
             ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new),
             config,
@@ -502,21 +502,20 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
                     request
                             .getName()
                             .equals(
-                                GcpCredentialsStorageIntegration.SERVICE_ACCOUNT_PREFIX
-                                    + serviceAccount)
+                                GcpStorageCredentialVendor.SERVICE_ACCOUNT_PREFIX + serviceAccount)
                         && request.getScopeCount() > 0
                         && request
                             .getScope(0)
-                            .equals(GcpCredentialsStorageIntegration.IMPERSONATION_SCOPE)));
+                            .equals(GcpStorageCredentialVendor.IMPERSONATION_SCOPE)));
   }
 
   @Test
   public void testGenerateAccessBoundaryNormalizesTrailingSlashConsistently() {
     CredentialAccessBoundary noSlash =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/data"), Set.of("gs://bucket1/data"), Set.of("gs://bucket1/data"));
     CredentialAccessBoundary withSlash =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/data/"),
             Set.of("gs://bucket1/data/"),
             Set.of("gs://bucket1/data/"));
@@ -529,7 +528,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   public void testGenerateAccessBoundaryAppendsTrailingSlashToGuardAgainstSiblingAccess() {
     CredentialAccessBoundary credentialAccessBoundary =
-        GcpCredentialsStorageIntegration.generateAccessBoundaryRules(
+        GcpStorageCredentialVendor.generateAccessBoundaryRules(
             Set.of("gs://bucket1/data"), Set.of("gs://bucket1/data"), Set.of("gs://bucket1/data"));
 
     ObjectMapper mapper = JsonMapper.builder().build();
@@ -542,6 +541,52 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
                 + ".startsWith('data/')");
     assertThat(expressionAt(parsedRules, 1))
         .isEqualTo("resource.name.startsWith('projects/_/buckets/bucket1/objects/data/')");
+  }
+
+  /**
+   * Pins the {@link org.apache.polaris.core.storage.StorageCredentialVendor} contract: a {@link
+   * LocationGrant} with an empty {@link LocationGrant#actions()} set must produce the exact same
+   * read/list/write location sets in the built {@link GcpStorageCredentialCacheKey} as an explicit
+   * {@link PolarisStorageActions#READ} grant on the same location.
+   */
+  @Test
+  public void testEmptyActionsGrantNormalizesToReadInCacheKey() {
+    GoogleCredentials mockCreds = Mockito.mock(GoogleCredentials.class);
+    Mockito.when(mockCreds.createScoped(Mockito.any(String.class))).thenReturn(mockCreds);
+    GcpStorageConfigurationInfo config =
+        GcpStorageConfigurationInfo.builder().addAllowedLocation("gs://bucket/path").build();
+    GcpStorageCredentialVendor vendor =
+        new GcpStorageCredentialVendor(
+            mockCreds,
+            ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new),
+            config,
+            EMPTY_REALM_CONFIG);
+
+    GcpStorageCredentialCacheKey emptyActionsKey =
+        (GcpStorageCredentialCacheKey)
+            vendor.buildCacheKey(
+                List.of(new LocationGrant(Set.of("gs://bucket/path"), Set.of())),
+                Optional.empty(),
+                CredentialVendingContext.empty());
+    GcpStorageCredentialCacheKey explicitReadKey =
+        (GcpStorageCredentialCacheKey)
+            vendor.buildCacheKey(
+                List.of(
+                    new LocationGrant(
+                        Set.of("gs://bucket/path"), Set.of(PolarisStorageActions.READ))),
+                Optional.empty(),
+                CredentialVendingContext.empty());
+
+    assertThat(emptyActionsKey.allowedReadLocations())
+        .describedAs("empty-actions grant must normalize to an explicit READ grant")
+        .isEqualTo(explicitReadKey.allowedReadLocations())
+        .containsExactly("gs://bucket/path");
+    assertThat(emptyActionsKey.allowedListLocations())
+        .isEqualTo(explicitReadKey.allowedListLocations())
+        .isEmpty();
+    assertThat(emptyActionsKey.allowedWriteLocations())
+        .isEqualTo(explicitReadKey.allowedWriteLocations())
+        .isEmpty();
   }
 
   private static String expressionAt(JsonNode parsedRules, int ruleIndex) {
@@ -560,8 +605,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
 
   @Test
   void resolveAttributionParamsDisabledByDefault() {
-    assertThat(GcpCredentialsStorageIntegration.resolveAttributionParams(EMPTY_REALM_CONFIG))
-        .isEmpty();
+    assertThat(GcpStorageCredentialVendor.resolveAttributionParams(EMPTY_REALM_CONFIG)).isEmpty();
   }
 
   @Test
@@ -575,7 +619,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
                 "GCS_PRINCIPAL_ATTRIBUTION_TOKEN_ISSUER", "https://issuer.example.com",
                 "GCS_PRINCIPAL_ATTRIBUTION_SIGNING_KEY_FILE", "/tmp/key.pem"));
     Optional<GcpAttributionParams> result =
-        GcpCredentialsStorageIntegration.resolveAttributionParams(config);
+        GcpStorageCredentialVendor.resolveAttributionParams(config);
     assertThat(result).isPresent();
     assertThat(result.get().wifAudience())
         .isEqualTo(
@@ -592,7 +636,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
                 "GCS_PRINCIPAL_ATTRIBUTION_ENABLED", "true",
                 "GCS_PRINCIPAL_ATTRIBUTION_TOKEN_ISSUER", "https://issuer.example.com",
                 "GCS_PRINCIPAL_ATTRIBUTION_SIGNING_KEY_FILE", "/tmp/key.pem"));
-    assertThatThrownBy(() -> GcpCredentialsStorageIntegration.resolveAttributionParams(config))
+    assertThatThrownBy(() -> GcpStorageCredentialVendor.resolveAttributionParams(config))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("GCS_PRINCIPAL_ATTRIBUTION_WIF_AUDIENCE");
   }
@@ -600,7 +644,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
   @Test
   void resolveAttributionParamsThrowsWhenMultipleRequiredParamsMissing() {
     RealmConfig config = configWith(Map.of("GCS_PRINCIPAL_ATTRIBUTION_ENABLED", "true"));
-    assertThatThrownBy(() -> GcpCredentialsStorageIntegration.resolveAttributionParams(config))
+    assertThatThrownBy(() -> GcpStorageCredentialVendor.resolveAttributionParams(config))
         .isInstanceOf(IllegalStateException.class)
         .hasMessageContaining("GCS_PRINCIPAL_ATTRIBUTION_WIF_AUDIENCE")
         .hasMessageContaining("GCS_PRINCIPAL_ATTRIBUTION_TOKEN_ISSUER")
@@ -663,8 +707,8 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
             keyFile.toString(),
             "key-1");
 
-    GcpCredentialsStorageIntegration integration =
-        new GcpCredentialsStorageIntegration(
+    GcpStorageCredentialVendor integration =
+        new GcpStorageCredentialVendor(
             mockCreds,
             ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new),
             null,
@@ -689,8 +733,7 @@ class GcpCredentialsStorageIntegrationTest extends BaseStorageIntegrationTest {
                     request
                         .getName()
                         .equals(
-                            GcpCredentialsStorageIntegration.SERVICE_ACCOUNT_PREFIX
-                                + serviceAccount)));
+                            GcpStorageCredentialVendor.SERVICE_ACCOUNT_PREFIX + serviceAccount)));
 
     // The source credential used for impersonation must be a federated identity, not the raw
     // source credential. This ensures the attribution JWT (not the ambient SA key) is what

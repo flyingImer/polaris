@@ -27,8 +27,8 @@ import io.smallrye.mutiny.Uni;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.iceberg.exceptions.ServiceFailureException;
-import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 
 /**
  * A custom {@link SecurityIdentityAugmentor} that, after Quarkus OIDC or Internal Auth extracted

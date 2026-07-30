@@ -126,12 +126,13 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.storage.CredentialVendingContext;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 import org.apache.polaris.core.storage.StorageAccessProperty;
-import org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendorFactory;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
+import org.apache.polaris.core.storage.aws.AwsStorageCredentialVendor;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
@@ -143,7 +144,7 @@ import org.apache.polaris.service.catalog.io.MeasuredFileIOFactory;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.events.listeners.TestPolarisEventListener;
 import org.apache.polaris.service.exception.FakeAzureHttpResponse;
-import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
+import org.apache.polaris.service.storage.AwsStorageCredentialVendorFactory;
 import org.apache.polaris.service.task.TableCleanupTaskHandler;
 import org.apache.polaris.service.task.TaskFileIOSupplier;
 import org.apache.polaris.service.test.TestData;
@@ -155,7 +156,6 @@ import org.apache.polaris.spi.feature.catalog.TableUpdateNotification;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.assertj.core.api.AbstractCollectionAssert;
@@ -225,7 +225,11 @@ public abstract class AbstractLocalIcebergCatalogTest
   @Inject Clock clock;
   @Inject MetaStoreManagerFactory metaStoreManagerFactory;
   @Inject StorageCredentialCache storageCredentialCache;
-  @Inject PolarisStorageIntegrationProvider storageIntegrationProvider;
+
+  @Inject
+  @Identifier("s3")
+  StorageCredentialVendorFactory storageIntegrationProvider;
+
   @Inject ServiceIdentityProvider serviceIdentityProvider;
   @Inject PolarisDiagnostics diagServices;
 
@@ -238,7 +242,7 @@ public abstract class AbstractLocalIcebergCatalogTest
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
   @Inject RealmContextHolder realmContextHolder;
-  @Inject StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject CredentialVendingCoordinator storageAccessConfigProvider;
   @Inject StorageIoProvider fileIOFactory;
   @Inject TaskFileIOSupplier taskFileIOSupplier;
   @Inject PolarisPrincipal authenticatedRoot;
@@ -256,9 +260,9 @@ public abstract class AbstractLocalIcebergCatalogTest
 
   @BeforeAll
   public static void setUpMocks() {
-    PolarisStorageIntegrationProviderImpl mock =
-        Mockito.mock(PolarisStorageIntegrationProviderImpl.class);
-    QuarkusMock.installMockForType(mock, PolarisStorageIntegrationProviderImpl.class);
+    AwsStorageCredentialVendorFactory mock = Mockito.mock(AwsStorageCredentialVendorFactory.class);
+    QuarkusMock.installMockForType(
+        mock, AwsStorageCredentialVendorFactory.class, Identifier.Literal.of("s3"));
   }
 
   protected void bootstrapRealm(String realmName) {}
@@ -319,15 +323,14 @@ public abstract class AbstractLocalIcebergCatalogTest
         AwsStorageConfigurationInfo.builder()
             .roleARN("arn:aws:iam::012345678901:role/mock")
             .build();
-    AwsCredentialsStorageIntegration storageIntegration =
-        new AwsCredentialsStorageIntegration(
+    AwsStorageCredentialVendor storageIntegration =
+        new AwsStorageCredentialVendor(
             (destination) -> stsClient,
             config -> Optional.empty(),
             storageCredentialCache,
             mockAwsConfig,
             callContext.getRealmConfig());
-    when(storageIntegrationProvider.getStorageIntegration(Mockito.anyList()))
-        .thenReturn(storageIntegration);
+    when(storageIntegrationProvider.createVendor(Mockito.any())).thenReturn(storageIntegration);
 
     this.catalog = initCatalog("my-catalog", ImmutableMap.of());
     testPolarisEventListener = (TestPolarisEventListener) polarisEventListener;
@@ -1904,7 +1907,7 @@ public abstract class AbstractLocalIcebergCatalogTest
             .getEntities();
     Assertions.assertThat(tasks).hasSize(1);
     TaskEntity taskEntity = TaskEntity.of(tasks.get(0));
-    var integration = storageIntegrationProvider.getStorageIntegration(List.of(taskEntity));
+    var integration = storageIntegrationProvider.createVendor(taskEntity);
     Map<String, String> credentials =
         integration
             .getStorageAccessConfig(
@@ -1958,7 +1961,8 @@ public abstract class AbstractLocalIcebergCatalogTest
         TaskEntity.of(
             new PolarisBaseEntity.Builder(taskEntity).internalPropertiesAsMap(properties).build());
     TaskFileIOSupplier taskFileIOSupplier =
-        new TaskFileIOSupplier(measured, storageAccessConfigProvider);
+        new TaskFileIOSupplier(
+            measured, storageAccessConfigProvider, callContext, authenticatedRoot);
 
     TableCleanupTaskHandler handler =
         new TableCleanupTaskHandler(
@@ -2330,7 +2334,8 @@ public abstract class AbstractLocalIcebergCatalogTest
         TaskEntity.of(
             new PolarisBaseEntity.Builder(taskEntity).internalPropertiesAsMap(properties).build());
     TaskFileIOSupplier taskFileIOSupplier =
-        new TaskFileIOSupplier(measured, storageAccessConfigProvider);
+        new TaskFileIOSupplier(
+            measured, storageAccessConfigProvider, callContext, authenticatedRoot);
 
     TableCleanupTaskHandler handler =
         new TableCleanupTaskHandler(

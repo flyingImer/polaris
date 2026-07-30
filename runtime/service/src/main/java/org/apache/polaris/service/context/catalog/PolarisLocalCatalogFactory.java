@@ -33,12 +33,12 @@ import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCat
 // FIXME: this class appears to have no remaining CDI consumer (LocalCatalogFactory has no other
 // injector) now that BasePolarisIcebergCatalog.ensureBaseInitialized() builds its own local
 // delegate directly via createBridgeBaseMetastoreViewCatalog(...), bypassing this factory.
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.slf4j.Logger;
@@ -50,7 +50,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
 
   private final PolarisDiagnostics diagnostics;
   private final TaskExecutor taskExecutor;
-  private final StorageAccessConfigProvider storageAccessConfigProvider;
+  private final CredentialVendingCoordinator storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
   private final EntityResolver entityResolver;
   private final PolarisEventDispatcher polarisEventDispatcher;
@@ -64,7 +64,7 @@ public class PolarisLocalCatalogFactory implements LocalCatalogFactory {
       PolarisDiagnostics diagnostics,
       EntityResolver entityResolver,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,

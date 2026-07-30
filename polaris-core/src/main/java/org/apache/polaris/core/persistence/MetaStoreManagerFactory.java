@@ -21,9 +21,9 @@ package org.apache.polaris.core.persistence;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.internal.EntityCache;
-import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.MetricsPersistence;
 
 /** Configuration interface for configuring the {@link DurableManager}. */
 public interface MetaStoreManagerFactory {

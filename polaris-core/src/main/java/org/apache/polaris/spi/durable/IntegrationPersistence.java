@@ -22,7 +22,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -120,7 +120,7 @@ public interface IntegrationPersistence {
    * @param polarisStorageConfigurationInfo the storage configuration information
    * @return a storage integration object
    */
-  @Nullable PolarisStorageIntegration createStorageIntegration(
+  @Nullable StorageCredentialVendor createStorageIntegration(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
       long entityId,
@@ -136,5 +136,5 @@ public interface IntegrationPersistence {
   void persistStorageIntegrationIfNeeded(
       @NonNull PolarisCallContext callContext,
       @NonNull PolarisBaseEntity entity,
-      @Nullable PolarisStorageIntegration storageIntegration);
+      @Nullable StorageCredentialVendor storageIntegration);
 }

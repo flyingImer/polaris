@@ -24,8 +24,8 @@ import org.immutables.value.Value;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Polaris-specific authentication attributes extracted from an incoming request: the principal
- * id, name, roles, and token. Framework-agnostic; a runtime module adapts this to whatever
+ * Polaris-specific authentication attributes extracted from an incoming request: the principal id,
+ * name, roles, and token. Framework-agnostic; a runtime module adapts this to whatever
  * identity/credential model it serves (e.g. Quarkus Security's {@code Credential}).
  */
 @PolarisImmutable

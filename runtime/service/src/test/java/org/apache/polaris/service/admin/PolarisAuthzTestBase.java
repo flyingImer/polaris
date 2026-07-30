@@ -25,6 +25,7 @@ import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import com.google.common.collect.ImmutableMap;
 import io.quarkus.test.junit.QuarkusMock;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.RequestScoped;
 import jakarta.enterprise.inject.Alternative;
 import jakarta.inject.Inject;
@@ -67,6 +68,7 @@ import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.core.secrets.UserSecretsManager;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
@@ -75,7 +77,9 @@ import org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalog;
 import org.apache.polaris.service.catalog.policy.PolicyCatalog;
 import org.apache.polaris.service.context.catalog.PolarisLocalCatalogFactory;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
-import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
+import org.apache.polaris.service.storage.AwsStorageCredentialVendorFactory;
+import org.apache.polaris.service.storage.AzureStorageCredentialVendorFactory;
+import org.apache.polaris.service.storage.GcpStorageCredentialVendorFactory;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
@@ -86,7 +90,6 @@ import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.assertj.core.api.Assertions;
@@ -166,7 +169,7 @@ public abstract class PolarisAuthzTestBase {
   @Inject protected PolarisEventMetadataFactory eventMetadataFactory;
   @Inject protected StorageCredentialCache storageCredentialCache;
   @Inject protected EntityResolver entityResolver;
-  @Inject protected StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject protected CredentialVendingCoordinator storageAccessConfigProvider;
   @Inject protected DurableManager metaStoreManager;
   @Inject protected SecretsManager secretsManager;
   @Inject protected GrantManager grantManager;
@@ -191,15 +194,25 @@ public abstract class PolarisAuthzTestBase {
   @BeforeAll
   public static void setUpMocks() {
     StsClient stsClient = Mockito.mock(StsClient.class);
-    PolarisStorageIntegrationProviderImpl mock =
-        new PolarisStorageIntegrationProviderImpl(
-            destination -> stsClient,
-            Optional.empty(),
+    org.apache.polaris.core.PolarisDiagnostics diagnostics =
+        new org.apache.polaris.core.PolarisDefaultDiagServiceImpl();
+    AwsStorageCredentialVendorFactory awsMock =
+        new AwsStorageCredentialVendorFactory(
+            destination -> stsClient, Optional.empty(), null, null, diagnostics);
+    QuarkusMock.installMockForType(
+        awsMock, AwsStorageCredentialVendorFactory.class, Identifier.Literal.of("s3"));
+    GcpStorageCredentialVendorFactory gcpMock =
+        new GcpStorageCredentialVendorFactory(
             () -> GoogleCredentials.create(new AccessToken("abc", new Date())),
             null,
             null,
-            new org.apache.polaris.core.PolarisDefaultDiagServiceImpl());
-    QuarkusMock.installMockForType(mock, PolarisStorageIntegrationProviderImpl.class);
+            diagnostics);
+    QuarkusMock.installMockForType(
+        gcpMock, GcpStorageCredentialVendorFactory.class, Identifier.Literal.of("gcs"));
+    AzureStorageCredentialVendorFactory azureMock =
+        new AzureStorageCredentialVendorFactory(null, null, diagnostics);
+    QuarkusMock.installMockForType(
+        azureMock, AzureStorageCredentialVendorFactory.class, Identifier.Literal.of("azure"));
   }
 
   private static final AtomicInteger REALM_COUNTER = new AtomicInteger();
@@ -497,7 +510,7 @@ public abstract class PolarisAuthzTestBase {
         PolarisDiagnostics diagnostics,
         EntityResolver entityResolver,
         TaskExecutor taskExecutor,
-        StorageAccessConfigProvider accessConfigProvider,
+        CredentialVendingCoordinator accessConfigProvider,
         StorageIoProvider fileIOFactory,
         PolarisEventDispatcher polarisEventDispatcher,
         PolarisEventMetadataFactory eventMetadataFactory,

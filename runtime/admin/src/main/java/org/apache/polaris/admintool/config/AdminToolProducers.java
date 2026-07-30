@@ -24,20 +24,14 @@ import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.enterprise.inject.Produces;
 import java.time.Clock;
-import java.util.List;
 import java.util.UUID;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.config.RealmConfigImpl;
 import org.apache.polaris.core.config.RealmConfigurationSource;
-import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.persistence.MetaStoreManagerFactory;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
 import org.apache.polaris.spi.durable.RealmProvisioner;
-import org.jspecify.annotations.NonNull;
-import org.jspecify.annotations.Nullable;
 
 public class AdminToolProducers {
 
@@ -76,20 +70,6 @@ public class AdminToolProducers {
   @ApplicationScoped
   public PolarisDiagnostics polarisDiagnostics() {
     return new PolarisDefaultDiagServiceImpl();
-  }
-
-  @Produces
-  @ApplicationScoped
-  public PolarisStorageIntegrationProvider storageIntegrationProvider() {
-    // A storage integration provider is not required when running the admin tool.
-    return new PolarisStorageIntegrationProvider() {
-      @Override
-      @Nullable
-      public PolarisStorageIntegration getStorageIntegration(
-          @NonNull List<PolarisEntity> resolvedEntityPath) {
-        return null;
-      }
-    };
   }
 
   @Produces

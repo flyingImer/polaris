@@ -178,7 +178,10 @@ public class DefaultStorageIoProviderTest {
     TaskEntity taskEntity = TaskEntity.of(tasks.get(0));
     FileIO fileIO =
         new TaskFileIOSupplier(
-                testServices.fileIOFactory(), testServices.storageAccessConfigProvider())
+                testServices.fileIOFactory(),
+                testServices.storageAccessConfigProvider(),
+                callContext,
+                testServices.principal())
             .apply(taskEntity, TABLE);
     Assertions.assertThat(fileIO).isNotNull().isInstanceOf(ExceptionMappingFileIO.class);
     Assertions.assertThat(((ExceptionMappingFileIO) fileIO).getInnerIo())

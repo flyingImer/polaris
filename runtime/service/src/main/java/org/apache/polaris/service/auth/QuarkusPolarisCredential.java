@@ -24,13 +24,13 @@ import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Adapts a framework-agnostic {@link PolarisCredential} into a Quarkus Security {@link
- * Credential} so it can be stored on and retrieved from a {@code SecurityIdentity}.
+ * Adapts a framework-agnostic {@link PolarisCredential} into a Quarkus Security {@link Credential}
+ * so it can be stored on and retrieved from a {@code SecurityIdentity}.
  *
  * <p>Not {@code @PolarisImmutable}: deliberately hand-written rather than a second
- * Immutables-generated type, so that {@link PolarisCredential#getToken()}'s {@code
- * @Value.Redacted} contract isn't put at risk of not propagating across the annotation processor,
- * and this class's {@code toString()} stays the safe default (no fields).
+ * Immutables-generated type, so that {@link PolarisCredential#getToken()}'s {@code @Value.Redacted}
+ * contract isn't put at risk of not propagating across the annotation processor, and this class's
+ * {@code toString()} stays the safe default (no fields).
  */
 public final class QuarkusPolarisCredential implements PolarisCredential, Credential {
 

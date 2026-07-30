@@ -40,12 +40,12 @@ import org.jspecify.annotations.Nullable;
  * Authorization-side composition over a {@link ResolutionResult} (ADR-0008 Decision 6).
  *
  * <p>ADR-0008 splits resolution from authorization: the {@link
- * org.apache.polaris.spi.substrate.EntityResolver} returns clean, name-addressable data
- * ({@link ResolutionResult}), and the RBAC authorization chain, prepending the reference catalog
- * and (for root-rooted operations) the root container to a resolved path so grants cascade
- * correctly, is an authorization concern that lives here rather than on the result data type. This
- * is the same ordered chain the retired {@code PolarisResolutionManifest} produced (root container,
- * then reference catalog, then the in-catalog path), moved to the authz side.
+ * org.apache.polaris.spi.substrate.EntityResolver} returns clean, name-addressable data ({@link
+ * ResolutionResult}), and the RBAC authorization chain, prepending the reference catalog and (for
+ * root-rooted operations) the root container to a resolved path so grants cascade correctly, is an
+ * authorization concern that lives here rather than on the result data type. This is the same
+ * ordered chain the retired {@code PolarisResolutionManifest} produced (root container, then
+ * reference catalog, then the in-catalog path), moved to the authz side.
  *
  * <p>The root container is obtained through the generic top-level lookup ({@code
  * resolvedTopLevelEntity(ROOT, rootContainerName)}), which the authorizer requests via {@link

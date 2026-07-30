@@ -37,7 +37,6 @@ import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPer
 import org.apache.polaris.spi.durable.DurableManager;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 public class ResolverTest extends BaseResolverTest {
 
@@ -51,8 +50,7 @@ public class ResolverTest extends BaseResolverTest {
     if (callCtx == null) {
       TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
       TreeMapTransactionalPersistenceImpl metaStore =
-          new TreeMapTransactionalPersistenceImpl(
-              diagServices, store, Mockito.mock(), RANDOM_SECRETS);
+          new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
       callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
     }
     return callCtx;

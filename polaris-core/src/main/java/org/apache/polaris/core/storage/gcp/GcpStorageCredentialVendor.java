@@ -50,13 +50,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.storage.CachingStorageIntegration;
+import org.apache.polaris.core.storage.CachingStorageCredentialVendor;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageAccessProperty;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.StorageUri;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheKey;
@@ -65,13 +65,12 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 /**
- * GCS implementation of {@link PolarisStorageIntegration} with support for scoping credentials for
+ * GCS implementation of {@link StorageCredentialVendor} with support for scoping credentials for
  * input read/write locations
  */
-public class GcpCredentialsStorageIntegration
-    extends CachingStorageIntegration<GcpStorageConfigurationInfo> {
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(GcpCredentialsStorageIntegration.class);
+public class GcpStorageCredentialVendor
+    extends CachingStorageCredentialVendor<GcpStorageConfigurationInfo> {
+  private static final Logger LOGGER = LoggerFactory.getLogger(GcpStorageCredentialVendor.class);
   public static final String SERVICE_ACCOUNT_PREFIX = "projects/-/serviceAccounts/";
   public static final String IMPERSONATION_SCOPE =
       "https://www.googleapis.com/auth/devstorage.read_write";
@@ -83,7 +82,7 @@ public class GcpCredentialsStorageIntegration
   private final GcpCredentialOps credentialOps;
   private final Optional<GcpAttributionParams> attributionParams;
 
-  public GcpCredentialsStorageIntegration(
+  public GcpStorageCredentialVendor(
       GoogleCredentials sourceCredentials,
       HttpTransportFactory transportFactory,
       GcpStorageConfigurationInfo storageConfig,
@@ -98,7 +97,7 @@ public class GcpCredentialsStorageIntegration
         resolveAttributionParams(realmConfig));
   }
 
-  public GcpCredentialsStorageIntegration(
+  public GcpStorageCredentialVendor(
       GoogleCredentials sourceCredentials,
       HttpTransportFactory transportFactory,
       StorageCredentialCache cache,
@@ -114,7 +113,7 @@ public class GcpCredentialsStorageIntegration
         resolveAttributionParams(realmConfig));
   }
 
-  public GcpCredentialsStorageIntegration(
+  public GcpStorageCredentialVendor(
       GoogleCredentials sourceCredentials,
       HttpTransportFactory transportFactory,
       GcpStorageConfigurationInfo storageConfig,
@@ -130,7 +129,7 @@ public class GcpCredentialsStorageIntegration
         resolveAttributionParams(realmConfig));
   }
 
-  public GcpCredentialsStorageIntegration(
+  public GcpStorageCredentialVendor(
       GoogleCredentials sourceCredentials,
       HttpTransportFactory transportFactory,
       StorageCredentialCache cache,
@@ -152,7 +151,7 @@ public class GcpCredentialsStorageIntegration
    * their own {@link GcpAttributionParams} without depending on {@link
    * org.apache.polaris.core.config.FeatureConfiguration}.
    */
-  public GcpCredentialsStorageIntegration(
+  public GcpStorageCredentialVendor(
       GoogleCredentials sourceCredentials,
       HttpTransportFactory transportFactory,
       StorageCredentialCache cache,
@@ -215,10 +214,12 @@ public class GcpCredentialsStorageIntegration
       @NonNull List<LocationGrant> grants,
       @NonNull Optional<String> refreshEndpoint,
       @NonNull CredentialVendingContext context) {
+    List<LocationGrant> normalizedGrants =
+        StorageCredentialVendor.normalizeEmptyActionsToRead(grants);
     return buildCacheKey(
-        readLocations(grants),
-        listLocations(grants),
-        writeLocations(grants),
+        readLocations(normalizedGrants),
+        listLocations(normalizedGrants),
+        writeLocations(normalizedGrants),
         refreshEndpoint,
         context);
   }
@@ -334,7 +335,8 @@ public class GcpCredentialsStorageIntegration
 
     // If expires_in missing, use source credential's expire time, which require another api call to
     // get.
-    StorageAccessConfig.Builder accessConfig = StorageAccessConfig.builder();
+    StorageAccessConfig.Builder accessConfig =
+        StorageAccessConfig.builder().supportsCredentialVending(true);
     accessConfig.put(StorageAccessProperty.GCS_ACCESS_TOKEN, token.getTokenValue());
     accessConfig.put(
         StorageAccessProperty.GCS_ACCESS_TOKEN_EXPIRES_AT,

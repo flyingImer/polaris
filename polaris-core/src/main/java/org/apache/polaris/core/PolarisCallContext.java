@@ -33,9 +33,8 @@ import org.jspecify.annotations.NonNull;
  *
  * <p>{@link DurablePrimitives} carries the bulk of the metastore SPI surface (and still extends
  * {@code PolicyMappingPersistence} / acts as the {@code IntegrationPersistence} via a runtime cast
- * for now). {@link org.apache.polaris.spi.durable.MetricsPersistence} is intentionally
- * kept out of this context; service code that needs metrics persistence should depend on that SPI
- * directly.
+ * for now). {@link org.apache.polaris.spi.durable.MetricsPersistence} is intentionally kept out of
+ * this context; service code that needs metrics persistence should depend on that SPI directly.
  */
 public class PolarisCallContext implements CallContext {
 

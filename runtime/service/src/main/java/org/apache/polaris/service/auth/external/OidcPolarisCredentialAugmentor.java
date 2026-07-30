@@ -31,12 +31,12 @@ import jakarta.enterprise.inject.Any;
 import jakarta.enterprise.inject.Instance;
 import jakarta.inject.Inject;
 import java.util.Set;
-import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.apache.polaris.service.auth.AuthenticatingAugmentor;
 import org.apache.polaris.service.auth.QuarkusPolarisCredential;
 import org.apache.polaris.service.auth.external.mapping.PrincipalMapper;
 import org.apache.polaris.service.auth.external.mapping.PrincipalRolesMapper;
 import org.apache.polaris.service.auth.external.tenant.OidcTenantConfiguration;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.eclipse.microprofile.jwt.JsonWebToken;
 
 /**

@@ -23,6 +23,7 @@ import static org.mockito.Mockito.RETURNS_DEEP_STUBS;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.inject.Instance;
 import jakarta.ws.rs.core.SecurityContext;
 import java.security.Principal;
@@ -58,11 +59,13 @@ import org.apache.polaris.core.persistence.internal.EntityCache;
 import org.apache.polaris.core.persistence.resolver.DefaultEntityResolver;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.secrets.UserSecretsManagerFactory;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
+import org.apache.polaris.core.storage.StorageCredentialVendorFactory;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheConfig;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
-import org.apache.polaris.extension.io.DefaultStorageAccessConfigProvider;
+import org.apache.polaris.extension.io.DefaultCredentialVendingCoordinator;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.admin.PolarisServiceImpl;
 import org.apache.polaris.service.admin.api.PolarisCatalogsApi;
@@ -91,7 +94,10 @@ import org.apache.polaris.service.identity.provider.DefaultServiceIdentityProvid
 import org.apache.polaris.service.persistence.InMemoryPolarisMetaStoreManagerFactory;
 import org.apache.polaris.service.reporting.DefaultMetricsReporter;
 import org.apache.polaris.service.secrets.UnsafeInMemorySecretsManagerFactory;
-import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
+import org.apache.polaris.service.storage.AwsStorageCredentialVendorFactory;
+import org.apache.polaris.service.storage.AzureStorageCredentialVendorFactory;
+import org.apache.polaris.service.storage.FileStorageCredentialVendorFactory;
+import org.apache.polaris.service.storage.GcpStorageCredentialVendorFactory;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
@@ -100,7 +106,6 @@ import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.mockito.Mockito;
@@ -130,7 +135,7 @@ public record TestServices(
     TaskExecutor taskExecutor,
     PolarisEventDispatcher polarisEventDispatcher,
     PolarisEventMetadataFactory eventMetadataFactory,
-    StorageAccessConfigProvider storageAccessConfigProvider) {
+    CredentialVendingCoordinator storageAccessConfigProvider) {
 
   private static final RealmContext TEST_REALM = () -> "test-realm";
   private static final String GCP_ACCESS_TOKEN = "abc";
@@ -221,17 +226,67 @@ public record TestServices(
 
       RealmConfig realmConfig = new RealmConfigImpl(configurationSource, realmContext);
 
-      PolarisStorageIntegrationProviderImpl storageIntegrationProvider =
-          new PolarisStorageIntegrationProviderImpl(
+      // Build the four cloud-specific vendor factories directly (test constructors bypass
+      // StorageConfiguration), then wire them behind a mocked
+      // Instance<StorageCredentialVendorFactory>
+      // keyed by storage type -- the same seam CDI's @Any Instance<StorageCredentialVendorFactory>
+      // provides in production, so DefaultCredentialVendingCoordinator selects among them exactly
+      // as
+      // it does at runtime.
+      AwsStorageCredentialVendorFactory awsStorageCredentialVendorFactory =
+          new AwsStorageCredentialVendorFactory(
               (destination) -> stsClient,
               Optional.empty(),
+              storageCredentialCache,
+              realmConfig,
+              diagnostics);
+      GcpStorageCredentialVendorFactory gcpStorageCredentialVendorFactory =
+          new GcpStorageCredentialVendorFactory(
               () -> GoogleCredentials.create(new AccessToken(GCP_ACCESS_TOKEN, new Date())),
               storageCredentialCache,
               realmConfig,
               diagnostics);
+      AzureStorageCredentialVendorFactory azureStorageCredentialVendorFactory =
+          new AzureStorageCredentialVendorFactory(storageCredentialCache, realmConfig, diagnostics);
+      FileStorageCredentialVendorFactory fileStorageCredentialVendorFactory =
+          new FileStorageCredentialVendorFactory();
+
+      @SuppressWarnings("unchecked")
+      Instance<StorageCredentialVendorFactory> awsFactoryInstance = Mockito.mock(Instance.class);
+      Mockito.when(awsFactoryInstance.get()).thenReturn(awsStorageCredentialVendorFactory);
+      Mockito.when(awsFactoryInstance.isUnsatisfied()).thenReturn(false);
+
+      @SuppressWarnings("unchecked")
+      Instance<StorageCredentialVendorFactory> gcpFactoryInstance = Mockito.mock(Instance.class);
+      Mockito.when(gcpFactoryInstance.get()).thenReturn(gcpStorageCredentialVendorFactory);
+      Mockito.when(gcpFactoryInstance.isUnsatisfied()).thenReturn(false);
+
+      @SuppressWarnings("unchecked")
+      Instance<StorageCredentialVendorFactory> azureFactoryInstance = Mockito.mock(Instance.class);
+      Mockito.when(azureFactoryInstance.get()).thenReturn(azureStorageCredentialVendorFactory);
+      Mockito.when(azureFactoryInstance.isUnsatisfied()).thenReturn(false);
+
+      @SuppressWarnings("unchecked")
+      Instance<StorageCredentialVendorFactory> fileFactoryInstance = Mockito.mock(Instance.class);
+      Mockito.when(fileFactoryInstance.get()).thenReturn(fileStorageCredentialVendorFactory);
+      Mockito.when(fileFactoryInstance.isUnsatisfied()).thenReturn(false);
+
+      @SuppressWarnings("unchecked")
+      Instance<StorageCredentialVendorFactory> vendorFactories = Mockito.mock(Instance.class);
+      Mockito.when(vendorFactories.select(Identifier.Literal.of("s3")))
+          .thenReturn(awsFactoryInstance);
+      Mockito.when(vendorFactories.select(Identifier.Literal.of("gcs")))
+          .thenReturn(gcpFactoryInstance);
+      Mockito.when(vendorFactories.select(Identifier.Literal.of("azure")))
+          .thenReturn(azureFactoryInstance);
+      Mockito.when(vendorFactories.select(Identifier.Literal.of("file")))
+          .thenReturn(fileFactoryInstance);
+
+      CredentialVendingCoordinator storageAccessConfigProvider =
+          new DefaultCredentialVendingCoordinator(vendorFactories);
+
       InMemoryPolarisMetaStoreManagerFactory metaStoreManagerFactory =
-          new InMemoryPolarisMetaStoreManagerFactory(
-              clock, diagnostics, storageIntegrationProvider, RootCredentialsSet.EMPTY);
+          new InMemoryPolarisMetaStoreManagerFactory(clock, diagnostics, RootCredentialsSet.EMPTY);
 
       UserSecretsManagerFactory userSecretsManagerFactory =
           new UnsafeInMemorySecretsManagerFactory();
@@ -303,9 +358,6 @@ public record TestServices(
       PolarisCredentialManager credentialManager =
           new DefaultPolarisCredentialManager(realmContext, mockCredentialVendors);
 
-      StorageAccessConfigProvider storageAccessConfigProvider =
-          new DefaultStorageAccessConfigProvider(
-              callContext, principal, realmContext, storageIntegrationProvider);
       StorageIoProvider fileIOFactory = fileIOFactorySupplier.get();
 
       TaskExecutor taskExecutor = Mockito.mock(TaskExecutor.class);

@@ -50,13 +50,13 @@ import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.secrets.UserSecretsManager;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.events.listeners.TestPolarisEventListener;
-import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
 import org.apache.polaris.service.test.TestData;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
@@ -67,13 +67,11 @@ import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.assertj.core.configuration.PreferredAssumptionException;
 import org.junit.jupiter.api.AfterEach;
-import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInfo;
@@ -113,7 +111,7 @@ public abstract class AbstractLocalIcebergCatalogViewTest
   @Inject UserSecretsManager userSecretsManager;
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
-  @Inject StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject CredentialVendingCoordinator storageAccessConfigProvider;
   @Inject StorageIoProvider fileIOFactory;
 
   private BridgeBaseMetastoreViewCatalog catalog;
@@ -123,12 +121,10 @@ public abstract class AbstractLocalIcebergCatalogViewTest
 
   private TestPolarisEventListener testPolarisEventListener;
 
-  @BeforeAll
-  public static void setUpMocks() {
-    PolarisStorageIntegrationProviderImpl mock =
-        Mockito.mock(PolarisStorageIntegrationProviderImpl.class);
-    QuarkusMock.installMockForType(mock, PolarisStorageIntegrationProviderImpl.class);
-  }
+  // No CDI mock reset needed here (unlike the AWS-backed local-catalog tests): this suite only
+  // ever exercises FILE storage, which is now served by FileStorageCredentialVendorFactory -- a
+  // dependency-free bean that CredentialVendingCoordinator selects deterministically by storage
+  // type and that no other test class's AWS/GCP/Azure factory stub can shadow.
 
   @BeforeEach
   public void setUpTempDir(@TempDir Path tempDir) throws Exception {

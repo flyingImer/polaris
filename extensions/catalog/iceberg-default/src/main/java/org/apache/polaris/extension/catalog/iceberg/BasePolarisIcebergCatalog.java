@@ -143,6 +143,7 @@ import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.rest.IcebergHttpUtil;
 import org.apache.polaris.core.rest.NamespaceUtils;
 import org.apache.polaris.core.rest.PolarisEndpoints;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.LocationUtils;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
@@ -166,7 +167,6 @@ import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.jspecify.annotations.NonNull;
@@ -229,7 +229,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
   private long catalogId;
   private String defaultBaseLocation;
   private Map<String, String> catalogProperties;
-  private final StorageAccessConfigProvider storageAccessConfigProvider;
+  private final CredentialVendingCoordinator storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
   private DurableManager metaStoreManager;
 
@@ -297,7 +297,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
       PolarisResolutionManifestCatalogView resolvedEntityView,
       PolarisPrincipal principal,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,
@@ -338,7 +338,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
       PolarisAuthorizer authorizer,
       DurableManager metaStoreManager,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,
@@ -854,7 +854,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
       PolarisResolutionManifestCatalogView resolvedEntityView,
       PolarisPrincipal principal,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory) {
@@ -2032,7 +2032,9 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
               tableLocations,
               actions,
               refreshCredentialsEndpoint,
-              resolvedStoragePath);
+              resolvedStoragePath,
+              callContext,
+              principal);
       Map<String, String> credentialConfig = storageAccessConfig.credentials();
       if (AccessDelegationMode.VENDED_CREDENTIALS.equals(delegationMode.orElse(null))) {
         if (!credentialConfig.isEmpty()) {
@@ -2108,7 +2110,9 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
         tableLocations,
         actionsRequested,
         refreshCredentialsEndpoint,
-        resolvedStoragePath);
+        resolvedStoragePath,
+        callContext,
+        principal);
   }
 
   private Optional<String> etagForCreatedTable(

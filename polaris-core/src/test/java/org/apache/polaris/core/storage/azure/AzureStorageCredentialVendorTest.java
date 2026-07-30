@@ -49,6 +49,7 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Stream;
 import org.apache.polaris.core.storage.BaseStorageIntegrationTest;
+import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
@@ -63,7 +64,7 @@ import org.junit.jupiter.params.provider.ArgumentsProvider;
 import org.junit.jupiter.params.provider.ArgumentsSource;
 import org.junit.jupiter.params.support.ParameterDeclarations;
 
-public class AzureCredentialStorageIntegrationTest extends BaseStorageIntegrationTest {
+public class AzureStorageCredentialVendorTest extends BaseStorageIntegrationTest {
 
   private final String clientId = System.getenv("AZURE_CLIENT_ID");
   private final String clientSecret = System.getenv("AZURE_CLIENT_SECRET");
@@ -340,6 +341,50 @@ public class AzureCredentialStorageIntegrationTest extends BaseStorageIntegratio
     }
   }
 
+  /**
+   * Pins the {@link org.apache.polaris.core.storage.StorageCredentialVendor} contract: a {@link
+   * LocationGrant} with an empty {@link LocationGrant#actions()} set must produce the exact same
+   * read/list/write location sets in the built {@link AzureStorageCredentialCacheKey} as an
+   * explicit {@link PolarisStorageActions#READ} grant on the same location. Building the vendor and
+   * its cache key does not require live Azure credentials -- only {@code compute()} (network token
+   * exchange) does, and this test never calls it.
+   */
+  @Test
+  public void testEmptyActionsGrantNormalizesToReadInCacheKey() {
+    String location = "abfss://container@icebergdfsstorageacct.dfs.core.windows.net/polaris-test/";
+    AzureStorageConfigurationInfo azureConfig =
+        AzureStorageConfigurationInfo.builder()
+            .addAllowedLocation(location)
+            .tenantId("test-tenant")
+            .build();
+    AzureStorageCredentialVendor vendor =
+        new AzureStorageCredentialVendor(azureConfig, EMPTY_REALM_CONFIG);
+
+    AzureStorageCredentialCacheKey emptyActionsKey =
+        (AzureStorageCredentialCacheKey)
+            vendor.buildCacheKey(
+                List.of(new LocationGrant(Set.of(location), Set.of())),
+                Optional.empty(),
+                CredentialVendingContext.empty());
+    AzureStorageCredentialCacheKey explicitReadKey =
+        (AzureStorageCredentialCacheKey)
+            vendor.buildCacheKey(
+                List.of(new LocationGrant(Set.of(location), Set.of(PolarisStorageActions.READ))),
+                Optional.empty(),
+                CredentialVendingContext.empty());
+
+    Assertions.assertThat(emptyActionsKey.allowedReadLocations())
+        .describedAs("empty-actions grant must normalize to an explicit READ grant")
+        .isEqualTo(explicitReadKey.allowedReadLocations())
+        .containsExactly(location);
+    Assertions.assertThat(emptyActionsKey.allowedListAction())
+        .isEqualTo(explicitReadKey.allowedListAction())
+        .isFalse();
+    Assertions.assertThat(emptyActionsKey.allowedWriteLocations())
+        .isEqualTo(explicitReadKey.allowedWriteLocations())
+        .isEmpty();
+  }
+
   private StorageAccessConfig subscopedCredsForOperations(
       List<String> allowedReadLoc, List<String> allowedWriteLoc, boolean allowListAction) {
     AzureStorageConfigurationInfo azureConfig =
@@ -348,8 +393,8 @@ public class AzureCredentialStorageIntegrationTest extends BaseStorageIntegratio
             .addAllAllowedLocations(allowedWriteLoc)
             .tenantId(tenantId)
             .build();
-    AzureCredentialsStorageIntegration azureCredsIntegration =
-        new AzureCredentialsStorageIntegration(azureConfig, EMPTY_REALM_CONFIG);
+    AzureStorageCredentialVendor azureCredsIntegration =
+        new AzureStorageCredentialVendor(azureConfig, EMPTY_REALM_CONFIG);
     List<LocationGrant> grants = new ArrayList<>();
     if (!allowedReadLoc.isEmpty()) {
       Set<PolarisStorageActions> actions =

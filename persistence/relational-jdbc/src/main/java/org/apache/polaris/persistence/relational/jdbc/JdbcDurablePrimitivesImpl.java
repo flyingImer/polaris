@@ -52,12 +52,10 @@ import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
-import org.apache.polaris.spi.durable.IntegrationPersistence;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.metrics.CommitMetricsRecord;
-import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.core.persistence.metrics.ScanMetricsRecord;
 import org.apache.polaris.core.persistence.pagination.EntityIdToken;
 import org.apache.polaris.core.persistence.pagination.Page;
@@ -66,7 +64,7 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.persistence.relational.jdbc.models.EntityNameLookupRecordConverter;
 import org.apache.polaris.persistence.relational.jdbc.models.ModelCommitMetricsReport;
@@ -78,6 +76,8 @@ import org.apache.polaris.persistence.relational.jdbc.models.ModelPrincipalAuthe
 import org.apache.polaris.persistence.relational.jdbc.models.ModelScanMetricsReport;
 import org.apache.polaris.persistence.relational.jdbc.models.SchemaVersion;
 import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.IntegrationPersistence;
+import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -1315,15 +1315,15 @@ public class JdbcDurablePrimitivesImpl
 
   @Nullable
   @Override
-  public PolarisStorageIntegration createStorageIntegration(
+  public StorageCredentialVendor createStorageIntegration(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
       long entityId,
       PolarisStorageConfigurationInfo polarisStorageConfigurationInfo) {
-    // No-op in OSS: the storage integration is resolved at credential-vending time via
-    // PolarisStorageIntegrationProvider.getStorageIntegration(resolvedEntityPath). This hook
-    // remains available for custom deployments that need to allocate/lease external state
-    // atomically with the catalog-creation transaction.
+    // No-op in OSS: the storage integration is resolved at credential-vending time by
+    // CredentialVendingCoordinator, which selects a StorageCredentialVendorFactory by storage-type
+    // key. This hook remains available for custom deployments that need to allocate/lease external
+    // state atomically with the catalog-creation transaction.
     return null;
   }
 
@@ -1331,7 +1331,7 @@ public class JdbcDurablePrimitivesImpl
   public void persistStorageIntegrationIfNeeded(
       @NonNull PolarisCallContext callContext,
       @NonNull PolarisBaseEntity entity,
-      @Nullable PolarisStorageIntegration storageIntegration) {}
+      @Nullable StorageCredentialVendor storageIntegration) {}
 
   @FunctionalInterface
   private interface QueryAction {

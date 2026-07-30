@@ -41,7 +41,7 @@ Polaris uses a role-based access control (RBAC) model. `PolarisPrivilege` define
 To store entities, Polaris provides a persistence layer built upon the `DurablePrimitives` interface. Common persistence logic is handled in the `org.apache.polaris.core.persistence` package. Implementations are found within [the persistence folder](../persistence).
 
 ### Object Storage Integration
-Polaris supports multiple object storage providers. `PolarisStorageIntegration` provides an interface for accessing and managing data in object stores. For more information, see the package `org.apache.polaris.core.storage`.
+Polaris supports multiple object storage providers. `StorageCredentialVendor` provides an interface for accessing and managing data in object stores. For more information, see the package `org.apache.polaris.core.storage`.
 
 ## Usage
 

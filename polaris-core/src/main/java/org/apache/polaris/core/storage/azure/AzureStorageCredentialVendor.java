@@ -57,12 +57,13 @@ import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
 import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.storage.CachingStorageIntegration;
+import org.apache.polaris.core.storage.CachingStorageCredentialVendor;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageAccessProperty;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheKey;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -71,20 +72,19 @@ import reactor.core.publisher.Mono;
 import reactor.util.retry.Retry;
 
 /** Azure credential vendor that supports generating SAS token */
-public class AzureCredentialsStorageIntegration
-    extends CachingStorageIntegration<AzureStorageConfigurationInfo> {
+public class AzureStorageCredentialVendor
+    extends CachingStorageCredentialVendor<AzureStorageConfigurationInfo> {
 
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(AzureCredentialsStorageIntegration.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(AzureStorageCredentialVendor.class);
 
   final DefaultAzureCredential defaultAzureCredential;
 
-  public AzureCredentialsStorageIntegration(
+  public AzureStorageCredentialVendor(
       AzureStorageConfigurationInfo storageConfig, RealmConfig realmConfig) {
     this(null, storageConfig, realmConfig);
   }
 
-  public AzureCredentialsStorageIntegration(
+  public AzureStorageCredentialVendor(
       org.apache.polaris.core.storage.cache.StorageCredentialCache cache,
       AzureStorageConfigurationInfo storageConfig,
       RealmConfig realmConfig) {
@@ -99,8 +99,14 @@ public class AzureCredentialsStorageIntegration
       @NonNull List<LocationGrant> grants,
       @NonNull Optional<String> refreshEndpoint,
       @NonNull CredentialVendingContext context) {
+    List<LocationGrant> normalizedGrants =
+        StorageCredentialVendor.normalizeEmptyActionsToRead(grants);
     return buildCacheKey(
-        allowList(grants), readLocations(grants), writeLocations(grants), refreshEndpoint, context);
+        allowList(normalizedGrants),
+        readLocations(normalizedGrants),
+        writeLocations(normalizedGrants),
+        refreshEndpoint,
+        context);
   }
 
   private static boolean allowList(List<LocationGrant> grants) {
@@ -261,7 +267,8 @@ public class AzureCredentialsStorageIntegration
       String storageDnsName,
       Instant expiresAt,
       Optional<String> refreshCredentialsEndpoint) {
-    StorageAccessConfig.Builder accessConfig = StorageAccessConfig.builder();
+    StorageAccessConfig.Builder accessConfig =
+        StorageAccessConfig.builder().supportsCredentialVending(true);
     handleAzureCredential(accessConfig, sasToken, storageDnsName, expiresAt);
     accessConfig.put(
         StorageAccessProperty.EXPIRATION_TIME, String.valueOf(expiresAt.toEpochMilli()));
@@ -443,7 +450,7 @@ public class AzureCredentialsStorageIntegration
             .retryWhen(
                 Retry.backoff(retryCount, Duration.ofMillis(initialDelayMillis))
                     .jitter(jitter) // Apply jitter factor to computed delay
-                    .filter(AzureCredentialsStorageIntegration::isRetriableAzureException)
+                    .filter(AzureStorageCredentialVendor::isRetriableAzureException)
                     .doBeforeRetry(
                         retrySignal ->
                             LOGGER.info(

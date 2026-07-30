@@ -33,13 +33,13 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.spi.durable.IntegrationPersistence;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.IntegrationPersistence;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -274,13 +274,13 @@ abstract class NonFunctionalDurablePrimitives implements DurablePrimitives, Inte
   public void persistStorageIntegrationIfNeeded(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisBaseEntity entity,
-      @Nullable PolarisStorageIntegration storageIntegration) {
+      @Nullable StorageCredentialVendor storageIntegration) {
     throw unimplemented();
   }
 
   @Nullable
   @Override
-  public PolarisStorageIntegration createStorageIntegration(
+  public StorageCredentialVendor createStorageIntegration(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
       long entityId,

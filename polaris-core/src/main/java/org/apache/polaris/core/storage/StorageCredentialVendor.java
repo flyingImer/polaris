@@ -20,20 +20,22 @@ package org.apache.polaris.core.storage;
 
 import java.util.List;
 import java.util.Optional;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.jspecify.annotations.NonNull;
 
 /**
  * SPI for a storage integration bound to a particular storage configuration. An integration vends
  * scoped storage credentials for requests against its configured backend.
  *
- * <p>Implementations are returned by {@link PolarisStorageIntegrationProvider} given a resolved
- * entity path; the provider decides how an integration instance is created and cached. The default
- * cloud integrations (AWS, GCP, Azure) extend {@link CachingStorageIntegration}, which adds
- * in-memory caching of vended credentials. Other implementations — e.g. persistence-backed
- * credential pools — may implement this interface directly without extending the caching base
- * class.
+ * <p>Instances are constructed fresh per call by a {@link StorageCredentialVendorFactory}, which
+ * {@link CredentialVendingCoordinator} selects by storage-type key for a given resolved entity
+ * path. The default cloud integrations (AWS, GCP, Azure) extend {@link
+ * CachingStorageCredentialVendor}, which adds in-memory caching of vended credentials. Other
+ * implementations — e.g. persistence-backed credential pools — may implement this interface
+ * directly without extending the caching base class.
  */
-public interface PolarisStorageIntegration {
+public interface StorageCredentialVendor {
 
   /**
    * Vend a scoped {@link StorageAccessConfig} for the given list of {@link LocationGrant}s.
@@ -55,4 +57,33 @@ public interface PolarisStorageIntegration {
       @NonNull List<LocationGrant> grants,
       @NonNull Optional<String> refreshEndpoint,
       @NonNull CredentialVendingContext context);
+
+  /**
+   * Contract rule every implementer of {@link #getStorageAccessConfig} MUST honor: a {@link
+   * LocationGrant} whose {@link LocationGrant#actions()} is empty means "grant read access to these
+   * locations", identical to an explicit {@code Set.of(PolarisStorageActions.READ)} grant. Callers
+   * construct empty-actions grants when they only need extra properties (endpoint, region,
+   * path-style, etc.) resolved for a location and are not requesting scoped write, list, or delete
+   * permissions.
+   *
+   * <p>This normalization is the vendor's responsibility, not the caller's: implementations that
+   * derive per-action read/write/list location sets from a grant list (e.g. {@link
+   * CachingStorageCredentialVendor#buildCacheKey}) MUST run the incoming grants through this method
+   * before inspecting {@link LocationGrant#actions()}, so an empty-actions grant is never silently
+   * dropped from every action bucket.
+   *
+   * @param grants the raw grants as received by {@link #getStorageAccessConfig}
+   * @return an equivalent list of grants where every empty {@link LocationGrant#actions()} set has
+   *     been replaced with {@code Set.of(PolarisStorageActions.READ)}; grants with non-empty
+   *     actions are returned unchanged
+   */
+  static List<LocationGrant> normalizeEmptyActionsToRead(@NonNull List<LocationGrant> grants) {
+    return grants.stream()
+        .map(
+            grant ->
+                grant.actions().isEmpty()
+                    ? new LocationGrant(grant.locations(), Set.of(PolarisStorageActions.READ))
+                    : grant)
+        .collect(Collectors.toList());
+  }
 }

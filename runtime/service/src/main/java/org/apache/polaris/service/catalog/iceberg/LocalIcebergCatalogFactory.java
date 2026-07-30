@@ -29,6 +29,7 @@ import org.apache.polaris.core.catalog.FederatedCatalogFactory;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.events.EventAttributeMap;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
 import org.apache.polaris.service.config.ReservedProperties;
@@ -40,7 +41,6 @@ import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 
@@ -67,7 +67,7 @@ public class LocalIcebergCatalogFactory {
   @Inject PolarisAuthorizer authorizer;
   @Inject DurableManager metaStoreManager;
   @Inject TaskExecutor taskExecutor;
-  @Inject StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject CredentialVendingCoordinator storageAccessConfigProvider;
   @Inject StorageIoProvider storageIoProvider;
   @Inject PolarisEventDispatcher polarisEventDispatcher;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;

@@ -36,12 +36,13 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
-import org.apache.polaris.core.storage.CachingStorageIntegration;
+import org.apache.polaris.core.storage.CachingStorageCredentialVendor;
 import org.apache.polaris.core.storage.CredentialVendingContext;
 import org.apache.polaris.core.storage.LocationGrant;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageAccessProperty;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.StorageUri;
 import org.apache.polaris.core.storage.StorageUtil;
 import org.apache.polaris.core.storage.aws.StsClientProvider.StsDestination;
@@ -61,23 +62,22 @@ import software.amazon.awssdk.services.sts.model.AssumeRoleResponse;
 import software.amazon.awssdk.services.sts.model.Tag;
 
 /** Credential vendor that supports generating AWS STS subscoped credentials. */
-public class AwsCredentialsStorageIntegration
-    extends CachingStorageIntegration<AwsStorageConfigurationInfo> {
+public class AwsStorageCredentialVendor
+    extends CachingStorageCredentialVendor<AwsStorageConfigurationInfo> {
   private final StsClientProvider stsClientProvider;
   private final Function<AwsStorageConfigurationInfo, Optional<AwsCredentialsProvider>>
       credentialsResolver;
 
-  private static final Logger LOGGER =
-      LoggerFactory.getLogger(AwsCredentialsStorageIntegration.class);
+  private static final Logger LOGGER = LoggerFactory.getLogger(AwsStorageCredentialVendor.class);
 
   /** Test constructor — no cache, no request-scoped suppliers. */
-  public AwsCredentialsStorageIntegration(
+  public AwsStorageCredentialVendor(
       StsClient fixedClient, AwsStorageConfigurationInfo storageConfig, RealmConfig realmConfig) {
     this((destination) -> fixedClient, config -> Optional.empty(), storageConfig, realmConfig);
   }
 
   /** Test constructor with credentials. */
-  public AwsCredentialsStorageIntegration(
+  public AwsStorageCredentialVendor(
       StsClientProvider stsClientProvider,
       Optional<AwsCredentialsProvider> credentialsProvider,
       AwsStorageConfigurationInfo storageConfig,
@@ -86,7 +86,7 @@ public class AwsCredentialsStorageIntegration
   }
 
   /** Constructor with credentials resolver (no cache). */
-  public AwsCredentialsStorageIntegration(
+  public AwsStorageCredentialVendor(
       StsClientProvider stsClientProvider,
       Function<AwsStorageConfigurationInfo, Optional<AwsCredentialsProvider>> credentialsResolver,
       AwsStorageConfigurationInfo storageConfig,
@@ -95,7 +95,7 @@ public class AwsCredentialsStorageIntegration
   }
 
   /** Production constructor with cache and realm config. */
-  public AwsCredentialsStorageIntegration(
+  public AwsStorageCredentialVendor(
       StsClientProvider stsClientProvider,
       Function<AwsStorageConfigurationInfo, Optional<AwsCredentialsProvider>> credentialsResolver,
       org.apache.polaris.core.storage.cache.StorageCredentialCache cache,
@@ -111,10 +111,12 @@ public class AwsCredentialsStorageIntegration
       @NonNull List<LocationGrant> grants,
       @NonNull Optional<String> refreshEndpoint,
       @NonNull CredentialVendingContext context) {
+    List<LocationGrant> normalizedGrants =
+        StorageCredentialVendor.normalizeEmptyActionsToRead(grants);
     return buildCacheKey(
-        readLocations(grants),
-        listLocations(grants),
-        writeLocations(grants),
+        readLocations(normalizedGrants),
+        listLocations(normalizedGrants),
+        writeLocations(normalizedGrants),
         refreshEndpoint,
         context);
   }
@@ -212,7 +214,8 @@ public class AwsCredentialsStorageIntegration
     int storageCredentialDurationSeconds =
         realmConfig.getConfig(STORAGE_CREDENTIAL_DURATION_SECONDS);
     String region = awsStorageConfig.getRegion();
-    StorageAccessConfig.Builder accessConfig = StorageAccessConfig.builder();
+    StorageAccessConfig.Builder accessConfig =
+        StorageAccessConfig.builder().supportsCredentialVending(true);
     String roleSessionName = key.roleSessionName();
 
     if (shouldUseSts(awsStorageConfig)) {

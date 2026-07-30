@@ -131,6 +131,7 @@ import org.apache.polaris.core.persistence.resolver.ResolutionResult;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.FileIOUtil;
 import org.apache.polaris.core.storage.IcebergPropertiesValidation;
 import org.apache.polaris.core.storage.LocationUtils;
@@ -145,7 +146,6 @@ import org.apache.polaris.spi.feature.catalog.SupportsNotifications;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.apache.polaris.storage.model.VendedClientStorageAccess;
@@ -222,7 +222,7 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
   private long catalogId;
   private String defaultBaseLocation;
   private Map<String, String> catalogProperties;
-  private final StorageAccessConfigProvider storageAccessConfigProvider;
+  private final CredentialVendingCoordinator storageAccessConfigProvider;
   private final StorageIoProvider storageIoProvider;
   private DurableManager metaStoreManager;
 
@@ -240,7 +240,7 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
       PolarisResolutionManifestCatalogView resolvedEntityView,
       PolarisPrincipal principal,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory) {
@@ -2453,7 +2453,13 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
       Set<PolarisStorageActions> storageActions) {
     StorageAccessConfig cfg =
         storageAccessConfigProvider.getStorageAccessConfig(
-            identifier, readLocations, storageActions, Optional.empty(), resolvedStorageEntity);
+            identifier,
+            readLocations,
+            storageActions,
+            Optional.empty(),
+            resolvedStorageEntity,
+            callContext,
+            principal);
     // Reload fileIO based on table specific context
     VendedClientStorageAccess clientView =
         new VendedClientStorageAccess(cfg.credentials(), cfg.extraProperties(), cfg.expiresAt());

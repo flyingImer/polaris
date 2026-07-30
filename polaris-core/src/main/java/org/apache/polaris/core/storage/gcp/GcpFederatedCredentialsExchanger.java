@@ -52,7 +52,7 @@ import java.util.concurrent.ConcurrentHashMap;
  * assertion.sub} and {@code attribute.realm = assertion.realm}; per-realm {@code attribute.realm}
  * IAM bindings then enforce that a realm-A identity can only impersonate realm-A's service account.
  * The returned credential is intended to be used as the source for tenant service-account
- * impersonation (see {@link GcpCredentialsStorageIntegration}).
+ * impersonation (see {@link GcpStorageCredentialVendor}).
  *
  * <p>Network note: this performs an STS token exchange against {@code sts.googleapis.com} in
  * addition to the existing {@code iamcredentials.googleapis.com} and {@code storage.googleapis.com}

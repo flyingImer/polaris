@@ -69,7 +69,10 @@ public class TaskExecutorImplTest {
             testServices.clock(),
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
-                testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
+                testServices.fileIOFactory(),
+                testServices.storageAccessConfigProvider(),
+                testServices.newCallContext(),
+                testServices.principal()),
             new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),

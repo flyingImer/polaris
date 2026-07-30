@@ -26,7 +26,6 @@ import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
 import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
 import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
-import org.mockito.Mockito;
 
 public class PolarisTreeMapMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
@@ -34,8 +33,7 @@ public class PolarisTreeMapMetaStoreManagerTest extends BaseDurableManagerTest {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();
     TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
     TreeMapTransactionalPersistenceImpl metaStore =
-        new TreeMapTransactionalPersistenceImpl(
-            diagServices, store, Mockito.mock(), RANDOM_SECRETS);
+        new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
     TransactionalMetaStoreManagerImpl metaStoreManager =
         new TransactionalMetaStoreManagerImpl(clock, diagServices);
     PolarisCallContext callCtx = new PolarisCallContext(() -> "testRealm", metaStore);

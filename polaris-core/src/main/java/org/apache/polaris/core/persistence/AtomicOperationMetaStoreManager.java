@@ -53,7 +53,6 @@ import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
-import org.apache.polaris.spi.durable.IntegrationPersistence;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
@@ -75,8 +74,9 @@ import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyMappingUtil;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.spi.durable.DurablePrimitives;
+import org.apache.polaris.spi.durable.IntegrationPersistence;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -433,7 +433,7 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
         internalProp.get(PolarisEntityConstants.getStorageIntegrationIdentifierPropertyName());
     String storageConfigInfoStr =
         internalProp.get(PolarisEntityConstants.getStorageConfigInfoPropertyName());
-    PolarisStorageIntegration integration;
+    StorageCredentialVendor integration;
     // storageConfigInfo's presence is needed to create a storage integration
     // and the catalog should not have an internal property of storage identifier or id yet
     if (storageConfigInfoStr != null && integrationIdentifierOrId == null) {

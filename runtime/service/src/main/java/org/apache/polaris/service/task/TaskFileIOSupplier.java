@@ -29,13 +29,15 @@ import java.util.Set;
 import org.apache.iceberg.CatalogProperties;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.io.FileIO;
+import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.TaskEntity;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.storage.model.VendedClientStorageAccess;
 import org.apache.polaris.storage.model.VendedServerStorageAccess;
@@ -43,14 +45,20 @@ import org.apache.polaris.storage.model.VendedServerStorageAccess;
 @RequestScoped
 public class TaskFileIOSupplier {
   private final StorageIoProvider storageIoProvider;
-  private final StorageAccessConfigProvider accessConfigProvider;
+  private final CredentialVendingCoordinator accessConfigProvider;
+  private final CallContext callContext;
+  private final PolarisPrincipal principal;
 
   @Inject
   public TaskFileIOSupplier(
       StorageIoProvider storageIoProvider,
-      StorageAccessConfigProvider storageAccessConfigProvider) {
+      CredentialVendingCoordinator storageAccessConfigProvider,
+      CallContext callContext,
+      PolarisPrincipal principal) {
     this.storageIoProvider = storageIoProvider;
     this.accessConfigProvider = storageAccessConfigProvider;
+    this.callContext = callContext;
+    this.principal = principal;
   }
 
   public FileIO apply(TaskEntity task, TableIdentifier identifier) {
@@ -66,7 +74,13 @@ public class TaskFileIOSupplier {
         new PolarisResolvedPathWrapper(List.of(resolvedTaskEntity));
     StorageAccessConfig cfg =
         accessConfigProvider.getStorageAccessConfig(
-            identifier, locations, storageActions, Optional.empty(), resolvedPath);
+            identifier,
+            locations,
+            storageActions,
+            Optional.empty(),
+            resolvedPath,
+            callContext,
+            principal);
 
     String ioImpl =
         properties.getOrDefault(

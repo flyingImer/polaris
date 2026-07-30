@@ -49,8 +49,7 @@ import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
-import org.apache.polaris.core.storage.PolarisStorageIntegration;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
+import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -59,17 +58,14 @@ public class TreeMapTransactionalPersistenceImpl extends AbstractTransactionalPe
 
   // the TreeMap store to use
   private final TreeMapMetaStore store;
-  private final PolarisStorageIntegrationProvider storageIntegrationProvider;
   private final PrincipalSecretsGenerator secretsGenerator;
 
   public TreeMapTransactionalPersistenceImpl(
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull TreeMapMetaStore store,
-      @NonNull PolarisStorageIntegrationProvider storageIntegrationProvider,
       @NonNull PrincipalSecretsGenerator secretsGenerator) {
     super(diagnostics);
     this.store = store;
-    this.storageIntegrationProvider = storageIntegrationProvider;
     this.secretsGenerator = secretsGenerator;
   }
 
@@ -129,7 +125,7 @@ public class TreeMapTransactionalPersistenceImpl extends AbstractTransactionalPe
   public void persistStorageIntegrationIfNeededInCurrentTxn(
       @NonNull PolarisCallContext callContext,
       @NonNull PolarisBaseEntity entity,
-      @Nullable PolarisStorageIntegration storageIntegration) {
+      @Nullable StorageCredentialVendor storageIntegration) {
     // not implemented for in-memory store
   }
 
@@ -538,15 +534,15 @@ public class TreeMapTransactionalPersistenceImpl extends AbstractTransactionalPe
 
   /** {@inheritDoc} */
   @Override
-  public @Nullable PolarisStorageIntegration createStorageIntegrationInCurrentTxn(
+  public @Nullable StorageCredentialVendor createStorageIntegrationInCurrentTxn(
       @NonNull PolarisCallContext callCtx,
       long catalogId,
       long entityId,
       PolarisStorageConfigurationInfo polarisStorageConfigurationInfo) {
-    // No-op in OSS: the storage integration is resolved at credential-vending time via
-    // PolarisStorageIntegrationProvider.getStorageIntegration(resolvedEntityPath). This hook
-    // remains available for custom deployments that need to allocate/lease external state
-    // atomically with the catalog-creation transaction.
+    // No-op in OSS: the storage integration is resolved at credential-vending time by
+    // CredentialVendingCoordinator, which selects a StorageCredentialVendorFactory by storage-type
+    // key. This hook remains available for custom deployments that need to allocate/lease external
+    // state atomically with the catalog-creation transaction.
     return null;
   }
 

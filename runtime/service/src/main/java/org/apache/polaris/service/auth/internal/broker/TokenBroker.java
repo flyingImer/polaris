@@ -18,8 +18,8 @@
  */
 package org.apache.polaris.service.auth.internal.broker;
 
-import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.apache.polaris.service.types.TokenType;
+import org.apache.polaris.spi.substrate.PolarisCredential;
 
 /** A broker for generating and verifying tokens. */
 public interface TokenBroker {

@@ -100,7 +100,7 @@ public interface GcpStorageCredentialCacheKey extends StorageCredentialCacheKey 
 
   @Override
   default StorageAccessConfig load() {
-    return GcpCredentialsStorageIntegration.compute(this);
+    return GcpStorageCredentialVendor.compute(this);
   }
 
   static GcpStorageCredentialCacheKey of(

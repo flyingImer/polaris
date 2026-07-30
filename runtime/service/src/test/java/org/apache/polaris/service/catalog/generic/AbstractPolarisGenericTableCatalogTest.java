@@ -24,6 +24,7 @@ import static org.mockito.Mockito.when;
 
 import com.google.common.collect.ImmutableMap;
 import io.quarkus.test.junit.QuarkusMock;
+import io.smallrye.common.annotation.Identifier;
 import jakarta.inject.Inject;
 import java.io.IOException;
 import java.lang.reflect.Method;
@@ -51,9 +52,10 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.table.GenericTableEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
 import org.apache.polaris.core.secrets.UserSecretsManager;
-import org.apache.polaris.core.storage.PolarisStorageIntegrationProvider;
-import org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegration;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
+import org.apache.polaris.core.storage.StorageCredentialVendorFactory;
 import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
+import org.apache.polaris.core.storage.aws.AwsStorageCredentialVendor;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.extension.catalog.iceberg.BridgeBaseMetastoreViewCatalog;
@@ -61,7 +63,7 @@ import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.events.listeners.InMemoryEventCollector;
-import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
+import org.apache.polaris.service.storage.AwsStorageCredentialVendorFactory;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
@@ -69,7 +71,6 @@ import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 import org.assertj.core.api.Assertions;
@@ -98,7 +99,11 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
 
   @Inject ServiceIdentityProvider serviceIdentityProvider;
   @Inject StorageCredentialCache storageCredentialCache;
-  @Inject PolarisStorageIntegrationProvider storageIntegrationProvider;
+
+  @Inject
+  @Identifier("s3")
+  StorageCredentialVendorFactory storageIntegrationProvider;
+
   @Inject PolarisDiagnostics diagServices;
   @Inject EntityResolver entityResolver;
   @Inject PolarisEventMetadataFactory eventMetadataFactory;
@@ -108,7 +113,7 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
   @Inject UserSecretsManager userSecretsManager;
   @Inject CallContext callContext;
   @Inject RealmConfig realmConfig;
-  @Inject StorageAccessConfigProvider storageAccessConfigProvider;
+  @Inject CredentialVendingCoordinator storageAccessConfigProvider;
   @Inject StorageIoProvider fileIOFactory;
   @Inject PolarisPrincipalHolder polarisPrincipalHolder;
 
@@ -128,9 +133,9 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
 
   @BeforeAll
   public static void setUpMocks() {
-    PolarisStorageIntegrationProviderImpl mock =
-        Mockito.mock(PolarisStorageIntegrationProviderImpl.class);
-    QuarkusMock.installMockForType(mock, PolarisStorageIntegrationProviderImpl.class);
+    AwsStorageCredentialVendorFactory mock = Mockito.mock(AwsStorageCredentialVendorFactory.class);
+    QuarkusMock.installMockForType(
+        mock, AwsStorageCredentialVendorFactory.class, Identifier.Literal.of("s3"));
   }
 
   protected void bootstrapRealm(String realmName) {}
@@ -216,15 +221,14 @@ public abstract class AbstractPolarisGenericTableCatalogTest {
         AwsStorageConfigurationInfo.builder()
             .roleARN("arn:aws:iam::012345678901:role/mock")
             .build();
-    AwsCredentialsStorageIntegration storageIntegration =
-        new AwsCredentialsStorageIntegration(
+    AwsStorageCredentialVendor storageIntegration =
+        new AwsStorageCredentialVendor(
             (destination) -> stsClient,
             config -> java.util.Optional.empty(),
             storageCredentialCache,
             mockAwsConfig,
             callContext.getRealmConfig());
-    when(storageIntegrationProvider.getStorageIntegration(Mockito.anyList()))
-        .thenReturn(storageIntegration);
+    when(storageIntegrationProvider.createVendor(Mockito.any())).thenReturn(storageIntegration);
 
     this.genericTableCatalog =
         new PolarisGenericTableCatalog(metaStoreManager, polarisContext, passthroughView);

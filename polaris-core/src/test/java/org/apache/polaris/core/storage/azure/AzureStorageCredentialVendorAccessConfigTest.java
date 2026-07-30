@@ -19,7 +19,7 @@
 
 package org.apache.polaris.core.storage.azure;
 
-import static org.apache.polaris.core.storage.azure.AzureCredentialsStorageIntegration.toAccessConfig;
+import static org.apache.polaris.core.storage.azure.AzureStorageCredentialVendor.toAccessConfig;
 
 import java.time.Instant;
 import java.util.Optional;
@@ -28,7 +28,7 @@ import org.apache.polaris.core.storage.StorageAccessProperty;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
 
-public class AzureCredentialsStorageIntegrationTest {
+public class AzureStorageCredentialVendorAccessConfigTest {
 
   @Test
   public void testAzureCredentialFormatting() {

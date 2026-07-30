@@ -28,6 +28,7 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.credentials.PolarisCredentialManager;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifestCatalogView;
+import org.apache.polaris.core.storage.CredentialVendingCoordinator;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationModeResolver;
@@ -38,7 +39,6 @@ import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
 import org.apache.polaris.spi.substrate.PolarisEventMetadataFactory;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
 import org.apache.polaris.spi.substrate.ReservedProperties;
-import org.apache.polaris.spi.substrate.StorageAccessConfigProvider;
 import org.apache.polaris.spi.substrate.StorageIoProvider;
 import org.apache.polaris.spi.substrate.TaskExecutor;
 
@@ -69,7 +69,7 @@ public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<ETagPayload
       PolarisResolutionManifestCatalogView resolvedEntityView,
       PolarisPrincipal principal,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory) {
@@ -101,7 +101,7 @@ public class PolarisIcebergCatalog extends BasePolarisIcebergCatalog<ETagPayload
       PolarisAuthorizer authorizer,
       DurableManager metaStoreManager,
       TaskExecutor taskExecutor,
-      StorageAccessConfigProvider storageAccessConfigProvider,
+      CredentialVendingCoordinator storageAccessConfigProvider,
       StorageIoProvider storageIoProvider,
       PolarisEventDispatcher polarisEventDispatcher,
       PolarisEventMetadataFactory eventMetadataFactory,

@@ -27,7 +27,6 @@ import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
 import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
-import org.mockito.Mockito;
 
 public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
@@ -35,8 +34,7 @@ public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurab
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();
     TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
     TreeMapTransactionalPersistenceImpl metaStore =
-        new TreeMapTransactionalPersistenceImpl(
-            diagServices, store, Mockito.mock(), RANDOM_SECRETS);
+        new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
     AtomicOperationMetaStoreManager metaStoreManager =
         new AtomicOperationMetaStoreManager(clock, diagServices);
     PolarisCallContext callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
