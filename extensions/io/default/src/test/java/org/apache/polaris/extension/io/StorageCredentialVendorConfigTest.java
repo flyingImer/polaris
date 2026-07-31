@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.storage;
+package org.apache.polaris.extension.io;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
@@ -33,7 +33,6 @@ import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.Map;
 import java.util.Optional;
-import java.util.OptionalInt;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.Test;
 import org.mockito.ArgumentCaptor;
@@ -44,7 +43,15 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.StsClientBuilder;
 
-public class StorageConfigurationTest {
+/**
+ * Moved from {@code runtime/service}'s {@code StorageConfigurationTest} alongside {@link
+ * StorageCredentialVendorConfig} itself (the AWS/GCP credential-vending half of the old {@code
+ * StorageConfiguration}) -- see that class's javadoc for why. Every assertion below exercises only
+ * the credential-vending methods that moved; none of the original file's stubbed-but-never-asserted
+ * {@code S3AccessConfig} client-pool-tuning fields came along, because they stayed in {@code
+ * runtime/service} with {@code S3AccessConfig} and {@code StsClientsPool}.
+ */
+public class StorageCredentialVendorConfigTest {
 
   private static final String TEST_ACCESS_KEY = "test-access-key";
   private static final String TEST_GCP_TOKEN = "ya29.test-token";
@@ -53,8 +60,8 @@ public class StorageConfigurationTest {
   private static final String STORAGE_SECRET_KEY = "storage-secret-key";
   private static final Duration TEST_TOKEN_LIFESPAN = Duration.ofMinutes(20);
 
-  private StorageConfiguration configWithAwsCredentialsAndGcpToken() {
-    return new StorageConfiguration() {
+  private StorageCredentialVendorConfig configWithAwsCredentialsAndGcpToken() {
+    return new StorageCredentialVendorConfig() {
       @Override
       public AwsStorageConfig aws() {
         return new AwsStorageConfig() {
@@ -84,51 +91,11 @@ public class StorageConfigurationTest {
       public Optional<Duration> gcpAccessTokenLifespan() {
         return Optional.of(TEST_TOKEN_LIFESPAN);
       }
-
-      @Override
-      public OptionalInt clientsCacheMaxSize() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public OptionalInt maxHttpConnections() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public Optional<Duration> readTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionAcquisitionTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionMaxIdleTime() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionTimeToLive() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Boolean> expectContinueEnabled() {
-        return Optional.empty();
-      }
     };
   }
 
-  private StorageConfiguration configWithoutGcpToken() {
-    return new StorageConfiguration() {
+  private StorageCredentialVendorConfig configWithoutGcpToken() {
+    return new StorageCredentialVendorConfig() {
       @Override
       public AwsStorageConfig aws() {
         return new AwsStorageConfig() {
@@ -158,51 +125,11 @@ public class StorageConfigurationTest {
       public Optional<Duration> gcpAccessTokenLifespan() {
         return Optional.empty();
       }
-
-      @Override
-      public OptionalInt clientsCacheMaxSize() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public OptionalInt maxHttpConnections() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public Optional<Duration> readTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionAcquisitionTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionMaxIdleTime() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionTimeToLive() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Boolean> expectContinueEnabled() {
-        return Optional.empty();
-      }
     };
   }
 
-  private StorageConfiguration configWithNamedStorage() {
-    return new StorageConfiguration() {
+  private StorageCredentialVendorConfig configWithNamedStorage() {
+    return new StorageCredentialVendorConfig() {
       @Override
       public AwsStorageConfig aws() {
         return new AwsStorageConfig() {
@@ -244,46 +171,6 @@ public class StorageConfigurationTest {
       public Optional<Duration> gcpAccessTokenLifespan() {
         return Optional.empty();
       }
-
-      @Override
-      public OptionalInt clientsCacheMaxSize() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public OptionalInt maxHttpConnections() {
-        return OptionalInt.empty();
-      }
-
-      @Override
-      public Optional<Duration> readTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionAcquisitionTimeout() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionMaxIdleTime() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Duration> connectionTimeToLive() {
-        return Optional.empty();
-      }
-
-      @Override
-      public Optional<Boolean> expectContinueEnabled() {
-        return Optional.empty();
-      }
     };
   }
 
@@ -301,7 +188,7 @@ public class StorageConfigurationTest {
     try (MockedStatic<StsClient> staticMock = Mockito.mockStatic(StsClient.class)) {
       staticMock.when(StsClient::builder).thenReturn(mockBuilder);
 
-      StorageConfiguration config = configWithAwsCredentialsAndGcpToken();
+      StorageCredentialVendorConfig config = configWithAwsCredentialsAndGcpToken();
       Supplier<StsClient> supplier = config.stsClientSupplier(true);
       StsClient client1 = supplier.get();
       StsClient client2 = supplier.get();
@@ -318,7 +205,7 @@ public class StorageConfigurationTest {
 
   @Test
   public void testStaticStsCredentials() {
-    StorageConfiguration config = configWithAwsCredentialsAndGcpToken();
+    StorageCredentialVendorConfig config = configWithAwsCredentialsAndGcpToken();
     AwsCredentialsProvider credentialsProvider = config.stsCredentials();
     assertThat(credentialsProvider).isInstanceOf(StaticCredentialsProvider.class);
     assertThat(credentialsProvider.resolveCredentials().accessKeyId()).isEqualTo(TEST_ACCESS_KEY);
@@ -362,7 +249,7 @@ public class StorageConfigurationTest {
 
   @Test
   public void testStsCredentialsWithNamedStorage() {
-    StorageConfiguration config = configWithNamedStorage();
+    StorageCredentialVendorConfig config = configWithNamedStorage();
     AwsCredentialsProvider credentialsProvider = config.stsCredentials("myStorage");
     assertThat(credentialsProvider).isInstanceOf(StaticCredentialsProvider.class);
     assertThat(credentialsProvider.resolveCredentials().accessKeyId())
@@ -373,7 +260,7 @@ public class StorageConfigurationTest {
 
   @Test
   public void testStsCredentialsWithUnknownStorageThrows() {
-    StorageConfiguration config = configWithNamedStorage();
+    StorageCredentialVendorConfig config = configWithNamedStorage();
     assertThatThrownBy(() -> config.stsCredentials("unknownStorage"))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("unknownStorage")
@@ -382,7 +269,7 @@ public class StorageConfigurationTest {
 
   @Test
   public void testStsCredentialsWithNullStorageNameFallsBackToDefault() {
-    StorageConfiguration config = configWithNamedStorage();
+    StorageCredentialVendorConfig config = configWithNamedStorage();
     AwsCredentialsProvider credentialsProvider = config.stsCredentials(null);
     assertThat(credentialsProvider).isInstanceOf(StaticCredentialsProvider.class);
     assertThat(credentialsProvider.resolveCredentials().accessKeyId()).isEqualTo(TEST_ACCESS_KEY);

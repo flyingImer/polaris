@@ -19,6 +19,7 @@
 
 package org.apache.polaris.service.storage.aws;
 
+import io.smallrye.config.ConfigMapping;
 import java.time.Duration;
 import java.util.Optional;
 import java.util.OptionalInt;
@@ -29,7 +30,16 @@ import java.util.OptionalInt;
  *
  * <p>Currently, this configuration does not apply to all of Polaris code, but only to select
  * services.
+ *
+ * <p>Was previously exposed only through {@code StorageConfiguration extends S3AccessConfig} (a
+ * {@code runtime/service}-resident wrapper whose sole job was carrying the {@code @ConfigMapping}
+ * annotation). That wrapper is gone: the credential-vending half of what it carried (AWS/GCP source
+ * credentials) moved to {@code extensions/io/default}'s {@code StorageCredentialVendorConfig},
+ * alongside the vendor factory beans that actually need it, so this interface -- the
+ * STS-HTTP-client-pool tuning surface that stays a {@code runtime/service} concern -- is annotated
+ * directly instead of needing a separate carrier.
  */
+@ConfigMapping(prefix = "polaris.storage")
 public interface S3AccessConfig {
   /** Default value for {@link #clientsCacheMaxSize()}. */
   int DEFAULT_MAX_STS_CLIENT_CACHE_ENTRIES = 50;

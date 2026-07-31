@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.storage;
+package org.apache.polaris.extension.io;
 
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
@@ -40,8 +40,8 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
  * storage type to pick this bean out of the {@code @Any Instance<StorageCredentialVendorFactory>}.
  *
  * <p>Unlike AWS and GCP, Azure credential vending needs no request-scoped Azure SDK client or
- * application-level {@link StorageConfiguration}, so this factory only needs the shared cache and
- * realm config.
+ * application-level config (there is no Azure equivalent of {@link StorageCredentialVendorConfig}),
+ * so this factory only needs the shared cache and realm config.
  */
 @ApplicationScoped
 @Identifier("azure")

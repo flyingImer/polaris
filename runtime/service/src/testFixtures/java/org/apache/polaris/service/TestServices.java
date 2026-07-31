@@ -65,7 +65,11 @@ import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.storage.cache.StorageCredentialCacheConfig;
 import org.apache.polaris.extension.catalog.iceberg.CatalogHandlerUtils;
 import org.apache.polaris.extension.catalog.iceberg.PolarisIcebergCatalog;
+import org.apache.polaris.extension.io.AwsStorageCredentialVendorFactory;
+import org.apache.polaris.extension.io.AzureStorageCredentialVendorFactory;
 import org.apache.polaris.extension.io.DefaultCredentialVendingCoordinator;
+import org.apache.polaris.extension.io.FileStorageCredentialVendorFactory;
+import org.apache.polaris.extension.io.GcpStorageCredentialVendorFactory;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.admin.PolarisServiceImpl;
 import org.apache.polaris.service.admin.api.PolarisCatalogsApi;
@@ -94,10 +98,6 @@ import org.apache.polaris.service.identity.provider.DefaultServiceIdentityProvid
 import org.apache.polaris.service.persistence.InMemoryPolarisMetaStoreManagerFactory;
 import org.apache.polaris.service.reporting.DefaultMetricsReporter;
 import org.apache.polaris.service.secrets.UnsafeInMemorySecretsManagerFactory;
-import org.apache.polaris.service.storage.AwsStorageCredentialVendorFactory;
-import org.apache.polaris.service.storage.AzureStorageCredentialVendorFactory;
-import org.apache.polaris.service.storage.FileStorageCredentialVendorFactory;
-import org.apache.polaris.service.storage.GcpStorageCredentialVendorFactory;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.GrantManager;
 import org.apache.polaris.spi.durable.SecretsManager;
@@ -227,7 +227,7 @@ public record TestServices(
       RealmConfig realmConfig = new RealmConfigImpl(configurationSource, realmContext);
 
       // Build the four cloud-specific vendor factories directly (test constructors bypass
-      // StorageConfiguration), then wire them behind a mocked
+      // StorageCredentialVendorConfig), then wire them behind a mocked
       // Instance<StorageCredentialVendorFactory>
       // keyed by storage type -- the same seam CDI's @Any Instance<StorageCredentialVendorFactory>
       // provides in production, so DefaultCredentialVendingCoordinator selects among them exactly

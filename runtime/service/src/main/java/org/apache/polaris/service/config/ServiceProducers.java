@@ -74,7 +74,6 @@ import org.apache.polaris.service.ratelimiter.TokenBucketConfiguration;
 import org.apache.polaris.service.ratelimiter.TokenBucketFactory;
 import org.apache.polaris.service.reporting.MetricsReportingConfiguration;
 import org.apache.polaris.service.secrets.SecretsManagerConfiguration;
-import org.apache.polaris.service.storage.StorageConfiguration;
 import org.apache.polaris.service.storage.aws.S3AccessConfig;
 import org.apache.polaris.service.storage.aws.StsClientsPool;
 import org.apache.polaris.service.task.TaskHandlerConfiguration;
@@ -300,7 +299,7 @@ public class ServiceProducers {
   @ApplicationScoped
   public StsClientsPool stsClientsPool(
       @Identifier("aws-sdk-http-client") SdkHttpClient httpClient,
-      StorageConfiguration config,
+      S3AccessConfig config,
       MeterRegistry meterRegistry) {
     return new StsClientsPool(config.effectiveClientsCacheMaxSize(), httpClient, meterRegistry);
   }

@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.storage;
+package org.apache.polaris.extension.io;
 
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
@@ -32,7 +32,6 @@ import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.apache.polaris.docs.ConfigDocs;
-import org.apache.polaris.service.storage.aws.S3AccessConfig;
 import org.slf4j.LoggerFactory;
 import software.amazon.awssdk.auth.credentials.AwsBasicCredentials;
 import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
@@ -41,8 +40,19 @@ import software.amazon.awssdk.auth.credentials.StaticCredentialsProvider;
 import software.amazon.awssdk.services.sts.StsClient;
 import software.amazon.awssdk.services.sts.StsClientBuilder;
 
+/**
+ * The AWS/GCP credential-vending half of the {@code polaris.storage} config surface -- STS/GCP
+ * source credentials the {@code s3}/{@code gcs} {@link StorageCredentialVendorFactory} beans need
+ * to mint scoped credentials. Split out of the old {@code StorageConfiguration} (deleted -- its
+ * unrelated STS-HTTP-client-pool tuning surface, {@code S3AccessConfig}, now carries the
+ * {@code @ConfigMapping} annotation directly and stays in {@code runtime/service}) so this seam's
+ * own default vendor factories -- which live here, in {@code extensions/io/default}, alongside
+ * {@link DefaultCredentialVendingCoordinator} -- don't need to depend back into {@code
+ * runtime/service} for their config. Same {@code polaris.storage} prefix as before; no {@code
+ * application.properties} keys changed.
+ */
 @ConfigMapping(prefix = "polaris.storage")
-public interface StorageConfiguration extends S3AccessConfig {
+public interface StorageCredentialVendorConfig {
 
   Duration DEFAULT_TOKEN_LIFESPAN = Duration.ofHours(1);
 
@@ -126,7 +136,7 @@ public interface StorageConfiguration extends S3AccessConfig {
 
   default AwsCredentialsProvider stsCredentials() {
     if (aws().accessKey().isPresent() && aws().secretKey().isPresent()) {
-      LoggerFactory.getLogger(StorageConfiguration.class)
+      LoggerFactory.getLogger(StorageCredentialVendorConfig.class)
           .warn("Using hard-coded AWS credentials - this is not recommended for production");
       return StaticCredentialsProvider.create(
           AwsBasicCredentials.create(aws().accessKey().get(), aws().secretKey().get()));

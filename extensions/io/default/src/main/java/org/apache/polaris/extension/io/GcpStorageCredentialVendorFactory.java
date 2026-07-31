@@ -16,85 +16,87 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.service.storage;
+package org.apache.polaris.extension.io;
 
+import com.google.api.client.http.javanet.NetHttpTransport;
+import com.google.auth.http.HttpTransportFactory;
+import com.google.auth.oauth2.GoogleCredentials;
+import com.google.cloud.ServiceOptions;
 import io.smallrye.common.annotation.Identifier;
 import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
-import java.util.Optional;
-import java.util.function.Function;
+import java.time.Clock;
+import java.util.function.Supplier;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.config.RealmConfig;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.persistence.BaseMetaStoreManager;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.StorageCredentialVendor;
 import org.apache.polaris.core.storage.StorageCredentialVendorFactory;
-import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
-import org.apache.polaris.core.storage.aws.AwsStorageCredentialVendor;
-import org.apache.polaris.core.storage.aws.StsClientProvider;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
-import software.amazon.awssdk.auth.credentials.AwsCredentialsProvider;
+import org.apache.polaris.core.storage.gcp.GcpStorageConfigurationInfo;
+import org.apache.polaris.core.storage.gcp.GcpStorageCredentialVendor;
 
 /**
- * CDI-selectable {@link StorageCredentialVendorFactory} for S3-backed storage configurations.
- * Registered under {@code @Identifier("s3")}, matching {@link
- * PolarisStorageConfigurationInfo.StorageType#S3}'s lower-cased name -- the string key {@link
+ * CDI-selectable {@link StorageCredentialVendorFactory} for GCS-backed storage configurations.
+ * Registered under {@code @Identifier("gcs")}, matching {@link
+ * PolarisStorageConfigurationInfo.StorageType#GCS}'s lower-cased name -- the string key {@link
  * org.apache.polaris.core.storage.CredentialVendingCoordinator} derives from a resolved entity's
  * storage type to pick this bean out of the {@code @Any Instance<StorageCredentialVendorFactory>}.
  */
 @ApplicationScoped
-@Identifier("s3")
-public class AwsStorageCredentialVendorFactory implements StorageCredentialVendorFactory {
+@Identifier("gcs")
+public class GcpStorageCredentialVendorFactory implements StorageCredentialVendorFactory {
 
   private final PolarisDiagnostics diagnostics;
-  private final Function<AwsStorageConfigurationInfo, AwsStorageCredentialVendor> vendorFactory;
+  private final Supplier<GoogleCredentials> gcpCredsProvider;
+  private final HttpTransportFactory gcpTransportFactory;
+  private final StorageCredentialCache cache;
+  private final RealmConfig realmConfig;
 
   @SuppressWarnings("CdiInjectionPointsInspection")
   @Inject
-  public AwsStorageCredentialVendorFactory(
-      StorageConfiguration storageConfiguration,
-      StsClientProvider stsClientProvider,
-      RealmConfig realmConfig,
+  public GcpStorageCredentialVendorFactory(
+      StorageCredentialVendorConfig storageCredentialVendorConfig,
+      Clock clock,
       StorageCredentialCache cache,
+      RealmConfig realmConfig,
       PolarisDiagnostics diagnostics) {
     this.diagnostics = diagnostics;
-    this.vendorFactory =
-        storageConfig ->
-            new AwsStorageCredentialVendor(
-                stsClientProvider,
-                config -> {
-                  if (realmConfig.getConfig(
-                      FeatureConfiguration.RESOLVE_CREDENTIALS_BY_STORAGE_NAME)) {
-                    return Optional.of(
-                        storageConfiguration.stsCredentials(config.getStorageName()));
-                  }
-                  return Optional.of(storageConfiguration.stsCredentials());
-                },
-                cache,
-                storageConfig,
-                realmConfig);
+    this.gcpCredsProvider = storageCredentialVendorConfig.gcpCredentialsSupplier(clock);
+    this.gcpTransportFactory =
+        ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new);
+    this.cache = cache;
+    this.realmConfig = realmConfig;
   }
 
-  /** Test constructor -- bypasses {@link StorageConfiguration} with a fixed credentials result. */
-  public AwsStorageCredentialVendorFactory(
-      StsClientProvider stsClientProvider,
-      Optional<AwsCredentialsProvider> stsCredentials,
+  /**
+   * Test constructor -- bypasses {@link StorageCredentialVendorConfig} with a fixed credentials
+   * supplier.
+   */
+  public GcpStorageCredentialVendorFactory(
+      Supplier<GoogleCredentials> gcpCredsProvider,
       StorageCredentialCache cache,
       RealmConfig realmConfig,
       PolarisDiagnostics diagnostics) {
     this.diagnostics = diagnostics;
-    this.vendorFactory =
-        storageConfig ->
-            new AwsStorageCredentialVendor(
-                stsClientProvider, config -> stsCredentials, cache, storageConfig, realmConfig);
+    this.gcpCredsProvider = gcpCredsProvider;
+    this.gcpTransportFactory =
+        ServiceOptions.getFromServiceLoader(HttpTransportFactory.class, NetHttpTransport::new);
+    this.cache = cache;
+    this.realmConfig = realmConfig;
   }
 
   @Override
   public StorageCredentialVendor createVendor(PolarisEntity resolvedStorageEntity) {
     PolarisStorageConfigurationInfo storageConfig =
         BaseMetaStoreManager.extractStorageConfiguration(diagnostics, resolvedStorageEntity);
-    return vendorFactory.apply((AwsStorageConfigurationInfo) storageConfig);
+    return new GcpStorageCredentialVendor(
+        gcpCredsProvider.get(),
+        gcpTransportFactory,
+        cache,
+        (GcpStorageConfigurationInfo) storageConfig,
+        realmConfig);
   }
 }
