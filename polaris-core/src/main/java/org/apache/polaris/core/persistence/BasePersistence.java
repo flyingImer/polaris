@@ -131,6 +131,51 @@ public interface BasePersistence extends PolicyMappingPersistence {
       @Nullable List<PolarisBaseEntity> originalEntities);
 
   /**
+   * Atomically commit a mixed set of entity mutations and grant-record changes: either every
+   * mutation is applied durably and becomes visible together, or none are. This is the primitive a
+   * durable-manager implementation uses to compose operations (grant + version bumps, entity +
+   * cleanup task, etc.) that today require several independent calls with no crash-atomicity
+   * between them.
+   *
+   * <p>Every {@link EntityMutation} of type {@code UPDATE} carries its {@code originalEntity} as
+   * the compare-and-swap baseline. That baseline must be the object the caller read just before
+   * building the mutation, not a value reconstructed after the fact — see {@link
+   * EntityMutation#update}. A stale baseline (the persisted row has since moved on) fails the whole
+   * commit; it does not silently apply against current state.
+   *
+   * <p>The default implementation throws {@link UnsupportedOperationException}, preserving backward
+   * compatibility for existing backends. Callers must check {@link #supportsAtomicMixedCommit()}
+   * before relying on atomicity; a backend that returns {@code false} here offers no fallback of its
+   * own — the caller is responsible for a non-atomic sequence of individual operations instead.
+   *
+   * @param callCtx call context
+   * @param entityMutations entity creates, CAS-updates, and deletes
+   * @param grantMutations grant-record creates and deletes
+   * @throws RetryOnConcurrencyException if any update's baseline no longer matches current state
+   */
+  default void commitChangeSet(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityMutation> entityMutations,
+      @NonNull List<GrantMutation> grantMutations) {
+    throw new UnsupportedOperationException(
+        "Backend does not support atomic mixed commits; caller must fall back to individual"
+            + " operations");
+  }
+
+  /**
+   * Returns true if this backend supports {@link #commitChangeSet} for atomic mixed entity and
+   * grant-record mutations.
+   *
+   * <p>This is deliberately also reachable through {@link
+   * PolarisMetaStoreManager#supportsAtomicMixedCommit}: a manager implementation composes on top of
+   * whichever {@link BasePersistence} it holds, and any caller that only has the manager (not the
+   * raw persistence handle) still needs to be able to ask.
+   */
+  default boolean supportsAtomicMixedCommit() {
+    return false;
+  }
+
+  /**
    * Write the specified grantRecord to the grant_records table. If there is a conflict (existing
    * record with the same PK), this is a no-op, because currently all fields of the grantRecord are
    * part of the PK. If additional non-PK attributes are added this might change.

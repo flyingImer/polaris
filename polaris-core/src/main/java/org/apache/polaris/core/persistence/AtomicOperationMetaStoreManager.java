@@ -302,37 +302,41 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
             grantee.getId(),
             priv.getCode());
 
-    // persist the new grant
-    ms.writeToGrantRecords(callCtx, grantRecord);
-
-    // load the grantee (either a catalog/principal role or a principal) and increment its grants
-    // version
+    // load the grantee (either a catalog/principal role or a principal) and the securable; both
+    // grants-version bumps and the grant record itself go into one commit, and the baseline for
+    // each bump is exactly the object just read here, not a value reconstructed afterward.
     PolarisBaseEntity granteeEntity =
         ms.lookupEntity(callCtx, grantee.getCatalogId(), grantee.getId(), grantee.getTypeCode());
     getDiagnostics().checkNotNull(granteeEntity, "grantee_not_found", "grantee={}", grantee);
-    // grants have changed, we need to bump-up the grants version
     PolarisBaseEntity updatedGranteeEntity =
         granteeEntity.withGrantRecordsVersion(granteeEntity.getGrantRecordsVersion() + 1);
-    ms.writeEntity(callCtx, updatedGranteeEntity, false, granteeEntity);
 
-    // we also need to invalidate the grants on that securable so that we can reload them.
-    // load the securable and increment its grants version
     PolarisBaseEntity securableEntity =
         ms.lookupEntity(
             callCtx, securable.getCatalogId(), securable.getId(), securable.getTypeCode());
     getDiagnostics()
         .checkNotNull(securableEntity, "securable_not_found", "securable={}", securable);
-    // grants have changed, we need to bump-up the grants version
     PolarisBaseEntity updatedSecurableEntity =
         securableEntity.withGrantRecordsVersion(securableEntity.getGrantRecordsVersion() + 1);
-    ms.writeEntity(callCtx, updatedSecurableEntity, false, securableEntity);
 
-    // TODO: Reorder and/or expose bulk update of both grantRecordsVersions and grant records. In
-    // the meantime, cache can be disabled or configured with a short enough expiry time to
-    // define an "eventual consistency" timeframe.
-    // TODO: Figure out if it's actually necessary to separately validate whether the entities have
-    // not changed, if we plan to include the compare-and-swap in the helper method that updates the
-    // grantRecordsVersions already.
+    if (ms.supportsAtomicMixedCommit()) {
+      // Atomic path: grant record + both version bumps commit together, or none do. A concurrent
+      // writer that changed either entity between the reads above and this call fails the whole
+      // commit (RetryOnConcurrencyException from the CAS baseline mismatch), it does not silently
+      // apply against whatever the entity has become.
+      ms.commitChangeSet(
+          callCtx,
+          List.of(
+              EntityMutation.update(updatedGranteeEntity, granteeEntity),
+              EntityMutation.update(updatedSecurableEntity, securableEntity)),
+          List.of(GrantMutation.create(grantRecord)));
+    } else {
+      // Fallback for a backend that cannot do the atomic mixed commit: same three writes, no
+      // crash-atomicity between them (today's behavior, unchanged).
+      ms.writeToGrantRecords(callCtx, grantRecord);
+      ms.writeEntity(callCtx, updatedGranteeEntity, false, granteeEntity);
+      ms.writeEntity(callCtx, updatedSecurableEntity, false, securableEntity);
+    }
 
     // done, return the new grant record
     return grantRecord;
@@ -378,22 +382,16 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
     // ensure the grantee is really a grantee
     getDiagnostics().check(grantee.getType().isGrantee(), "not_a_grantee", "grantee={}", grantee);
 
-    // remove that grant
-    ms.deleteFromGrantRecords(callCtx, grantRecord);
-
-    // load the grantee and increment its grants version
+    // load the grantee and securable; the grant-record delete and both version bumps go into one
+    // commit, baselined on exactly what was just read here.
     PolarisBaseEntity refreshGrantee =
         ms.lookupEntity(callCtx, grantee.getCatalogId(), grantee.getId(), grantee.getTypeCode());
     getDiagnostics()
         .checkNotNull(
             refreshGrantee, "missing_grantee", "grantRecord={} grantee={}", grantRecord, grantee);
-    // grants have changed, we need to bump-up the grants version
     PolarisBaseEntity updatedRefreshGrantee =
         refreshGrantee.withGrantRecordsVersion(refreshGrantee.getGrantRecordsVersion() + 1);
-    ms.writeEntity(callCtx, updatedRefreshGrantee, false, refreshGrantee);
 
-    // we also need to invalidate the grants on that securable so that we can reload them.
-    // load the securable and increment its grants version
     PolarisBaseEntity refreshSecurable =
         ms.lookupEntity(
             callCtx, securable.getCatalogId(), securable.getId(), securable.getTypeCode());
@@ -404,14 +402,21 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
             "grantRecord={} securable={}",
             grantRecord,
             securable);
-    // grants have changed, we need to bump-up the grants version
     PolarisBaseEntity updatedRefreshSecurable =
         refreshSecurable.withGrantRecordsVersion(refreshSecurable.getGrantRecordsVersion() + 1);
-    ms.writeEntity(callCtx, updatedRefreshSecurable, false, refreshSecurable);
 
-    // TODO: Reorder and/or expose bulk update of both grantRecordsVersions and grant records. In
-    // the meantime, cache can be disabled or configured with a short enough expiry time to
-    // define an "eventual consistency" timeframe.
+    if (ms.supportsAtomicMixedCommit()) {
+      ms.commitChangeSet(
+          callCtx,
+          List.of(
+              EntityMutation.update(updatedRefreshGrantee, refreshGrantee),
+              EntityMutation.update(updatedRefreshSecurable, refreshSecurable)),
+          List.of(GrantMutation.delete(grantRecord)));
+    } else {
+      ms.deleteFromGrantRecords(callCtx, grantRecord);
+      ms.writeEntity(callCtx, updatedRefreshGrantee, false, refreshGrantee);
+      ms.writeEntity(callCtx, updatedRefreshSecurable, false, refreshSecurable);
+    }
   }
 
   /** {@inheritDoc} */

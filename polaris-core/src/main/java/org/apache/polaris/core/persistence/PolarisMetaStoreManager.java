@@ -213,6 +213,23 @@ public interface PolarisMetaStoreManager
       @NonNull List<PolarisEntityCore> principalRoles);
 
   /**
+   * Returns true if this manager can commit a mixed set of entity and grant-record mutations
+   * atomically (see {@link BasePersistence#commitChangeSet}).
+   *
+   * <p>The underlying capability lives on {@link BasePersistence}, but a caller that only holds a
+   * {@link PolarisMetaStoreManager} (the interface real callers are actually handed) has no way to
+   * reach {@link BasePersistence} directly to ask. This default method closes that gap: a manager
+   * implementation composes on top of whichever persistence backend it holds, and this exposes
+   * that backend's answer one layer up, without forcing every manager implementation to duplicate
+   * the delegation.
+   *
+   * @param callCtx call context, used to reach the backing persistence
+   */
+  default boolean supportsAtomicMixedCommit(@NonNull PolarisCallContext callCtx) {
+    return callCtx.getMetaStore().supportsAtomicMixedCommit();
+  }
+
+  /**
    * Persist a newly created entity under the specified catalog path if specified, else this is a
    * top-level entity. We will re-resolve the specified path to ensure nothing has changed since the
    * Polaris app resolved the path. If the entity already exists with the same specified id, we will
