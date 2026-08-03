@@ -51,16 +51,21 @@ dependencies {
   runtimeOnly("com.azure:azure-storage-blob")
   runtimeOnly("com.azure:azure-storage-file-datalake")
 
-  // Promoted to compile-time (not just runtimeOnly, like the reflectively-loaded FileIO backends
-  // above): the s3/gcs StorageCredentialVendorFactory beans call the AWS STS / GCP credentials SDK
-  // types directly. Only the SDK types themselves are needed at compile time (no client/credential
-  // wiring) -- mirrors the coordinates runtime/service already pulls in for the same SDKs
-  // and the pattern extensions/catalog/iceberg-default/build.gradle.kts already uses for the same
-  // reason. (software.amazon.awssdk:sts's own transitive graph brings in the auth/credentials
-  // types the AWS factory's test constructor needs; s3 itself stays runtimeOnly above, it is not
-  // touched by credential vending. The awssdk BOM moves here too -- implementation's version
-  // constraints also cover runtimeOnly's s3 coordinate above, since runtimeClasspath extends
-  // implementation.)
+  // Compile-time, not runtimeOnly like the reflectively-loaded FileIO backends above: the s3/gcs
+  // StorageCredentialVendorFactory beans and StorageCredentialVendorConfig call AWS STS / GCP
+  // credentials SDK types directly (e.g. StsClient.builder(), GoogleCredentials.create(...)), so
+  // this module's own bytecode references them, not just class names loaded by string. These are
+  // the same two coordinates runtime/service/build.gradle.kts already declares implementation for
+  // the same reason -- the factories moved here from runtime/service, this declaration moved with
+  // them, it was never runtimeOnly-eligible in either home. sts (not the narrower auth artifact
+  // alone) is needed because StsClient/StsClientBuilder are defined in sts itself; its transitive
+  // auth dependency covers AwsStorageCredentialVendorFactory's own AwsCredentialsProvider import.
+  // google-cloud-storage is broader than the three narrower coordinates the GCP factory's imports
+  // would strictly need (google-http-client, google-auth-library-oauth2-http, google-cloud-core) --
+  // chosen to match runtime/service's existing coordinate for this same code, not for minimality.
+  // s3 itself stays runtimeOnly above, untouched by credential vending; the awssdk BOM moves here
+  // too because implementation's version constraints also cover runtimeOnly's s3 coordinate above,
+  // since runtimeClasspath extends implementation.
   implementation(platform(libs.awssdk.bom))
   implementation("software.amazon.awssdk:sts")
   implementation(platform(libs.google.cloud.storage.bom))
