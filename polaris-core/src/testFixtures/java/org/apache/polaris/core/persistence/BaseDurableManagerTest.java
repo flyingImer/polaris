@@ -18,11 +18,14 @@
  */
 package org.apache.polaris.core.persistence;
 
+import java.lang.reflect.InvocationTargetException;
+import java.lang.reflect.Proxy;
 import java.time.Duration;
 import java.time.Instant;
 import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Random;
@@ -50,6 +53,7 @@ import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.DurablePrimitives;
 import org.apache.polaris.spi.durable.SecretsManager;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -81,6 +85,61 @@ public abstract class BaseDurableManagerTest {
   }
 
   protected abstract PolarisTestMetaStoreManager createPolarisTestMetaStoreManager();
+
+  /**
+   * Wraps this fixture's already-bootstrapped {@link DurablePrimitives} in a proxy that runs {@code
+   * afterCall} after every real delegate call, and returns a fresh {@link PolarisCallContext} using
+   * it in place of {@link #polarisTestMetaStoreManager}'s own context.
+   *
+   * <p>Not used by this class's own inherited tests, and deliberately not a {@code @Test} itself:
+   * this fixture is also subclassed by manager implementations (transactional, NoSQL) that choose a
+   * different atomicity mechanism and never call {@code commitChangeSet} at all (ADR-0002 leaves
+   * the mechanism to the impl). Only the atomic/CAS-manager fixture subclasses use this, to build
+   * their own {@code createCatalog} mechanism/guarantee tests without duplicating this
+   * proxy-construction boilerplate per module.
+   */
+  protected PolarisCallContext withInterceptedPrimitives(DurablePrimitivesInterceptor afterCall) {
+    PolarisCallContext realCallCtx = polarisTestMetaStoreManager.polarisCallContext;
+    DurablePrimitives real = realCallCtx.getMetaStore();
+    // The concrete impl (e.g. TreeMapTransactionalPersistenceImpl) implements DurablePrimitives
+    // plus sibling interfaces (IntegrationPersistence, MetricsPersistence, ...) that manager code
+    // casts to at call sites (see AtomicOperationMetaStoreManager.createCatalog's
+    // `(IntegrationPersistence) ms`); the proxy must implement all of them or those casts fail.
+    DurablePrimitives intercepted =
+        (DurablePrimitives)
+            Proxy.newProxyInstance(
+                DurablePrimitives.class.getClassLoader(),
+                allInterfaces(real.getClass()).toArray(new Class<?>[0]),
+                (proxy, method, args) -> {
+                  try {
+                    Object result = method.invoke(real, args);
+                    afterCall.afterCall(real, method.getName(), args, result);
+                    return result;
+                  } catch (InvocationTargetException e) {
+                    throw e.getCause();
+                  }
+                });
+    return new PolarisCallContext(realCallCtx.getRealmContext(), intercepted);
+  }
+
+  private static Set<Class<?>> allInterfaces(Class<?> clazz) {
+    Set<Class<?>> result = new LinkedHashSet<>();
+    for (Class<?> c = clazz; c != null; c = c.getSuperclass()) {
+      for (Class<?> iface : c.getInterfaces()) {
+        if (result.add(iface)) {
+          result.addAll(allInterfaces(iface));
+        }
+      }
+    }
+    return result;
+  }
+
+  /** See {@link #withInterceptedPrimitives}. */
+  @FunctionalInterface
+  protected interface DurablePrimitivesInterceptor {
+    void afterCall(DurablePrimitives real, String methodName, Object[] args, Object result)
+        throws Exception;
+  }
 
   /** validate that the root catalog was properly constructed */
   @Test

@@ -57,8 +57,10 @@ import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
+import org.apache.polaris.core.persistence.dao.entity.EntityMutation;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
+import org.apache.polaris.core.persistence.dao.entity.GrantMutation;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadPolicyMappingsResult;
@@ -484,37 +486,56 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
     }
     ((IntegrationPersistence) ms).persistStorageIntegrationIfNeeded(callCtx, catalog, integration);
 
-    // now create and persist new catalog entity
-    EntityResult lowLevelResult = this.persistNewEntity(callCtx, ms, catalog);
-    if (lowLevelResult.getReturnStatus() == BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS) {
-      // TODO: Garbage-collection should include integrations, and anything else created before
-      // this if the server crashes before being able to do this cleanup.
-      // TODO: Perform best-effort cleanup. For now, none of the codebase apparently cleans
-      // up storage integrations "if needed", but also the default impls don't create any
-      // storage integrations "if needed" either.
-      return new CreateCatalogResult(BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, null);
-    }
-
-    // create the catalog admin role for this new catalog
+    // Build the whole catalog + adminRole + grants change-set up front, then commit it in a
+    // single commitChangeSet call instead of the ~11 independent, individually non-atomic
+    // primitive writes this used to issue one at a time (create catalog, create adminRole, then
+    // 3x[write grant record + bump 2 entities' grantRecordsVersion]). This closes the TODO that
+    // used to sit at the end of this method admitting a partially-initialized catalog was
+    // possible on a mid-operation crash.
+    PolarisBaseEntity preparedCatalog = prepareToPersistNewEntity(callCtx, ms, catalog);
     long adminRoleId = ms.generateNewId(callCtx);
     PolarisBaseEntity adminRole =
-        new PolarisBaseEntity(
-            catalog.getId(),
-            adminRoleId,
-            PolarisEntityType.CATALOG_ROLE,
-            PolarisEntitySubType.NULL_SUBTYPE,
-            catalog.getId(),
-            PolarisEntityConstants.getNameOfCatalogAdminRole());
-    this.persistNewEntity(callCtx, ms, adminRole);
+        prepareToPersistNewEntity(
+            callCtx,
+            ms,
+            new PolarisBaseEntity(
+                catalog.getId(),
+                adminRoleId,
+                PolarisEntityType.CATALOG_ROLE,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                catalog.getId(),
+                PolarisEntityConstants.getNameOfCatalogAdminRole()));
+
+    List<EntityMutation> entityMutations = new ArrayList<>();
+    List<GrantMutation> grantMutations = new ArrayList<>();
+    // catalog and adminRole are grantee/securable of 2 grants each below; adminRole additionally
+    // becomes the securable of one more usage grant per principal role (or the service admin
+    // role) further down. Both start brand-new in this operation, so their final
+    // grantRecordsVersion is set directly on create -- no separate CAS bump is needed for either,
+    // since nothing could have read a stale version of an entity that doesn't durably exist yet.
+    int catalogGrantBumps = 2;
+    int adminRoleGrantBumps = 2;
 
     // grant the catalog admin role access-management on the catalog
-    this.persistNewGrantRecord(
-        callCtx, ms, catalog, adminRole, PolarisPrivilege.CATALOG_MANAGE_ACCESS);
+    grantMutations.add(
+        GrantMutation.create(
+            new PolarisGrantRecord(
+                preparedCatalog.getCatalogId(),
+                preparedCatalog.getId(),
+                adminRole.getCatalogId(),
+                adminRole.getId(),
+                PolarisPrivilege.CATALOG_MANAGE_ACCESS.getCode())));
 
     // grant the catalog admin role metadata-management on the catalog; this one
     // is revocable
-    this.persistNewGrantRecord(
-        callCtx, ms, catalog, adminRole, PolarisPrivilege.CATALOG_MANAGE_METADATA);
+    grantMutations.add(
+        GrantMutation.create(
+            new PolarisGrantRecord(
+                preparedCatalog.getCatalogId(),
+                preparedCatalog.getId(),
+                adminRole.getCatalogId(),
+                adminRole.getId(),
+                PolarisPrivilege.CATALOG_MANAGE_METADATA.getCode())));
 
     // immediately assign its catalog_admin role
     if (principalRoles.isEmpty()) {
@@ -527,8 +548,22 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
               PolarisEntityType.PRINCIPAL_ROLE.getCode(),
               PolarisEntityConstants.getNameOfPrincipalServiceAdminRole());
       getDiagnostics().checkNotNull(serviceAdminRole, "missing_service_admin_role");
-      this.persistNewGrantRecord(
-          callCtx, ms, adminRole, serviceAdminRole, PolarisPrivilege.CATALOG_ROLE_USAGE);
+      grantMutations.add(
+          GrantMutation.create(
+              new PolarisGrantRecord(
+                  adminRole.getCatalogId(),
+                  adminRole.getId(),
+                  serviceAdminRole.getCatalogId(),
+                  serviceAdminRole.getId(),
+                  PolarisPrivilege.CATALOG_ROLE_USAGE.getCode())));
+      // serviceAdminRole is pre-existing: its CAS baseline is the object just read above, not a
+      // value reconstructed afterwards.
+      entityMutations.add(
+          EntityMutation.update(
+              serviceAdminRole.withGrantRecordsVersion(
+                  serviceAdminRole.getGrantRecordsVersion() + 1),
+              serviceAdminRole));
+      adminRoleGrantBumps++; // adminRole is the securable of this grant too
     } else {
       // grant to each principal role usage on its catalog_admin role
       for (PolarisEntityCore principalRole : principalRoles) {
@@ -541,23 +576,63 @@ public class AtomicOperationMetaStoreManager extends BaseMetaStoreManager {
                 "type={}",
                 principalRole.getType());
 
-        // grant usage on that catalog admin role to this principal
-        this.persistNewGrantRecord(
-            callCtx, ms, adminRole, principalRole, PolarisPrivilege.CATALOG_ROLE_USAGE);
+        // refresh the principal role right before binding it as a mutation's CAS baseline
+        PolarisBaseEntity refreshedPrincipalRole =
+            ms.lookupEntity(
+                callCtx,
+                principalRole.getCatalogId(),
+                principalRole.getId(),
+                principalRole.getTypeCode());
+        getDiagnostics()
+            .checkNotNull(
+                refreshedPrincipalRole,
+                "principal_role_not_found",
+                "principalRole={}",
+                principalRole);
+
+        // grant usage on that catalog admin role to this principal role
+        grantMutations.add(
+            GrantMutation.create(
+                new PolarisGrantRecord(
+                    adminRole.getCatalogId(),
+                    adminRole.getId(),
+                    refreshedPrincipalRole.getCatalogId(),
+                    refreshedPrincipalRole.getId(),
+                    PolarisPrivilege.CATALOG_ROLE_USAGE.getCode())));
+        entityMutations.add(
+            EntityMutation.update(
+                refreshedPrincipalRole.withGrantRecordsVersion(
+                    refreshedPrincipalRole.getGrantRecordsVersion() + 1),
+                refreshedPrincipalRole));
+        adminRoleGrantBumps++; // adminRole is the securable of this grant too
       }
     }
 
-    // TODO: Reorder and/or expose bulk update/create of new entities and grant records. In the
-    // meantime, if a server crashes halfway through catalog creation, it might be in a partially
-    // initialized state. In such a case, the correct action is to simply delete the catalog
-    // and recreate it -- SERVICE_MANAGE_ACCESS already possesses CATALOG_DROP at the
-    // root-container level even if it requires the grants in here to have CATALOG_MANAGE_ACCESS
-    // or CATALOG_MANAGE_METADATA, so no one can use the catalog if this initialization is
-    // incomplete, but the won't be "stuck" orphaned since the service admin can still delete the
-    // catalog.
+    preparedCatalog =
+        preparedCatalog.withGrantRecordsVersion(
+            preparedCatalog.getGrantRecordsVersion() + catalogGrantBumps);
+    adminRole =
+        adminRole.withGrantRecordsVersion(adminRole.getGrantRecordsVersion() + adminRoleGrantBumps);
+    entityMutations.add(EntityMutation.create(preparedCatalog));
+    entityMutations.add(EntityMutation.create(adminRole));
 
-    // success, return the two entities
-    return new CreateCatalogResult(catalog, adminRole);
+    try {
+      ms.commitChangeSet(callCtx, entityMutations, grantMutations);
+    } catch (EntityAlreadyExistsException e) {
+      // The unconditional lookup above already ruled out this exact id existing; a genuine hit
+      // here means a concurrent request won the race to create a same-named catalog in between
+      // that check and this commit -- necessarily a different id, since ids are pre-reserved
+      // uniquely and never handed to two different requests.
+      return new CreateCatalogResult(BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, null);
+    }
+
+    // Note: persistStorageIntegrationIfNeeded above stays outside the change-set --
+    // IntegrationPersistence is a separate DurablePrimitives sub-interface, so a crash between it
+    // and this commit can still leave an orphaned integration. That gap is not closed by this
+    // change.
+
+    // success, return the two entities, reflecting the exact state that was just committed
+    return new CreateCatalogResult(preparedCatalog, adminRole);
   }
 
   @Override

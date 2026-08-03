@@ -26,6 +26,7 @@ import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicInteger;
 import javax.sql.DataSource;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
@@ -40,6 +41,10 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
 import org.apache.polaris.core.persistence.BaseDurableManagerTest;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
+import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
+import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.DurablePrimitives;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.Assumptions;
 import org.h2.jdbcx.JdbcConnectionPool;
@@ -156,6 +161,108 @@ public abstract class AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest
     Assertions.assertThat(
             metaStoreManager.hasOverlappingSiblings(callContext, nonOverlappingNamespace))
         .contains(Optional.empty());
+  }
+
+  /**
+   * ADR-0002 durable-parity invariant (HARD), mechanism facet: {@code createCatalog} on the
+   * atomic/CAS manager must commit the catalog + adminRole + grants through exactly one {@code
+   * commitChangeSet} call, not the ~11 independent, individually non-atomic primitive writes it
+   * used to issue one at a time. This is the directly-verifiable claim -- it does not, and cannot,
+   * prove no partially-initialized catalog can ever exist after a real mid-transaction crash; a
+   * test cannot honestly simulate that.
+   */
+  @Test
+  void testCreateCatalogIssuesExactlyOneCommitChangeSet() {
+    AtomicInteger commitChangeSetCalls = new AtomicInteger();
+    AtomicInteger individualWriteCalls = new AtomicInteger();
+    PolarisCallContext countingCallCtx =
+        withInterceptedPrimitives(
+            (real, methodName, args, result) -> {
+              switch (methodName) {
+                case "commitChangeSet" -> commitChangeSetCalls.incrementAndGet();
+                case "writeEntity", "writeEntities", "writeToGrantRecords" ->
+                    individualWriteCalls.incrementAndGet();
+                default -> {}
+              }
+            });
+    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager();
+
+    PolarisBaseEntity catalog =
+        new PolarisBaseEntity(
+            PolarisEntityConstants.getNullId(),
+            mgr.generateNewEntityId(countingCallCtx).getId(),
+            PolarisEntityType.CATALOG,
+            PolarisEntitySubType.NULL_SUBTYPE,
+            PolarisEntityConstants.getRootEntityId(),
+            "single_commit_catalog");
+
+    CreateCatalogResult result = mgr.createCatalog(countingCallCtx, catalog, List.of());
+
+    Assertions.assertThat(result.isSuccess()).isTrue();
+    Assertions.assertThat(commitChangeSetCalls.get())
+        .as(
+            "createCatalog must commit the catalog + adminRole + grants as one commitChangeSet"
+                + " call")
+        .isEqualTo(1);
+    Assertions.assertThat(individualWriteCalls.get())
+        .as(
+            "createCatalog must not also fall back to individual"
+                + " writeEntity/writeEntities/writeToGrantRecords calls once it commits the"
+                + " change-set")
+        .isEqualTo(0);
+  }
+
+  /**
+   * ADR-0002 durable-parity invariant (HARD), baseline-binding facet: a change-set's update
+   * mutation must carry the exact entity object the caller last read as its CAS baseline, per
+   * {@code EntityMutation#update}'s javadoc. This test simulates a concurrent writer bumping the
+   * service admin role's {@code grantRecordsVersion} between {@code createCatalog}'s read of it and
+   * the {@code commitChangeSet} call that uses that read as its baseline: the whole commit must
+   * fail with {@link RetryOnConcurrencyException}, and nothing from the aborted change-set -- not
+   * the catalog, not the admin role, not any grant -- must be visible afterwards.
+   */
+  @Test
+  void testCreateCatalogRejectsStaleGrantRecordsVersionBaseline() {
+    PolarisCallContext realCallCtx = polarisTestMetaStoreManager.polarisCallContext();
+    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager();
+    DurablePrimitives real = realCallCtx.getMetaStore();
+    PolarisCallContext rawCallCtx = new PolarisCallContext(realCallCtx.getRealmContext(), real);
+
+    PolarisCallContext interceptingCallCtx =
+        withInterceptedPrimitives(
+            (r, methodName, args, result) -> {
+              if (methodName.equals("lookupEntityByName")
+                  && PolarisEntityConstants.getNameOfPrincipalServiceAdminRole().equals(args[4])) {
+                PolarisBaseEntity serviceAdminRole = (PolarisBaseEntity) result;
+                // Simulate a concurrent writer bumping this entity's grantRecordsVersion between
+                // this read (which createCatalog will bind as its CAS baseline) and the commit.
+                r.writeEntity(
+                    rawCallCtx,
+                    serviceAdminRole.withGrantRecordsVersion(
+                        serviceAdminRole.getGrantRecordsVersion() + 1),
+                    false,
+                    serviceAdminRole);
+              }
+            });
+
+    PolarisBaseEntity catalog =
+        new PolarisBaseEntity(
+            PolarisEntityConstants.getNullId(),
+            mgr.generateNewEntityId(interceptingCallCtx).getId(),
+            PolarisEntityType.CATALOG,
+            PolarisEntitySubType.NULL_SUBTYPE,
+            PolarisEntityConstants.getRootEntityId(),
+            "stale_baseline_catalog");
+
+    Assertions.assertThatThrownBy(() -> mgr.createCatalog(interceptingCallCtx, catalog, List.of()))
+        .isInstanceOf(RetryOnConcurrencyException.class);
+
+    Assertions.assertThat(
+            mgr.loadEntity(
+                    rawCallCtx, catalog.getCatalogId(), catalog.getId(), PolarisEntityType.CATALOG)
+                .getEntity())
+        .as("catalog must not be visible after the whole change-set was rejected")
+        .isNull();
   }
 
   private static PolarisBaseEntity buildLocationBasedNamespace(

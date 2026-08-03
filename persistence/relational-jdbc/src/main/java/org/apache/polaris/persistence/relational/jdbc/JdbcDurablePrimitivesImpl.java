@@ -55,6 +55,8 @@ import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
+import org.apache.polaris.core.persistence.dao.entity.EntityMutation;
+import org.apache.polaris.core.persistence.dao.entity.GrantMutation;
 import org.apache.polaris.core.persistence.metrics.CommitMetricsRecord;
 import org.apache.polaris.core.persistence.metrics.ScanMetricsRecord;
 import org.apache.polaris.core.persistence.pagination.EntityIdToken;
@@ -270,6 +272,107 @@ public class JdbcDurablePrimitivesImpl
       throw new RuntimeException(
           String.format("Failed to write to grant records due to %s", e.getMessage()), e);
     }
+  }
+
+  @Override
+  public void commitChangeSet(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityMutation> entityMutations,
+      @NonNull List<GrantMutation> grantMutations) {
+    try {
+      datasourceOperations.runWithinTransaction(
+          connection -> {
+            for (EntityMutation mutation : entityMutations) {
+              switch (mutation.type()) {
+                case CREATE -> {
+                  // Same idempotent-create-retry check as writeEntities: a matching id already
+                  // persisted means this mutation is already durably applied, so this is a no-op
+                  // rather than a conflict.
+                  PolarisBaseEntity existing =
+                      lookupEntity(
+                          callCtx,
+                          mutation.entity().getCatalogId(),
+                          mutation.entity().getId(),
+                          mutation.entity().getTypeCode());
+                  if (existing == null) {
+                    persistEntity(
+                        callCtx,
+                        mutation.entity(),
+                        null,
+                        connection,
+                        datasourceOperations::execute);
+                  }
+                }
+                case UPDATE ->
+                    persistEntity(
+                        callCtx,
+                        mutation.entity(),
+                        mutation.originalEntity(),
+                        connection,
+                        datasourceOperations::execute);
+                case DELETE -> deleteEntityOnConnection(connection, mutation.entity());
+              }
+            }
+            for (GrantMutation mutation : grantMutations) {
+              switch (mutation.type()) {
+                case CREATE -> persistGrantRecordOnConnection(connection, mutation.grantRecord());
+                case DELETE -> deleteGrantRecordOnConnection(connection, mutation.grantRecord());
+              }
+            }
+            return true;
+          });
+    } catch (SQLException e) {
+      throw new RuntimeException(
+          String.format("Failed to commit change set due to %s", e.getMessage()), e);
+    }
+  }
+
+  private void persistGrantRecordOnConnection(Connection connection, PolarisGrantRecord grantRec)
+      throws SQLException {
+    ModelGrantRecord modelGrantRecord = ModelGrantRecord.fromGrantRecord(grantRec);
+    List<Object> values =
+        modelGrantRecord.toMap(datasourceOperations.getDatabaseType()).values().stream().toList();
+    try {
+      datasourceOperations.execute(
+          connection,
+          QueryGenerator.generateInsertQuery(
+              ModelGrantRecord.ALL_COLUMNS, ModelGrantRecord.TABLE_NAME, values, realmId));
+    } catch (SQLException e) {
+      if (datasourceOperations.isUniquenessConstraintViolation(e)) {
+        LOGGER.debug("Grant record already exists; treating as no-op: {}", grantRec);
+        return;
+      }
+      throw e;
+    }
+  }
+
+  private void deleteGrantRecordOnConnection(Connection connection, PolarisGrantRecord grantRec)
+      throws SQLException {
+    ModelGrantRecord modelGrantRecord = ModelGrantRecord.fromGrantRecord(grantRec);
+    Map<String, Object> whereClause =
+        modelGrantRecord.toMap(datasourceOperations.getDatabaseType());
+    whereClause.put("realm_id", realmId);
+    datasourceOperations.execute(
+        connection,
+        QueryGenerator.generateDeleteQuery(
+            ModelGrantRecord.ALL_COLUMNS, ModelGrantRecord.TABLE_NAME, whereClause));
+  }
+
+  private void deleteEntityOnConnection(Connection connection, PolarisBaseEntity entity)
+      throws SQLException {
+    ModelEntity modelEntity = ModelEntity.fromEntity(entity, schemaVersion);
+    Map<String, Object> params =
+        Map.of(
+            "id",
+            modelEntity.getId(),
+            "catalog_id",
+            modelEntity.getCatalogId(),
+            "realm_id",
+            realmId);
+    datasourceOperations.execute(
+        connection,
+        QueryGenerator.generateDeleteQuery(
+            ModelEntity.getAllColumnNames(schemaVersion), ModelEntity.TABLE_NAME, params));
   }
 
   @Override

@@ -38,6 +38,8 @@ import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
 import org.apache.polaris.core.persistence.PolicyMappingAlreadyExistsException;
 import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
+import org.apache.polaris.core.persistence.dao.entity.EntityMutation;
+import org.apache.polaris.core.persistence.dao.entity.GrantMutation;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
@@ -273,6 +275,54 @@ public abstract class AbstractTransactionalPersistence implements TransactionalP
   public void writeToGrantRecords(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec) {
     runActionInTransaction(callCtx, () -> this.writeToGrantRecordsInCurrentTxn(callCtx, grantRec));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void commitChangeSet(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityMutation> entityMutations,
+      @NonNull List<GrantMutation> grantMutations) {
+    runActionInTransaction(
+        callCtx,
+        () -> {
+          // Same CAS-then-write shape as writeEntities above: validate and write each mutation
+          // independently within the one outer transaction, so a later mutation in this same
+          // change-set sees an earlier one's write, and an idempotent create-retry (matching id)
+          // is swallowed exactly like writeEntities does, while any real conflict aborts the
+          // whole transaction.
+          for (EntityMutation mutation : entityMutations) {
+            PolarisBaseEntity original = mutation.originalEntity();
+            boolean nameOrParentChanged =
+                original == null
+                    || !mutation.entity().getName().equals(original.getName())
+                    || mutation.entity().getParentId() != original.getParentId();
+            switch (mutation.type()) {
+              case CREATE, UPDATE -> {
+                try {
+                  this.checkConditionsForWriteEntityInCurrentTxn(
+                      callCtx, mutation.entity(), original);
+                } catch (EntityAlreadyExistsException e) {
+                  if (mutation.type() == EntityMutation.MutationType.CREATE
+                      && e.getExistingEntity().getId() == mutation.entity().getId()) {
+                    continue;
+                  }
+                  throw e;
+                }
+                this.writeEntityInCurrentTxn(
+                    callCtx, mutation.entity(), nameOrParentChanged, original);
+              }
+              case DELETE -> this.deleteEntityInCurrentTxn(callCtx, mutation.entity());
+            }
+          }
+          for (GrantMutation mutation : grantMutations) {
+            switch (mutation.type()) {
+              case CREATE -> this.writeToGrantRecordsInCurrentTxn(callCtx, mutation.grantRecord());
+              case DELETE ->
+                  this.deleteFromGrantRecordsInCurrentTxn(callCtx, mutation.grantRecord());
+            }
+          }
+        });
   }
 
   @Override

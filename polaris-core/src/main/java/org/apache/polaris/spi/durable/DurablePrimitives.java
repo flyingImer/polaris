@@ -34,6 +34,9 @@ import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
+import org.apache.polaris.core.persistence.dao.entity.EntityMutation;
+import org.apache.polaris.core.persistence.dao.entity.GrantMutation;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.jspecify.annotations.NonNull;
@@ -141,6 +144,44 @@ public interface DurablePrimitives extends PolicyMappingPersistence {
    */
   void writeToGrantRecords(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec);
+
+  /**
+   * Atomically commit a mixed set of entity mutations and grant-record mutations: either every
+   * mutation is applied durably and becomes visible together, or none are. This generalizes {@link
+   * #writeEntity}'s single-entity compare-and-swap and {@link #writeEntities}'s
+   * all-create-xor-all-update batch to a batch that mixes entity creates, updates, and deletes with
+   * grant-record creates and deletes in one commit — the shape an operation like {@code
+   * DurableManager#createCatalog} needs (new catalog + new admin role + new grants + a version-bump
+   * update on a pre-existing grantee), and today cannot get without several independent,
+   * individually non-atomic calls.
+   *
+   * <p>Every {@link EntityMutation} of type {@code UPDATE} carries its {@link
+   * EntityMutation#originalEntity} as the compare-and-swap baseline, with the same provenance rule
+   * {@link #writeEntity}'s {@code originalEntity} parameter already carries: it must be the object
+   * the caller read just before building the mutation. A stale baseline (the persisted row has
+   * since moved on) fails the whole commit; it must not silently apply against current state.
+   *
+   * <p>The default implementation throws {@link UnsupportedOperationException}. There is no
+   * capability-probe method to check first: per this interface's class-level atomicity contract,
+   * every method must either fully succeed or fail entirely, so an implementation either provides
+   * this primitive or does not; a caller path that depends on it (e.g. an atomicity-critical {@code
+   * DurableManager} implementation) is expected to require it unconditionally and rely on a
+   * conformance test to gate that its paired {@link DurablePrimitives} implementation provides it,
+   * rather than degrading to a non-atomic per-mutation fallback at the call site.
+   *
+   * @param callCtx call context
+   * @param entityMutations entity creates, compare-and-swap updates, and deletes to commit together
+   * @param grantMutations grant-record creates and deletes to commit together
+   * @throws RetryOnConcurrencyException if any update's baseline no longer matches current
+   *     persisted state
+   */
+  default void commitChangeSet(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityMutation> entityMutations,
+      @NonNull List<GrantMutation> grantMutations) {
+    throw new UnsupportedOperationException(
+        "This DurablePrimitives implementation does not support commitChangeSet");
+  }
 
   /**
    * Write all events to the events table. This is an append-only operation.
