@@ -72,16 +72,24 @@ import org.jspecify.annotations.Nullable;
  * <p>It does not modify {@link JdbcDurablePrimitivesImpl}. Both exist side by side until callers
  * migrate; see {@link DurableRecordStore} for the migration's end state.
  *
- * <h2>Two things the contract does not yet express cleanly</h2>
+ * <h2>Two things found while writing this</h2>
  *
- * <p><b>1. A scope anchor is a parent address, not a record reference.</b> {@link
- * ListScope.Shape#CHILDREN_OF_PARENT} takes a {@link RecordRef} for the parent, but an entity row
- * stores its parent as the pair {@code (catalog_id, parent_id)} while an entity's own identity is
- * the single {@code id}. {@code catalog_id} is a denormalised scoping column, not part of the
- * parent's identity, and it cannot be derived by resolving the parent: a catalog's own {@code
- * catalog_id} is 0, not its id. So the anchor's key is read here as the pair {@code [catalogId,
- * parentId]}, which is not what {@code byIdentity} means elsewhere. Recorded as a contract question
- * rather than papered over.
+ * <p><b>1. A children lookup needs no {@code catalog_id}, and this backend has no index for the
+ * query that follows from saying so.</b> The shipped {@code listEntities} takes both a catalog id
+ * and a parent id, which invites the conclusion that {@link ListScope.Shape#CHILDREN_OF_PARENT}
+ * must carry both. It does not. The {@code entities} primary key is {@code (realm_id, id)}, so
+ * {@code parent_id} alone identifies the parent, and {@code WHERE realm_id = ? AND parent_id = ?}
+ * is correct on its own. {@code catalog_id} earns its place in the shipped query for one reason:
+ * the only index that could serve a children lookup is the uniqueness constraint {@code (realm_id,
+ * catalog_id, parent_id, type_code, name)}, whose leading columns are {@code realm_id, catalog_id}.
+ * Drop {@code catalog_id} and no index applies, because none is declared on {@code (realm_id,
+ * parent_id)} and the schema file's own comment says {@code -- TODO: create indexes based on all
+ * query pattern.}
+ *
+ * <p>So the anchor here is the parent's identity, one part. Carrying {@code catalog_id} in the
+ * contract would put one backend's index layout into a contract every backend implements, which
+ * ADR-0010 rules out. <b>The consequence is this backend's to absorb: it needs an index on {@code
+ * (realm_id, parent_id)}.</b> That is a schema change, so it is named here rather than made.
  *
  * <p><b>2. {@link Precondition.Op#VERSION_EQUALS} is only satisfiable for entities.</b> Only the
  * {@code ENTITIES} table carries {@code entity_version} and {@code grant_records_version}; the
@@ -513,15 +521,15 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
 
     switch (scope.shape()) {
       case CHILDREN_OF_PARENT -> {
-        // See the class javadoc: the anchor's key is the parent ADDRESS, which for entities is the
-        // pair (catalog_id, parent_id) rather than the parent's own identity.
+        // The anchor is the parent's own identity, one part. See the class javadoc: catalog_id is
+        // not needed to find a parent's children, only to seek this backend's index, and a column
+        // that exists for one backend's index does not belong in the contract.
         List<Object> anchor = scope.anchor().key();
-        if (anchor.size() != 2) {
+        if (anchor.size() != 1) {
           throw new IllegalArgumentException(
-              "CHILDREN_OF_PARENT expects the anchor key to be [catalogId, parentId]");
+              "CHILDREN_OF_PARENT expects the anchor to be the parent's identity, [parentId]");
         }
-        whereEquals.put("catalog_id", anchor.get(0));
-        whereEquals.put("parent_id", anchor.get(1));
+        whereEquals.put("parent_id", anchor.getFirst());
         scope.subtype().ifPresent(st -> whereEquals.put("sub_type_code", st));
       }
       case REFERENCING -> {
