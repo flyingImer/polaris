@@ -51,7 +51,7 @@ class TreeMapDurableRecordStoreTest {
 
   @BeforeEach
   void setUp() {
-    store = new TreeMapDurableRecordStore(new TreeMapSlices(DIAGNOSTICS), DIAGNOSTICS);
+    store = new TreeMapDurableRecordStore(DIAGNOSTICS);
   }
 
   private static PolarisBaseEntity entity(long id, long parentId, String name, int version) {
@@ -189,8 +189,7 @@ class TreeMapDurableRecordStoreTest {
 
   @Test
   void overTheItemCapIsRejectedRatherThanSplit() {
-    TreeMapDurableRecordStore small =
-        new TreeMapDurableRecordStore(new TreeMapSlices(DIAGNOSTICS), DIAGNOSTICS, 1);
+    TreeMapDurableRecordStore small = new TreeMapDurableRecordStore(DIAGNOSTICS, 1);
     CommitResult result =
         small.commit(
             List.of(
@@ -218,8 +217,7 @@ class TreeMapDurableRecordStoreTest {
 
   @Test
   void twoStoresAreTwoAtomicityDomains() {
-    TreeMapDurableRecordStore other =
-        new TreeMapDurableRecordStore(new TreeMapSlices(DIAGNOSTICS), DIAGNOSTICS);
+    TreeMapDurableRecordStore other = new TreeMapDurableRecordStore(DIAGNOSTICS);
     assertThat(store.domainOf(entityRef(10L))).isEqualTo(store.domainOf(entityRef(11L)));
     assertThat(store.domainOf(entityRef(10L))).isNotEqualTo(other.domainOf(entityRef(10L)));
   }

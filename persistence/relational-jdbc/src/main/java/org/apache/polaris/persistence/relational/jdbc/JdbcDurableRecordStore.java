@@ -74,22 +74,24 @@ import org.jspecify.annotations.Nullable;
  *
  * <h2>Two things found while writing this</h2>
  *
- * <p><b>1. A children lookup needs no {@code catalog_id}, and this backend has no index for the
- * query that follows from saying so.</b> The shipped {@code listEntities} takes both a catalog id
- * and a parent id, which invites the conclusion that {@link ListScope.Shape#CHILDREN_OF_PARENT}
- * must carry both. It does not. The {@code entities} primary key is {@code (realm_id, id)}, so
- * {@code parent_id} alone identifies the parent, and {@code WHERE realm_id = ? AND parent_id = ?}
- * is correct on its own. {@code catalog_id} earns its place in the shipped query for one reason:
- * the only index that could serve a children lookup is the uniqueness constraint {@code (realm_id,
- * catalog_id, parent_id, type_code, name)}, whose leading columns are {@code realm_id, catalog_id}.
- * Drop {@code catalog_id} and no index applies, because none is declared on {@code (realm_id,
- * parent_id)} and the schema file's own comment says {@code -- TODO: create indexes based on all
- * query pattern.}
+ * <p><b>1. Whether a scope anchor may carry a denormalised scoping column is an open contract
+ * question, and this class does not answer it.</b> The shipped {@code listEntities} filters on
+ * {@code catalog_id}, {@code parent_id} and {@code type_code}, and this class filters on exactly
+ * the same columns, so the query it issues is the shipped query.
  *
- * <p>So the anchor here is the parent's identity, one part. Carrying {@code catalog_id} in the
- * contract would put one backend's index layout into a contract every backend implements, which
- * ADR-0010 rules out. <b>The consequence is this backend's to absorb: it needs an index on {@code
- * (realm_id, parent_id)}.</b> That is a schema change, so it is named here rather than made.
+ * <p>The question is real. The {@code entities} primary key is {@code (realm_id, id)}, so an id is
+ * unique within a realm, from which it *appears* that {@code parent_id} alone determines the parent
+ * and {@code catalog_id} is redundant for correctness. That is an <b>inference</b> from the key,
+ * not an observation of behaviour, and a first version of this class acted on it and dropped the
+ * column. Two things were wrong with doing that. It changes a query in a refactor whose whole job
+ * is to be behaviour-preserving, without first proving the two queries return the same rows. And it
+ * settles a contract question inside one implementation, when the question is whether {@link
+ * ListScope} should expose a column that exists in this schema for indexing reasons.
+ *
+ * <p>Leaving the shipped columns in place also removes a cost that version invented. The only index
+ * serving a children lookup is the uniqueness constraint {@code (realm_id, catalog_id, parent_id,
+ * type_code, name)}, whose leading columns are {@code realm_id, catalog_id}. Filtering on {@code
+ * catalog_id} keeps that index applicable, so <b>no new index and no schema change is needed</b>.
  *
  * <p><b>2. {@link Precondition.Op#VERSION_EQUALS} is only satisfiable for entities.</b> Only the
  * {@code ENTITIES} table carries {@code entity_version} and {@code grant_records_version}; the
@@ -521,15 +523,17 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
 
     switch (scope.shape()) {
       case CHILDREN_OF_PARENT -> {
-        // The anchor is the parent's own identity, one part. See the class javadoc: catalog_id is
-        // not needed to find a parent's children, only to seek this backend's index, and a column
-        // that exists for one backend's index does not belong in the contract.
+        // The anchor is the parent ADDRESS, [catalogId, parentId], which is exactly what the
+        // shipped listEntities filters on. See the class javadoc: whether the contract should
+        // carry catalog_id is an open design question, and answering it inside an implementation
+        // would have changed behaviour to settle a contract argument.
         List<Object> anchor = scope.anchor().key();
-        if (anchor.size() != 1) {
+        if (anchor.size() != 2) {
           throw new IllegalArgumentException(
-              "CHILDREN_OF_PARENT expects the anchor to be the parent's identity, [parentId]");
+              "CHILDREN_OF_PARENT expects the anchor to be the parent address, [catalogId, parentId]");
         }
-        whereEquals.put("parent_id", anchor.getFirst());
+        whereEquals.put("catalog_id", anchor.get(0));
+        whereEquals.put("parent_id", anchor.get(1));
         scope.subtype().ifPresent(st -> whereEquals.put("sub_type_code", st));
       }
       case REFERENCING -> {

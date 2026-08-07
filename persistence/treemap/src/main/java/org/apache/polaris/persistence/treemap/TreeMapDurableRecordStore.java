@@ -89,16 +89,21 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
   /** Opaque by contract: callers may compare it and must not interpret it. */
   private final Object domain = new Object();
 
-  public TreeMapDurableRecordStore(
-      @NonNull TreeMapSlices slices, @NonNull PolarisDiagnostics diagnostics) {
-    this(slices, diagnostics, DEFAULT_MAX_ITEMS_PER_COMMIT);
+  public TreeMapDurableRecordStore(@NonNull PolarisDiagnostics diagnostics) {
+    this(diagnostics, DEFAULT_MAX_ITEMS_PER_COMMIT);
   }
 
-  public TreeMapDurableRecordStore(
-      @NonNull TreeMapSlices slices,
-      @NonNull PolarisDiagnostics diagnostics,
-      int maxItemsPerCommit) {
-    this.slices = slices;
+  /**
+   * @param maxItemsPerCommit the declared ceiling; two instances are two atomicity domains, because
+   *     each owns its own slices and an undo log covers exactly the slices it holds
+   */
+  public TreeMapDurableRecordStore(@NonNull PolarisDiagnostics diagnostics, int maxItemsPerCommit) {
+    // Owns its slices rather than accepting them. TreeMapSlices is public today only because the
+    // shipped LocalPolarisMetaStoreManagerFactory<StoreType> template exposes the backing-store
+    // type
+    // as a generic parameter, which is a leak the factory layer's redesign removes. Nothing about
+    // the new shape should widen that: a caller of this store never names TreeMapSlices.
+    this.slices = new TreeMapSlices(diagnostics);
     this.diagnostics = diagnostics;
     this.maxItemsPerCommit = maxItemsPerCommit;
     this.bindings = buildBindings();
@@ -131,7 +136,7 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
       TreeMapSlices.Slice<T> slice,
       Function<T, String> identityKey,
       @Nullable Function<T, String> uniquenessKey,
-      @Nullable Function<T, Long> parentId,
+      @Nullable Function<T, String> parentAddress,
       @Nullable Function<T, String> location,
       Function<T, List<String>> referencedKeys,
       @Nullable Function<T, RecordVersions> versions) {}
@@ -145,7 +150,7 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
             slices.newSlice(e -> key(e.getId()), e -> new PolarisBaseEntity.Builder(e).build()),
             e -> key(e.getId()),
             e -> key(e.getParentId(), e.getTypeCode(), e.getName()),
-            PolarisBaseEntity::getParentId,
+            e -> key(e.getCatalogId(), e.getParentId()),
             TreeMapDurableRecordStore::locationWithoutScheme,
             e -> List.of(key(e.getParentId())),
             e -> new RecordVersions(e.getEntityVersion(), e.getGrantRecordsVersion())));
@@ -413,11 +418,10 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
   private <T> boolean matches(KindBinding<T> b, ListScope scope, String anchor, T record) {
     return switch (scope.shape()) {
       case CHILDREN_OF_PARENT -> {
-        Function<T, Long> parent = b.parentId();
-        if (parent == null) {
-          yield false;
-        }
-        if (!anchor.equals(key(parent.apply(record)))) {
+        // The anchor is the parent address [catalogId, parentId], matching what the relational
+        // store filters on, so one scope means the same thing against either store.
+        Function<T, String> parent = b.parentAddress();
+        if (parent == null || !anchor.equals(parent.apply(record))) {
           yield false;
         }
         yield scope.subtype().isEmpty() || subtypeOf(record) == scope.subtype().get();

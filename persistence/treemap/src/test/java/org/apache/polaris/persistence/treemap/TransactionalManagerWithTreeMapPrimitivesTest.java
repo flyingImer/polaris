@@ -27,7 +27,22 @@ import org.apache.polaris.core.persistence.BaseDurableManagerTest;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
 
-public class TreeMapDurableManagerTest extends BaseDurableManagerTest {
+/**
+ * The shipped TransactionalMetaStoreManagerImpl's own test suite, run against the TreeMap
+ * durable-primitives implementation.
+ *
+ * <p>Named "TransactionalMetaStoreManagerImpl with TreeMap primitives" rather than fusing the two,
+ * mirroring the JDBC sibling AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest. A durable
+ * manager is business-aware and a TreeMap is a storage detail; there is no such thing as a "TreeMap
+ * durable manager", and an earlier version of this file's name implied one.
+ *
+ * <p><b>Both names here are transitional.</b> TransactionalMetaStoreManagerImpl carries the
+ * interactive-transaction shape that Issue 47 S8 removes: reads happen before a commit and ride in
+ * as preconditions, so the ...InCurrentTxn hooks and the TransactionalPersistence family above them
+ * dissolve into commit plus the four reads. When that lands, this suite tests whatever the manager
+ * layer becomes.
+ */
+public class TransactionalManagerWithTreeMapPrimitivesTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();

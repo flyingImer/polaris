@@ -29,7 +29,22 @@ import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
-public class TreeMapAtomicOperationDurableManagerTest extends BaseDurableManagerTest {
+/**
+ * The shipped AtomicOperationMetaStoreManager's own test suite, run against the TreeMap
+ * durable-primitives implementation.
+ *
+ * <p>Named "AtomicOperationMetaStoreManager with TreeMap primitives" rather than fusing the two,
+ * mirroring the JDBC sibling AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest. A durable
+ * manager is business-aware and a TreeMap is a storage detail; there is no such thing as a "TreeMap
+ * durable manager", and an earlier version of this file's name implied one.
+ *
+ * <p><b>Both names here are transitional.</b> "Atomic operation" is not a concept in the target
+ * model. Atomicity belongs to orchestration (grouping by domain, compensating across domains) and
+ * to durable primitives (one commit is all-or-nothing within one domain), so a manager variant
+ * distinguished by atomicity has nothing left to distinguish. AtomicOperationMetaStoreManager
+ * dissolves into those two layers.
+ */
+public class AtomicOperationManagerWithTreeMapPrimitivesTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();
