@@ -113,7 +113,11 @@ public final class RecordRef {
     if (!(o instanceof RecordRef other)) {
       return false;
     }
-    return kind == other.kind && mode == other.mode && key.equals(other.key);
+    // kind is compared with equals, not ==. RecordKind.of() interns nothing, so two kinds built
+    // from the same identifier are distinct objects that RecordKind.equals calls equal. Using ==
+    // here while hashCode() below delegates to kind.hashCode() would break the equals/hashCode
+    // contract: two refs could land in the same hash bucket and still compare unequal.
+    return kind.equals(other.kind) && mode == other.mode && key.equals(other.key);
   }
 
   @Override
