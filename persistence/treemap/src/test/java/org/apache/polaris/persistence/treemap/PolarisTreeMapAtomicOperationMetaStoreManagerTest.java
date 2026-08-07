@@ -30,21 +30,28 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
- * The shipped AtomicOperationMetaStoreManager's own test suite, run against the TreeMap
- * durable-primitives implementation.
+ * Upstream's own test for AtomicOperationMetaStoreManager, kept under upstream's name, moved with
+ * its subject's implementation and otherwise unchanged.
  *
- * <p>Named "AtomicOperationMetaStoreManager with TreeMap primitives" rather than fusing the two,
- * mirroring the JDBC sibling AtomicMetastoreManagerWithJdbcDurablePrimitivesImplTest. A durable
- * manager is business-aware and a TreeMap is a storage detail; there is no such thing as a "TreeMap
- * durable manager", and an earlier version of this file's name implied one.
+ * <p><b>The name is stale and deliberately not corrected here.</b> It fuses a durable-manager
+ * concept with a storage backend, which the target model keeps apart. Two earlier attempts to fix
+ * that invented names instead: first "TreeMapDurableManager", welding a business-aware layer onto a
+ * storage detail, then "AtomicOperationManager", which is not a layer in the four-layer stack at
+ * all but a shipped class name with a word chopped out of it. Renaming a shipped class's test to a
+ * name nobody agreed on is worse than carrying a stale name, so this carries the stale one.
  *
- * <p><b>Both names here are transitional.</b> "Atomic operation" is not a concept in the target
- * model. Atomicity belongs to orchestration (grouping by domain, compensating across domains) and
- * to durable primitives (one commit is all-or-nothing within one domain), so a manager variant
- * distinguished by atomicity has nothing left to distinguish. AtomicOperationMetaStoreManager
- * dissolves into those two layers.
+ * <p><b>Which layer the subject sits in:</b> AtomicOperationMetaStoreManager extends
+ * BaseMetaStoreManager, which implements DurableManager, GrantManager, SecretsManager,
+ * PolarisPolicyMappingManager and PolarisEventManager. So the subject is a <b>durable manager</b>,
+ * the top of the four layers, exercised here over the TreeMap durable-primitives implementation.
+ *
+ * <p><b>Both the subject and this test are transitional.</b> "Atomic operation" is not a concept in
+ * the target model. Atomicity belongs to orchestration (grouping by domain, compensating across
+ * domains) and to durable primitives (one commit is all-or-nothing within one domain), so a manager
+ * variant distinguished by atomicity has nothing left to distinguish, and
+ * AtomicOperationMetaStoreManager dissolves into those two layers.
  */
-public class AtomicOperationManagerWithTreeMapPrimitivesTest extends BaseDurableManagerTest {
+public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();
