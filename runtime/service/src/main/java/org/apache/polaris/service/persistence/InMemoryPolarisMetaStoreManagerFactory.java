@@ -32,8 +32,8 @@ import org.apache.polaris.core.persistence.LocalPolarisMetaStoreManagerFactory;
 import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.core.persistence.transactional.TransactionalPersistence;
-import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
-import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
+import org.apache.polaris.persistence.treemap.TreeMapDurablePrimitivesImpl;
+import org.apache.polaris.persistence.treemap.TreeMapSlices;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
@@ -41,7 +41,7 @@ import org.jspecify.annotations.Nullable;
 @ApplicationScoped
 @Identifier("in-memory")
 public class InMemoryPolarisMetaStoreManagerFactory
-    extends LocalPolarisMetaStoreManagerFactory<TreeMapMetaStore> {
+    extends LocalPolarisMetaStoreManagerFactory<TreeMapSlices> {
 
   private final RootCredentialsSet rootCredentialsSet;
   private final Set<String> bootstrappedRealms = new HashSet<>();
@@ -59,17 +59,17 @@ public class InMemoryPolarisMetaStoreManagerFactory
   }
 
   @Override
-  protected TreeMapMetaStore createBackingStore(@NonNull PolarisDiagnostics diagnostics) {
-    return new TreeMapMetaStore(diagnostics);
+  protected TreeMapSlices createBackingStore(@NonNull PolarisDiagnostics diagnostics) {
+    return new TreeMapSlices(diagnostics);
   }
 
   @Override
   protected TransactionalPersistence createMetaStoreSession(
-      @NonNull TreeMapMetaStore store,
+      @NonNull TreeMapSlices store,
       @NonNull RealmContext realmContext,
       @Nullable RootCredentialsSet rootCredentialsSet,
       @NonNull PolarisDiagnostics diagnostics) {
-    return new TreeMapTransactionalPersistenceImpl(
+    return new TreeMapDurablePrimitivesImpl(
         diagnostics, store, secretsGenerator(realmContext, rootCredentialsSet));
   }
 

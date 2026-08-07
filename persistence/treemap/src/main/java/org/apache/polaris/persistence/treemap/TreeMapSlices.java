@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence.transactional;
+package org.apache.polaris.persistence.treemap;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,7 +33,7 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.jspecify.annotations.NonNull;
 
 /** Implements a simple in-memory store for Polaris, using tree-map */
-public class TreeMapMetaStore {
+public class TreeMapSlices {
 
   /** Slice of data, simple KV store. */
   public class Slice<T> {
@@ -218,7 +218,7 @@ public class TreeMapMetaStore {
    *
    * @param diagnostics diagnostic services
    */
-  public TreeMapMetaStore(@NonNull PolarisDiagnostics diagnostics) {
+  public TreeMapSlices(@NonNull PolarisDiagnostics diagnostics) {
 
     // the entities slice
     this.sliceEntities =

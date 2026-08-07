@@ -49,8 +49,8 @@ import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
 import org.apache.polaris.core.persistence.transactional.TransactionalPersistence;
-import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
-import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
+import org.apache.polaris.persistence.treemap.TreeMapDurablePrimitivesImpl;
+import org.apache.polaris.persistence.treemap.TreeMapSlices;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -92,9 +92,9 @@ public class InMemoryEntityCacheTest {
    */
   public InMemoryEntityCacheTest() {
     diagServices = new PolarisDefaultDiagServiceImpl();
-    TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
+    TreeMapSlices store = new TreeMapSlices(diagServices);
     TransactionalPersistence metaStore =
-        new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
+        new TreeMapDurablePrimitivesImpl(diagServices, store, RANDOM_SECRETS);
     metaStoreManager = new TransactionalMetaStoreManagerImpl(Clock.systemUTC(), diagServices);
     callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
 

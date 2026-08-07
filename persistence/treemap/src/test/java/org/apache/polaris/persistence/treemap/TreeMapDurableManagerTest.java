@@ -16,35 +16,27 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence;
+package org.apache.polaris.persistence.treemap;
 
 import static org.apache.polaris.core.persistence.PrincipalSecretsGenerator.RANDOM_SECRETS;
 
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
-import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
-import org.junit.jupiter.api.Disabled;
-import org.junit.jupiter.api.Test;
+import org.apache.polaris.core.persistence.BaseDurableManagerTest;
+import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
+import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
 
-public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurableManagerTest {
+public class TreeMapDurableManagerTest extends BaseDurableManagerTest {
   @Override
   public PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     PolarisDiagnostics diagServices = new PolarisDefaultDiagServiceImpl();
-    TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
-    TreeMapTransactionalPersistenceImpl metaStore =
-        new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
-    AtomicOperationMetaStoreManager metaStoreManager =
-        new AtomicOperationMetaStoreManager(clock, diagServices);
+    TreeMapSlices store = new TreeMapSlices(diagServices);
+    TreeMapDurablePrimitivesImpl metaStore =
+        new TreeMapDurablePrimitivesImpl(diagServices, store, RANDOM_SECRETS);
+    TransactionalMetaStoreManagerImpl metaStoreManager =
+        new TransactionalMetaStoreManagerImpl(clock, diagServices);
     PolarisCallContext callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
     return new PolarisTestMetaStoreManager(metaStoreManager, callCtx);
   }
-
-  @Override
-  @Test
-  @Disabled(
-      "AtomicOperationMetaStoreManager calls storePrincipalSecrets outside a transaction, which is incompatible with "
-          + "TreeMap's transactional slice reads. Collision detection is covered by JDBC and NoSQL backend tests.")
-  protected void testResetCredentialsClientIdCollision() {}
 }

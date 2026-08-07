@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.core.persistence.transactional;
+package org.apache.polaris.persistence.treemap;
 
 import java.util.Comparator;
 import java.util.List;
@@ -46,6 +46,7 @@ import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.pagination.EntityIdToken;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.transactional.AbstractTransactionalPersistence;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
@@ -54,15 +55,15 @@ import org.apache.polaris.core.storage.StorageLocation;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
-public class TreeMapTransactionalPersistenceImpl extends AbstractTransactionalPersistence {
+public class TreeMapDurablePrimitivesImpl extends AbstractTransactionalPersistence {
 
   // the TreeMap store to use
-  private final TreeMapMetaStore store;
+  private final TreeMapSlices store;
   private final PrincipalSecretsGenerator secretsGenerator;
 
-  public TreeMapTransactionalPersistenceImpl(
+  public TreeMapDurablePrimitivesImpl(
       @NonNull PolarisDiagnostics diagnostics,
-      @NonNull TreeMapMetaStore store,
+      @NonNull TreeMapSlices store,
       @NonNull PrincipalSecretsGenerator secretsGenerator) {
     super(diagnostics);
     this.store = store;

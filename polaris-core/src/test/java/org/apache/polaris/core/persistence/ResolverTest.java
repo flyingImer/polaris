@@ -32,8 +32,8 @@ import org.apache.polaris.core.persistence.resolver.Resolver;
 import org.apache.polaris.core.persistence.resolver.ResolverPath;
 import org.apache.polaris.core.persistence.resolver.ResolverStatus;
 import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
-import org.apache.polaris.core.persistence.transactional.TreeMapMetaStore;
-import org.apache.polaris.core.persistence.transactional.TreeMapTransactionalPersistenceImpl;
+import org.apache.polaris.persistence.treemap.TreeMapDurablePrimitivesImpl;
+import org.apache.polaris.persistence.treemap.TreeMapSlices;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Test;
@@ -48,9 +48,9 @@ public class ResolverTest extends BaseResolverTest {
   @Override
   protected PolarisCallContext callCtx() {
     if (callCtx == null) {
-      TreeMapMetaStore store = new TreeMapMetaStore(diagServices);
-      TreeMapTransactionalPersistenceImpl metaStore =
-          new TreeMapTransactionalPersistenceImpl(diagServices, store, RANDOM_SECRETS);
+      TreeMapSlices store = new TreeMapSlices(diagServices);
+      TreeMapDurablePrimitivesImpl metaStore =
+          new TreeMapDurablePrimitivesImpl(diagServices, store, RANDOM_SECRETS);
       callCtx = new PolarisCallContext(() -> "testRealm", metaStore);
     }
     return callCtx;

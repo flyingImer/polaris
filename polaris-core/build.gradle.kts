@@ -23,6 +23,10 @@ plugins {
 }
 
 dependencies {
+  // ResolverTest and InMemoryEntityCacheTest exercise polaris-core classes that need a
+  // concrete persistence implementation to run. Test scope only: polaris-core's main
+  // dependency surface stays free of implementations (ADR-0006 Facet-3).
+  testImplementation(project(":polaris-treemap"))
   implementation(project(":polaris-api-management-model"))
 
   implementation(platform(libs.iceberg.bom))
