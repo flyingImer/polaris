@@ -28,15 +28,28 @@ import org.jspecify.annotations.NonNull;
  * The durable-primitives SPI in its target shape: one write operation, four reads, and two
  * declarations.
  *
- * <p><b>This is a PoC interface and deliberately parallel to {@link DurablePrimitives} rather than
- * a replacement for it.</b> Reshaping {@code DurablePrimitives} in place would break <b>105</b>
- * call sites across 6 files at once — 79 of them in {@code AtomicOperationMetaStoreManager} alone —
- * and a mechanical rewrite of that size would bury the design it is meant to demonstrate. (An
- * earlier draft of this sentence said 280; that was a raw grep count including 42 false positives,
- * and it is corrected here rather than left to propagate.) Keeping both lets a new implementation
- * be written and conformance-tested against the target shape while every existing caller keeps
- * working; the migration then becomes its own visible question rather than a precondition for
- * evaluating the shape.
+ * <p><b>THIS NAME IS TEMPORARY SCAFFOLDING.</b> It exists only so the old and new shapes can
+ * coexist while callers migrate. The end state is written down here so nobody — including whoever
+ * wrote it — mistakes the scaffold for a fifth concept in the layering:
+ *
+ * <ol>
+ *   <li>Add this interface under a temporary name (where we are now).
+ *   <li>Migrate callers off {@link DurablePrimitives} onto it.
+ *   <li>Delete {@link DurablePrimitives}, which by then has no callers left.
+ *   <li>Rename this interface to {@code DurablePrimitives}.
+ * </ol>
+ *
+ * <p><b>So this is not a new layer, and it is not a new concept.</b> It is the durable-primitives
+ * SPI — the third of the four durable layers — in its target shape, wearing a placeholder name for
+ * the duration of a migration. `CONTEXT.md`'s naming rules (R2) forbid a {@code -Store} suffix on a
+ * seam, and that is exactly why this name cannot be the final one: it is a marker that the rename
+ * is still owed, not a name anybody should get used to.
+ *
+ * <p>The migration itself is <b>not</b> PoC scope. Until it happens, both interfaces exist and
+ * every existing caller keeps working — which is the only reason a parallel interface is needed at
+ * all. Reshaping {@code DurablePrimitives} in place would break 105 call sites, 79 of them in
+ * {@code AtomicOperationMetaStoreManager}, so {@code polaris-core} would not compile and no
+ * conformance test could run.
  *
  * <h2>The shape, and where each part comes from</h2>
  *
