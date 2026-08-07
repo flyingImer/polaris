@@ -54,6 +54,10 @@ public class TreeMapSlices {
       this.undoSlice = new TreeMap<>();
       this.buildKey = buildKey;
       this.copyRecord = copyRecord;
+      // Register with the enclosing store so transaction start, rollback and deleteAll cover this
+      // slice without naming it. Before this, those three methods listed all eight slices by hand,
+      // so adding a ninth and forgetting one of the three silently lost its rollback.
+      allSlices.add(this);
     }
 
     public String buildKey(T value) {
@@ -178,6 +182,10 @@ public class TreeMapSlices {
    */
   private record Transaction(boolean write) {}
 
+  // every slice ever created on this store, in creation order. Populated by Slice's constructor,
+  // which is why it is initialised here rather than in the constructor body.
+  private final List<Slice<?>> allSlices = new ArrayList<>();
+
   // synchronization lock to ensure that only one transaction can be started
   private final Object lock;
 
@@ -212,6 +220,23 @@ public class TreeMapSlices {
 
   // next id generator
   private final AtomicLong nextId = new AtomicLong();
+
+  /**
+   * Declares a new slice on this store.
+   *
+   * <p>Present so a caller that needs a record family this class does not already hold can add one
+   * without editing this class. The returned slice is covered by transactions, rollback and
+   * deleteAll from the moment it is created.
+   *
+   * @param buildKey derives a slice key from a record; two records with the same key are the same
+   *     row
+   * @param copyRecord defensive copy, so a caller cannot mutate stored state through its own
+   *     reference
+   */
+  public <T> Slice<T> newSlice(
+      @NonNull Function<T, String> buildKey, @NonNull Function<T, T> copyRecord) {
+    return new Slice<>(buildKey, copyRecord);
+  }
 
   /**
    * Constructor, allocate everything at once
@@ -367,26 +392,12 @@ public class TreeMapSlices {
   private void startWriteTransaction() {
     this.diagnosticServices.check(this.tr == null, "cannot nest transaction");
     this.tr = new Transaction(true);
-    this.sliceEntities.startWriteTransaction();
-    this.sliceEntitiesActive.startWriteTransaction();
-    this.sliceEntitiesChangeTracking.startWriteTransaction();
-    this.sliceGrantRecords.startWriteTransaction();
-    this.sliceGrantRecordsByGrantee.startWriteTransaction();
-    this.slicePrincipalSecrets.startWriteTransaction();
-    this.slicePolicyMappingRecords.startWriteTransaction();
-    this.slicePolicyMappingRecordsByPolicy.startWriteTransaction();
+    this.allSlices.forEach(Slice::startWriteTransaction);
   }
 
   /** Rollback transaction */
   void rollback() {
-    this.sliceEntities.rollback();
-    this.sliceEntitiesActive.rollback();
-    this.sliceEntitiesChangeTracking.rollback();
-    this.sliceGrantRecords.rollback();
-    this.sliceGrantRecordsByGrantee.rollback();
-    this.slicePrincipalSecrets.rollback();
-    this.slicePolicyMappingRecords.rollback();
-    this.slicePolicyMappingRecordsByPolicy.rollback();
+    this.allSlices.forEach(Slice::rollback);
   }
 
   /** Ensure that a read/write FDB transaction has been started */
@@ -536,13 +547,6 @@ public class TreeMapSlices {
   /** Clear all slices from data */
   void deleteAll() {
     this.ensureReadWriteTr();
-    this.sliceEntities.deleteAll();
-    this.sliceEntitiesActive.deleteAll();
-    this.sliceEntitiesChangeTracking.deleteAll();
-    this.sliceGrantRecordsByGrantee.deleteAll();
-    this.sliceGrantRecords.deleteAll();
-    this.slicePrincipalSecrets.deleteAll();
-    this.slicePolicyMappingRecords.deleteAll();
-    this.slicePolicyMappingRecordsByPolicy.deleteAll();
+    this.allSlices.forEach(Slice::deleteAll);
   }
 }
