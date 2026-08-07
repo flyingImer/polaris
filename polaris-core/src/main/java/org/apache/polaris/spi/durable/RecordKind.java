@@ -18,62 +18,74 @@
  */
 package org.apache.polaris.spi.durable;
 
+import java.util.Objects;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
 /**
- * The kinds of record the durable data model defines.
+ * A record kind, supplied by the caller.
  *
- * <p>This enum is the vocabulary every other type in this package addresses records by. It exists
- * so that {@link RecordRef}, {@link Mutation} and the read operations can be record-kind agnostic:
- * adding a kind adds a constant here and a mapper registration in whichever implementation stores
- * it, and changes no method signature. That property is the reason the write side collapses to one
- * commit operation rather than one method per kind.
+ * <p><b>This is deliberately not an enum, and the reason is a hard constraint rather than a
+ * preference.</b> Issue 47's S4 requires that record types be supplied by the caller and that
+ * adding a record kind <em>must not change the primitives contract</em>. An enum in this package
+ * would break that: adding tag-assignment — S4's own worked example — would mean editing a file
+ * inside the contract. A first draft of this type was an enum with five constants, and a javadoc
+ * that narrowed S4 to "changes no method signature" in order to claim compliance. An enum in an SPI
+ * is part of the contract, so that draft violated S4 and the narrowing was the tell.
  *
- * <p>Required versus optional is a property of the durable data model, not of this enum, and is
- * documented in {@code docs/contracts/durable-logical-data-model.md}. Two kinds are deliberately
- * absent, and their absence is a decision rather than an omission:
+ * <p>So a kind is an opaque identifier. This package declares no constants for it. Whoever owns a
+ * family of records declares their own kinds and registers a mapper for each with the store that
+ * holds them; see {@code PolarisRecordKinds} for the kinds Polaris itself defines. Adding a kind
+ * touches that declaration and one mapper registration, and nothing here.
  *
- * <ul>
- *   <li><b>Idempotency records</b> — the shipped {@code IdempotencyStore} has one implementor and
- *       zero production callers, so it is unwired scaffolding rather than a record kind anything
- *       depends on.
- *   <li><b>Metrics reports</b> — optional by explicit design; the consuming reporter documents that
- *       metrics are silently discarded when the backing store does not support them.
- * </ul>
+ * <p>A store that receives a kind it has no mapper for rejects the call. It does not guess, and it
+ * does not silently drop the record — the two-level {@code kind → store name → implementation}
+ * mapping is what makes an unknown kind a configuration error rather than a runtime surprise.
+ *
+ * <p>Identifiers should be namespaced ({@code "polaris.entity"} rather than {@code "entity"}) so
+ * that an extension declaring its own kinds cannot collide with Polaris's or with another
+ * extension's. Equality is exact string equality on the identifier; there is no normalisation,
+ * because a store uses this value as a registry key and silent normalisation would make two
+ * callers' kinds indistinguishable in one place and distinct in another.
  */
-public enum RecordKind {
-  /**
-   * A catalog, namespace, table-like, generic-table, principal, principal-role, catalog-role or
-   * policy record. Its logical identity is {@code (realm, id)} and its logical uniqueness is {@code
-   * (realm, parent, type, name)} — identity is deliberately wider than uniqueness, which is why
-   * {@link RecordRef} needs both addressing modes.
-   */
-  ENTITY,
+public final class RecordKind {
+
+  private final String id;
+
+  private RecordKind(String id) {
+    this.id = id;
+  }
 
   /**
-   * A privilege granted on a securable to a grantee. Identity and uniqueness are the same tuple,
-   * {@code (realm, securable, grantee, privilege)}, because every field of the record is part of
-   * its own key. Re-asserting one is therefore naturally idempotent and carries {@link
-   * Precondition#none()} rather than a must-not-exist check.
+   * A kind with the given identifier.
+   *
+   * @param id a namespaced identifier, e.g. {@code "polaris.entity"}. Must be non-blank.
    */
-  GRANT_RECORD,
+  public static @NonNull RecordKind of(@NonNull String id) {
+    Objects.requireNonNull(id, "record kind id");
+    if (id.isBlank()) {
+      throw new IllegalArgumentException("record kind id must not be blank");
+    }
+    return new RecordKind(id);
+  }
 
-  /**
-   * An attachment of one policy to one target. Identity and uniqueness are both {@code (realm,
-   * target, policy-type, policy)}. Note that the policy type sits in the key alongside the policy,
-   * which is why the stronger "at most one inheritable policy of a given type per target" rule
-   * cannot be enforced by this key and lives in the selected implementation instead.
-   */
-  POLICY_MAPPING,
+  /** The opaque identifier. A store uses this as its mapper-registry key. */
+  public @NonNull String id() {
+    return id;
+  }
 
-  /**
-   * A principal's secret material. Identity is {@code (realm, client-id)}, because authentication
-   * looks secrets up before the principal is resolved. A second uniqueness rule — at most one live
-   * set per principal — is stated by the data model and is not enforced by any shipped backend.
-   */
-  PRINCIPAL_SECRETS,
+  @Override
+  public boolean equals(@Nullable Object o) {
+    return o instanceof RecordKind other && id.equals(other.id);
+  }
 
-  /**
-   * An audit event. Optional: two of three shipped backends do not implement event persistence at
-   * all, so a caller must be able to detect its absence rather than assume it.
-   */
-  EVENT,
+  @Override
+  public int hashCode() {
+    return id.hashCode();
+  }
+
+  @Override
+  public String toString() {
+    return id;
+  }
 }

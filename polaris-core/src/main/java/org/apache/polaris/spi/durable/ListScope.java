@@ -25,14 +25,18 @@ import org.jspecify.annotations.Nullable;
 /**
  * The closed set of scopes a {@link DurableRecordStore#list} call may ask for.
  *
- * <p><b>Closed on purpose.</b> An open filter — a predicate, an expression tree, a field-name map —
- * would be unimplementable by a store that is not a relational database, and would be pushed down
- * by no store at all: the shipped relational implementation applies its caller-supplied predicate
- * in Java after fetching the rows, so the open form never bought a pushdown even where it looked
- * like it should.
+ * <p><b>Closed on purpose, and the store evaluates it.</b> An open filter — a predicate, an
+ * expression tree, a field-name map — cannot cross a wire, so it is unavailable to a remote store.
+ * The tempting substitute, handing the caller a wider page to narrow itself, is worse rather than
+ * equivalent: for a remote store it ships every candidate record across the network to discard most
+ * of them. So a scope is something the store can push down, and every shape below names something a
+ * store must be able to index.
  *
- * <p>Three shapes cover every list the shipped interface performs. They are distinguished by what a
- * store must be able to index, not by what a caller finds convenient to ask.
+ * <p>Whether the shipped relational implementation happens to evaluate its caller-supplied
+ * predicate in Java today is beside the point and is deliberately not cited as justification.
+ * Current behaviour is a requirement to serve, never a precedent for a contract.
+ *
+ * <p>Three shapes cover every list the shipped interface performs.
  */
 public final class ListScope {
 
@@ -46,14 +50,14 @@ public final class ListScope {
     UNDER_LOCATION_PREFIX,
   }
 
-  private final RecordKind kind;
+  private final @Nullable RecordKind kind;
   private final Shape shape;
   private final @Nullable RecordRef anchor;
   private final @Nullable Integer subtype;
   private final @Nullable String locationPrefix;
 
   private ListScope(
-      RecordKind kind,
+      @Nullable RecordKind kind,
       Shape shape,
       @Nullable RecordRef anchor,
       @Nullable Integer subtype,
@@ -68,6 +72,17 @@ public final class ListScope {
   /** Records of {@code kind} directly under {@code parent}. */
   public static @NonNull ListScope childrenOf(@NonNull RecordKind kind, @NonNull RecordRef parent) {
     return new ListScope(kind, Shape.CHILDREN_OF_PARENT, parent, null, null);
+  }
+
+  /**
+   * Records of <b>any</b> kind directly under {@code parent}.
+   *
+   * <p>Serves an existence check over a whole subtree level — "does this parent have any children
+   * at all" — which a caller answers by listing with a page limit of one and testing for emptiness
+   * rather than by a separate boolean operation.
+   */
+  public static @NonNull ListScope anyKindUnder(@NonNull RecordRef parent) {
+    return new ListScope(null, Shape.CHILDREN_OF_PARENT, parent, null, null);
   }
 
   /** Records of {@code kind} directly under {@code parent}, narrowed to one subtype. */
@@ -100,8 +115,17 @@ public final class ListScope {
     return new ListScope(kind, Shape.UNDER_LOCATION_PREFIX, parent, null, prefix);
   }
 
-  public @NonNull RecordKind kind() {
-    return kind;
+  /**
+   * The record kind to list, or empty for <b>every</b> kind in the scope.
+   *
+   * <p>Absent kind is what serves the shipped {@code hasChildren}, whose real caller passes null
+   * for its optional entity type meaning "children of any type". That could not be expressed while
+   * kind was a closed enum, because the type vocabulary has no "any" constant — only a "no type"
+   * one, which means root rather than any. Once kind became a caller-supplied value, "any" is
+   * simply its absence.
+   */
+  public @NonNull Optional<RecordKind> kind() {
+    return Optional.ofNullable(kind);
   }
 
   public @NonNull Shape shape() {
@@ -125,6 +149,6 @@ public final class ListScope {
 
   @Override
   public String toString() {
-    return "ListScope{" + shape + " " + kind + " @" + anchor + "}";
+    return "ListScope{" + shape + " " + (kind == null ? "*" : kind) + " @" + anchor + "}";
   }
 }

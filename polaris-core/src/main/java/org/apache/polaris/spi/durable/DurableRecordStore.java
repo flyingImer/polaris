@@ -29,12 +29,14 @@ import org.jspecify.annotations.NonNull;
  * declarations.
  *
  * <p><b>This is a PoC interface and deliberately parallel to {@link DurablePrimitives} rather than
- * a replacement for it.</b> Reshaping {@code DurablePrimitives} in place would break roughly 280
- * call sites across 14 classes at once, and a mechanical rewrite of that size would bury the design
- * it is meant to demonstrate. Keeping both lets a new implementation be written and
- * conformance-tested against the target shape while every existing caller keeps working; the
- * migration then becomes its own visible question rather than a precondition for evaluating the
- * shape.
+ * a replacement for it.</b> Reshaping {@code DurablePrimitives} in place would break <b>105</b>
+ * call sites across 6 files at once — 79 of them in {@code AtomicOperationMetaStoreManager} alone —
+ * and a mechanical rewrite of that size would bury the design it is meant to demonstrate. (An
+ * earlier draft of this sentence said 280; that was a raw grep count including 42 false positives,
+ * and it is corrected here rather than left to propagate.) Keeping both lets a new implementation
+ * be written and conformance-tested against the target shape while every existing caller keeps
+ * working; the migration then becomes its own visible question rather than a precondition for
+ * evaluating the shape.
  *
  * <h2>The shape, and where each part comes from</h2>
  *
@@ -61,12 +63,19 @@ import org.jspecify.annotations.NonNull;
  * per-call context parameter it currently declares, and one of them implements its real reads with
  * signatures that do not have the parameter at all.
  *
- * <p><b>No callback parameters.</b> The shipped {@code listFullEntities} takes a {@code Predicate}
- * and a {@code Function}. Neither can cross a wire, and this SPI must stay implementable by a
- * remote service. The cost of dropping them is smaller than it appears: the shipped JDBC
- * implementation applies that predicate <em>client-side in Java</em> after fetching the rows, so
- * the callback never pushed work into the database. A caller filters and maps one layer up and the
- * database does exactly the same work.
+ * <p><b>No callback parameters, and no caller-side filtering to replace them.</b> The shipped
+ * {@code listFullEntities} takes a {@code Predicate} and a {@code Function}. Neither can cross a
+ * wire, so neither is available to a remote implementation — and <em>"the caller filters instead"
+ * is not the substitute</em>, because for a remote store that means shipping every candidate record
+ * across the network and discarding most of them. A filter this SPI accepts must be one the store
+ * can evaluate. That is what {@link ListScope} is: a declared scope, pushed down, not a predicate
+ * handed over.
+ *
+ * <p>Of the three real callers of the shipped callback form, two pass {@code entity -> true} and
+ * need no filter at all. The third is task leasing, whose predicate parses a JSON blob, reads a
+ * realm config and checks a clock — application logic no store can evaluate, local or remote.
+ * <b>That one is not a filter to relocate; it is a missing operation</b>, and it is tracked as such
+ * rather than served by widening this interface.
  *
  * <p><b>No set-emptiness condition and no arbitrary-field comparison.</b> See {@link Precondition}.
  */
@@ -116,8 +125,11 @@ public interface DurableRecordStore {
    * A page of records within a scope.
    *
    * <p>{@link ListScope} is a closed set of shapes rather than an open filter, which is what keeps
-   * this implementable by a store that is not a relational database. A caller needing a narrower
-   * result filters the page it receives.
+   * this implementable by a store that is not a relational database. <b>The store evaluates the
+   * scope.</b> A caller does not receive a wider page and narrow it — that would push the cost onto
+   * the wire for a remote store, which is the one thing this interface may not do. A requirement
+   * the closed set cannot express is a missing scope shape or a missing operation, not a caller's
+   * job.
    */
   @NonNull <T> Page<T> list(
       @NonNull ListScope scope, @NonNull PageToken pageToken, @NonNull Class<T> type);
