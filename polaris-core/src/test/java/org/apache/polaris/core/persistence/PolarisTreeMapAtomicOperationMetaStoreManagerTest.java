@@ -16,40 +16,41 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.persistence.treemap;
+package org.apache.polaris.core.persistence;
 
 import static org.apache.polaris.core.persistence.PrincipalSecretsGenerator.RANDOM_SECRETS;
 
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
-import org.apache.polaris.core.persistence.AtomicOperationMetaStoreManager;
-import org.apache.polaris.core.persistence.BaseDurableManagerTest;
-import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
+import org.apache.polaris.persistence.treemap.TreeMapDurablePrimitivesImpl;
+import org.apache.polaris.persistence.treemap.TreeMapSlices;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
- * Upstream's own test for AtomicOperationMetaStoreManager, kept under upstream's name, moved with
- * its subject's implementation and otherwise unchanged.
+ * Upstream's own test for {@link AtomicOperationMetaStoreManager}, in upstream's location and under
+ * upstream's name. Only its two import lines changed, because the TreeMap primitives implementation
+ * it uses as a fixture moved to its own module.
  *
- * <p><b>The name is stale and deliberately not corrected here.</b> It fuses a durable-manager
- * concept with a storage backend, which the target model keeps apart. Two earlier attempts to fix
- * that invented names instead: first "TreeMapDurableManager", welding a business-aware layer onto a
- * storage detail, then "AtomicOperationManager", which is not a layer in the four-layer stack at
- * all but a shipped class name with a word chopped out of it. Renaming a shipped class's test to a
- * name nobody agreed on is worse than carrying a stale name, so this carries the stale one.
+ * <p><b>Why it lives here and not with the TreeMap implementation.</b> Its subject is
+ * AtomicOperationMetaStoreManager, a polaris-core class, and a test belongs with its subject. An
+ * earlier version of this PoC moved this file into the TreeMap module because its <em>fixture</em>
+ * is TreeMap, which put a manager-layer test inside a primitives-implementation module. A
+ * primitives module holds primitives implementations and their tests; nothing else.
  *
  * <p><b>Which layer the subject sits in:</b> AtomicOperationMetaStoreManager extends
  * BaseMetaStoreManager, which implements DurableManager, GrantManager, SecretsManager,
  * PolarisPolicyMappingManager and PolarisEventManager. So the subject is a <b>durable manager</b>,
  * the top of the four layers, exercised here over the TreeMap durable-primitives implementation.
  *
- * <p><b>Both the subject and this test are transitional.</b> "Atomic operation" is not a concept in
- * the target model. Atomicity belongs to orchestration (grouping by domain, compensating across
- * domains) and to durable primitives (one commit is all-or-nothing within one domain), so a manager
- * variant distinguished by atomicity has nothing left to distinguish, and
- * AtomicOperationMetaStoreManager dissolves into those two layers.
+ * <p><b>The subject does not survive the overhaul, and neither does this test.</b> "Atomic
+ * operation" is not a concept in the target model. Atomicity belongs to orchestration (grouping by
+ * domain, compensating across domains) and to durable primitives (one commit is all-or-nothing
+ * within one domain), so a manager variant distinguished by atomicity has nothing left to
+ * distinguish. Issue 55 resolved that the manager layer keeps its current shape for this PoC, so
+ * the subject is still here on purpose at this stage rather than by omission. Dissolving it means
+ * migrating the manager layer, which is explicitly out of the PoC's scope.
  */
 public class PolarisTreeMapAtomicOperationMetaStoreManagerTest extends BaseDurableManagerTest {
   @Override
