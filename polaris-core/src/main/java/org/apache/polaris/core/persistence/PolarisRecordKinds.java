@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.core.persistence;
 
+import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.RecordKind;
 
 /**
@@ -79,6 +80,54 @@ public final class PolarisRecordKinds {
    * all, so a caller must be able to detect its absence rather than assume it.
    */
   public static final RecordKind EVENT = RecordKind.of("polaris.event");
+
+  // ------------------------------------------------------------- declared lookup paths
+  //
+  // Each kind's lookup paths are declared in the durable logical data model (each kind's "other
+  // lookup paths" section) and realized in every implementation registered for the kind; these
+  // constants are the code-side spelling of those declarations, sited here and not in the SPI
+  // package for the same S4 reason the kinds are. Principal secrets and events declare no list
+  // paths: the model's by-principal and enumeration paths for secrets are documented gaps no
+  // shipped backend serves, and serving them would be a new path, which only a data-model change
+  // introduces.
+
+  /**
+   * {@link #ENTITY}'s children listing: anchors are the parent address, {@code (parent-catalog,
+   * parent)}, optionally narrowed by one trailing subtype code. Realized against the shipped
+   * children query's exact filter columns.
+   */
+  public static final LookupPath ENTITY_BY_PARENT = LookupPath.of("by-parent");
+
+  /**
+   * {@link #ENTITY}'s location scan, serving the overlapping-location check: anchors are {@code
+   * (catalog, location-prefix)}. The catalog anchor follows the shipped overlap query, which
+   * filters by catalog rather than by parent.
+   */
+  public static final LookupPath ENTITY_BY_LOCATION_PREFIX = LookupPath.of("by-location-prefix");
+
+  /**
+   * {@link #GRANT_RECORD}s on a securable: anchors are {@code (securable-catalog, securable)}.
+   * Load-bearing rather than an optimization — entity drop finds the grants to clean up through it.
+   */
+  public static final LookupPath GRANT_RECORD_BY_SECURABLE = LookupPath.of("by-securable");
+
+  /**
+   * {@link #GRANT_RECORD}s to a grantee: anchors are {@code (grantee-catalog, grantee)}.
+   * Authorization resolves a grantee's privileges through it.
+   */
+  public static final LookupPath GRANT_RECORD_BY_GRANTEE = LookupPath.of("by-grantee");
+
+  /**
+   * {@link #POLICY_MAPPING}s on a target — "what policies apply to this table": anchors are {@code
+   * (target-catalog, target)}.
+   */
+  public static final LookupPath POLICY_MAPPING_BY_TARGET = LookupPath.of("by-target");
+
+  /**
+   * {@link #POLICY_MAPPING}s of a policy — "what does this policy apply to": anchors are {@code
+   * (policy-catalog, policy)}.
+   */
+  public static final LookupPath POLICY_MAPPING_BY_POLICY = LookupPath.of("by-policy");
 
   private PolarisRecordKinds() {}
 }

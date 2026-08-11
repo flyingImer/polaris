@@ -81,8 +81,9 @@ import org.jspecify.annotations.NonNull;
  * wire, so neither is available to a remote implementation — and <em>"the caller filters instead"
  * is not the substitute</em>, because for a remote store that means shipping every candidate record
  * across the network and discarding most of them. A filter this SPI accepts must be one the store
- * can evaluate. That is what {@link ListScope} is: a declared scope, pushed down, not a predicate
- * handed over.
+ * can evaluate. That is what a declared lookup path is: a {@link LookupPath name} the durable
+ * logical data model declares for the kind, anchored by the values the declaration states, pushed
+ * down — not a predicate handed over, and not per-kind vocabulary in this interface.
  *
  * <p>Of the three real callers of the shipped callback form, two pass {@code entity -> true} and
  * need no filter at all. The third is task leasing, whose predicate parses a JSON blob, reads a
@@ -135,17 +136,44 @@ public interface DurableRecordStore {
   @NonNull <T> List<Optional<T>> getMany(@NonNull List<RecordRef> refs, @NonNull Class<T> type);
 
   /**
-   * A page of records within a scope.
+   * A page of records on one of the kind's declared lookup paths.
    *
-   * <p>{@link ListScope} is a closed set of shapes rather than an open filter, which is what keeps
-   * this implementable by a store that is not a relational database. <b>The store evaluates the
-   * scope.</b> A caller does not receive a wider page and narrow it — that would push the cost onto
-   * the wire for a remote store, which is the one thing this interface may not do. A requirement
-   * the closed set cannot express is a missing scope shape or a missing operation, not a caller's
-   * job.
+   * <p>{@code path} names a lookup path the durable logical data model declares for {@code kind},
+   * and {@code anchors} carries the values the path's declared anchor signature states, in order.
+   * The declaration is what keeps this implementable by a store that is not a relational database:
+   * a path is something every implementation registered for the kind can realize against its own
+   * layout, never an open filter. <b>The store evaluates the path.</b> A caller does not receive a
+   * wider page and narrow it — that would push the cost onto the wire for a remote store, which is
+   * the one thing this interface may not do. A requirement no declared path expresses is a missing
+   * declaration or a missing operation, not a caller's job.
+   *
+   * <p>A {@code (kind, path)} pair the store's registration does not declare, or an anchor list
+   * that does not match the declared signature, is rejected rather than guessed at.
    */
   @NonNull <T> Page<T> list(
-      @NonNull ListScope scope, @NonNull PageToken pageToken, @NonNull Class<T> type);
+      @NonNull RecordKind kind,
+      @NonNull LookupPath path,
+      @NonNull List<Object> anchors,
+      @NonNull PageToken pageToken,
+      @NonNull Class<T> type);
+
+  /**
+   * A page of records of <b>every</b> registered kind declaring {@code path}, evaluated store-side
+   * as a union over those kinds' declarations.
+   *
+   * <p>This is what serves an existence check over a whole subtree level — "does this parent have
+   * any children of any kind" — which a caller answers by listing the parent path with a page limit
+   * of one and testing for emptiness, rather than by a separate boolean operation. The union is the
+   * store's to evaluate: nothing is fetched per kind and merged caller-side.
+   *
+   * <p>A path no registered kind declares is rejected, the same as an undeclared {@code (kind,
+   * path)} pair on the single-kind form.
+   */
+  @NonNull <T> Page<T> list(
+      @NonNull LookupPath path,
+      @NonNull List<Object> anchors,
+      @NonNull PageToken pageToken,
+      @NonNull Class<T> type);
 
   /**
    * The versions of several records, without the records themselves.

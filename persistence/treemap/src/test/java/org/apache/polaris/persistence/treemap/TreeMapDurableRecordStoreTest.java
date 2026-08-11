@@ -26,9 +26,13 @@ import java.util.Map;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
+import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.spi.durable.CommitResult;
+import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordKind;
@@ -246,6 +250,269 @@ class TreeMapDurableRecordStoreTest {
   @Test
   void generateNewIdDoesNotRepeat() {
     assertThat(store.generateNewId()).isNotEqualTo(store.generateNewId());
+  }
+
+  // ---------------------------------------------------------------- declared lookup paths
+
+  private static final PageToken EVERYTHING = PageToken.readEverything();
+
+  @Test
+  void listByParentReturnsTheChildrenOfExactlyThatParent() {
+    assertThat(store.commit(createOf(entity(10L, 1L, "a", 1))).isApplied()).isTrue();
+    assertThat(store.commit(createOf(entity(11L, 1L, "b", 1))).isApplied()).isTrue();
+    assertThat(store.commit(createOf(entity(12L, 2L, "c", 1))).isApplied()).isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_PARENT,
+                    List.of(1L, 1L),
+                    EVERYTHING,
+                    PolarisBaseEntity.class)
+                .items())
+        .extracting(PolarisBaseEntity::getId)
+        .containsExactlyInAnyOrder(10L, 11L);
+  }
+
+  @Test
+  void theOptionalTrailingSubtypeAnchorNarrowsTheParentListing() {
+    assertThat(store.commit(createOf(entity(10L, 1L, "plain", 1))).isApplied()).isTrue();
+    PolarisBaseEntity subtyped =
+        new PolarisBaseEntity.Builder(entity(11L, 1L, "subtyped", 1)).subTypeCode(42).build();
+    assertThat(store.commit(createOf(subtyped)).isApplied()).isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_PARENT,
+                    List.of(1L, 1L, 42),
+                    EVERYTHING,
+                    PolarisBaseEntity.class)
+                .items())
+        .extracting(PolarisBaseEntity::getId)
+        .containsExactly(11L);
+  }
+
+  @Test
+  void listByLocationPrefixHonoursBothTheCatalogAnchorAndThePrefix() {
+    PolarisBaseEntity inWarehouse =
+        new PolarisBaseEntity.Builder(entity(10L, 1L, "t1", 1))
+            .propertiesAsMap(
+                Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, "s3://bucket/warehouse/t1"))
+            .build();
+    PolarisBaseEntity elsewhere =
+        new PolarisBaseEntity.Builder(entity(11L, 1L, "t2", 1))
+            .propertiesAsMap(
+                Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, "s3://bucket/elsewhere/t2"))
+            .build();
+    assertThat(store.commit(createOf(inWarehouse)).isApplied()).isTrue();
+    assertThat(store.commit(createOf(elsewhere)).isApplied()).isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX,
+                    // the store strips the scheme, mirroring the shipped overlap query
+                    List.of(1L, "s3://bucket/warehouse"),
+                    EVERYTHING,
+                    PolarisBaseEntity.class)
+                .items())
+        .extracting(PolarisBaseEntity::getId)
+        .containsExactly(10L);
+
+    // the catalog anchor is part of the declared signature, not decoration
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX,
+                    List.of(9L, "s3://bucket/warehouse"),
+                    EVERYTHING,
+                    PolarisBaseEntity.class)
+                .items())
+        .isEmpty();
+  }
+
+  @Test
+  void bySecurableAndByGranteeAreDistinctDirectionsNotOneSymmetricMatch() {
+    PolarisGrantRecord grant = new PolarisGrantRecord(1L, 10L, 1L, 20L, 3);
+    assertThat(
+            store
+                .commit(
+                    List.of(
+                        Mutation.of(
+                            PolarisRecordKinds.GRANT_RECORD,
+                            Mutation.Op.CREATE,
+                            RecordRef.byIdentity(
+                                PolarisRecordKinds.GRANT_RECORD, List.of(1L, 10L, 1L, 20L, 3)),
+                            grant)))
+                .isApplied())
+        .isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+                    List.of(1L, 10L),
+                    EVERYTHING,
+                    PolarisGrantRecord.class)
+                .items())
+        .hasSize(1);
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
+                    List.of(1L, 20L),
+                    EVERYTHING,
+                    PolarisGrantRecord.class)
+                .items())
+        .hasSize(1);
+    // the grantee's address on the securable path matches nothing: each direction is its own path
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+                    List.of(1L, 20L),
+                    EVERYTHING,
+                    PolarisGrantRecord.class)
+                .items())
+        .isEmpty();
+  }
+
+  @Test
+  void byTargetAndByPolicyServeBothPolicyMappingDirections() {
+    PolarisPolicyMappingRecord mapping =
+        new PolarisPolicyMappingRecord(1L, 10L, 1L, 30L, 5, (String) null);
+    assertThat(
+            store
+                .commit(
+                    List.of(
+                        Mutation.of(
+                            PolarisRecordKinds.POLICY_MAPPING,
+                            Mutation.Op.CREATE,
+                            RecordRef.byIdentity(
+                                PolarisRecordKinds.POLICY_MAPPING, List.of(1L, 10L, 5, 1L, 30L)),
+                            mapping)))
+                .isApplied())
+        .isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.POLICY_MAPPING,
+                    PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
+                    List.of(1L, 10L),
+                    EVERYTHING,
+                    PolarisPolicyMappingRecord.class)
+                .items())
+        .hasSize(1);
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.POLICY_MAPPING,
+                    PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
+                    List.of(1L, 30L),
+                    EVERYTHING,
+                    PolarisPolicyMappingRecord.class)
+                .items())
+        .hasSize(1);
+  }
+
+  @Test
+  void theKindLessFormUnionsOverTheKindsDeclaringThePath() {
+    assertThat(store.commit(createOf(entity(10L, 1L, "child", 1))).isApplied()).isTrue();
+
+    // only the entity kind declares by-parent today, so the union is that kind's result — but the
+    // caller names no kind, which is what the children-existence check needs
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY_BY_PARENT, List.of(1L, 1L), EVERYTHING, Object.class)
+                .items())
+        .hasSize(1);
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY_BY_PARENT, List.of(1L, 99L), EVERYTHING, Object.class)
+                .items())
+        .isEmpty();
+  }
+
+  @Test
+  void anUndeclaredPathIsRejectedRatherThanGuessedAt() {
+    assertThatThrownBy(
+            () ->
+                store.list(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    PolarisRecordKinds.ENTITY_BY_PARENT,
+                    List.of(1L, 1L),
+                    EVERYTHING,
+                    Object.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("declares no lookup path");
+
+    assertThatThrownBy(
+            () -> store.list(LookupPath.of("by-nothing"), List.of(1L), EVERYTHING, Object.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("No registered kind declares");
+  }
+
+  @Test
+  void theLocationPathAlsoMatchesAncestorsOfTheAnchorLikeTheShippedOverlapQuery() {
+    // an overlap check matches in both directions: a stored parent location conflicts with a
+    // deeper anchor exactly as a stored child conflicts with a shallower one
+    PolarisBaseEntity parent =
+        new PolarisBaseEntity.Builder(entity(10L, 1L, "ns1", 1))
+            .propertiesAsMap(
+                Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, "s3://bucket/warehouse/ns1/"))
+            .build();
+    assertThat(store.commit(createOf(parent)).isApplied()).isTrue();
+
+    assertThat(
+            store
+                .list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX,
+                    List.of(1L, "s3://bucket/warehouse/ns1/table1"),
+                    EVERYTHING,
+                    PolarisBaseEntity.class)
+                .items())
+        .extracting(PolarisBaseEntity::getId)
+        .containsExactly(10L);
+  }
+
+  @Test
+  void aWrongTypedAnchorAtTheRightArityIsRejectedNotClassCast() {
+    assertThatThrownBy(
+            () ->
+                store.list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_PARENT,
+                    List.of("1", 1L),
+                    EVERYTHING,
+                    PolarisBaseEntity.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("declares anchor 0 as Long");
+  }
+
+  @Test
+  void anAnchorListNotMatchingTheDeclaredSignatureIsRejected() {
+    assertThatThrownBy(
+            () ->
+                store.list(
+                    PolarisRecordKinds.ENTITY,
+                    PolarisRecordKinds.ENTITY_BY_PARENT,
+                    List.of(1L),
+                    EVERYTHING,
+                    PolarisBaseEntity.class))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("declares 2 to 3 anchors");
   }
 
   private static List<Mutation> createOf(PolarisBaseEntity e) {

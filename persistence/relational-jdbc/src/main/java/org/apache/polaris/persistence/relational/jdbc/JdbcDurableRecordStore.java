@@ -45,7 +45,7 @@ import org.apache.polaris.persistence.relational.jdbc.models.ModelPolicyMappingR
 import org.apache.polaris.persistence.relational.jdbc.models.ModelPrincipalAuthenticationData;
 import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
-import org.apache.polaris.spi.durable.ListScope;
+import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordKind;
@@ -74,19 +74,21 @@ import org.jspecify.annotations.Nullable;
  *
  * <h2>Two things found while writing this</h2>
  *
- * <p><b>1. Whether a scope anchor may carry a denormalised scoping column is an open contract
- * question, and this class does not answer it.</b> The shipped {@code listEntities} filters on
+ * <p><b>1. Whether a lookup path's anchor may carry a denormalised scoping column is the data
+ * model's question, and the declaration answers it.</b> The shipped {@code listEntities} filters on
  * {@code catalog_id}, {@code parent_id} and {@code type_code}, and this class filters on exactly
- * the same columns, so the query it issues is the shipped query.
+ * the same columns, so the query it issues is the shipped query. The by-parent declaration states
+ * the anchors as the parent address, {@code (parent-catalog, parent)} — declared once in the
+ * durable logical data model, realized here.
  *
- * <p>The question is real. The {@code entities} primary key is {@code (realm_id, id)}, so an id is
- * unique within a realm, from which it *appears* that {@code parent_id} alone determines the parent
- * and {@code catalog_id} is redundant for correctness. That is an <b>inference</b> from the key,
- * not an observation of behaviour, and a first version of this class acted on it and dropped the
- * column. Two things were wrong with doing that. It changes a query in a refactor whose whole job
- * is to be behaviour-preserving, without first proving the two queries return the same rows. And it
- * settles a contract question inside one implementation, when the question is whether {@link
- * ListScope} should expose a column that exists in this schema for indexing reasons.
+ * <p>The history is worth keeping. The {@code entities} primary key is {@code (realm_id, id)}, so
+ * an id is unique within a realm, from which it *appears* that {@code parent_id} alone determines
+ * the parent and {@code catalog_id} is redundant for correctness. That is an <b>inference</b> from
+ * the key, not an observation of behaviour, and a first version of this class acted on it and
+ * dropped the column. Two things were wrong with doing that. It changes a query in a refactor whose
+ * whole job is to be behaviour-preserving, without first proving the two queries return the same
+ * rows. And it settled inside one implementation a question that belongs to the data model — which
+ * is exactly where the declared-path form now places it.
  *
  * <p>Leaving the shipped columns in place also removes a cost that version invented. The only index
  * serving a children lookup is the uniqueness constraint {@code (realm_id, catalog_id, parent_id,
@@ -142,11 +144,14 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
   // ------------------------------------------------------------------ registry
 
   /**
-   * What a kind needs in order to be stored: where its rows live, how to read one, and which
-   * columns each of the two addressing modes uses.
+   * What a kind needs in order to be stored: where its rows live, how to read one, which columns
+   * each of the two addressing modes uses, and how each of the kind's declared lookup paths binds
+   * to this schema.
    *
    * @param versionColumns the columns a {@link Precondition.Op#VERSION_EQUALS} may name, empty when
    *     the kind carries no version
+   * @param paths the kind's declared lookup paths, realized as column bindings — the registration
+   *     half of the declared-once-normative discipline; empty when the kind declares none
    */
   private record KindBinding<T>(
       String table,
@@ -155,8 +160,32 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
       List<String> identityColumns,
       List<String> uniquenessColumns,
       Map<Precondition.VersionAttribute, String> versionColumns,
+      Map<LookupPath, PathBinding> paths,
       @Nullable String orderColumn,
       Function<Object, Map<String, Object>> rowOf) {}
+
+  /**
+   * One declared lookup path, realized against this schema.
+   *
+   * @param anchorTypes the declared required anchors' types, in order
+   * @param trailingType the declared optional trailing anchor's type, or null when the path
+   *     declares none
+   * @param anchorColumns the columns the required anchors bind to, in declared order; empty when a
+   *     dedicated query serves the path
+   * @param trailingColumn the column a declared optional trailing anchor binds to, or null
+   * @param dedicatedQuery the query builder for a path whose realization is not an
+   *     equality-anchored select over the kind's table, or null
+   */
+  private record PathBinding(
+      List<Class<?>> anchorTypes,
+      @Nullable Class<?> trailingType,
+      List<String> anchorColumns,
+      @Nullable String trailingColumn,
+      @Nullable Function<List<Object>, QueryGenerator.PreparedQuery> dedicatedQuery) {}
+
+  private static long asLong(Object anchor) {
+    return ((Number) anchor).longValue();
+  }
 
   private Map<RecordKind, KindBinding<?>> buildBindings() {
     DatabaseType databaseType = datasourceOperations.getDatabaseType();
@@ -175,6 +204,31 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             Map.of(
                 Precondition.VersionAttribute.RECORD_VERSION, "entity_version",
                 Precondition.VersionAttribute.GRANT_RECORDS_VERSION, "grant_records_version"),
+            Map.of(
+                // anchors (parent-catalog, parent [, subtype]): the parent ADDRESS bound to the
+                // shipped children query's exact filter columns — see the class javadoc for why
+                // catalog_id stays
+                PolarisRecordKinds.ENTITY_BY_PARENT,
+                new PathBinding(
+                    List.of(Long.class, Long.class),
+                    Integer.class,
+                    List.of("catalog_id", "parent_id"),
+                    "sub_type_code",
+                    null),
+                // anchors (catalog, prefix): the shipped overlap query, unchanged — its catalog
+                // anchor and its exact-segment-OR-prefix condition are the declared realization
+                PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX,
+                new PathBinding(
+                    List.of(Long.class, String.class),
+                    null,
+                    List.of(),
+                    null,
+                    anchors ->
+                        QueryGenerator.generateOverlapQuery(
+                            realmId,
+                            schemaVersion,
+                            asLong(anchors.get(0)),
+                            (String) anchors.get(1)))),
             ModelEntity.ID_COLUMN,
             r -> ModelEntity.fromEntity((PolarisBaseEntity) r, schemaVersion).toMap(databaseType)));
 
@@ -188,6 +242,23 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             ModelGrantRecord.ALL_COLUMNS,
             ModelGrantRecord.ALL_COLUMNS,
             Map.of(),
+            // the two directions the data model declares, each with its own index
+            // (idx_grants_realm_securable, idx_grants_realm_grantee)
+            Map.of(
+                PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+                new PathBinding(
+                    List.of(Long.class, Long.class),
+                    null,
+                    List.of("securable_catalog_id", "securable_id"),
+                    null,
+                    null),
+                PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
+                new PathBinding(
+                    List.of(Long.class, Long.class),
+                    null,
+                    List.of("grantee_catalog_id", "grantee_id"),
+                    null,
+                    null)),
             null,
             r -> ModelGrantRecord.fromGrantRecord((PolarisGrantRecord) r).toMap(databaseType)));
 
@@ -210,6 +281,21 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
                 "policy_catalog_id",
                 "policy_id"),
             Map.of(),
+            Map.of(
+                PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
+                new PathBinding(
+                    List.of(Long.class, Long.class),
+                    null,
+                    List.of("target_catalog_id", "target_id"),
+                    null,
+                    null),
+                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
+                new PathBinding(
+                    List.of(Long.class, Long.class),
+                    null,
+                    List.of("policy_catalog_id", "policy_id"),
+                    null,
+                    null)),
             null,
             r ->
                 ModelPolicyMappingRecord.fromPolicyMappingRecord((PolarisPolicyMappingRecord) r)
@@ -226,6 +312,9 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             List.of("principal_client_id"),
             List.of("principal_client_id"),
             Map.of(),
+            // no declared list paths: the model's by-principal and enumeration paths are
+            // documented gaps no shipped backend serves, not declarations to realize here
+            Map.of(),
             null,
             r ->
                 ModelPrincipalAuthenticationData.fromPrincipalAuthenticationData(
@@ -241,10 +330,13 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             List.of("event_id"),
             List.of("event_id"),
             Map.of(),
+            Map.of(),
             null,
             r -> ModelEvent.fromEvent((EventEntity) r).toMap(databaseType)));
 
-    return Map.copyOf(map);
+    // Unmodifiable but ordered: the union form iterates this map, and handing iteration order to
+    // Map.copyOf's per-run salting would make the union's concatenation order a per-JVM accident.
+    return java.util.Collections.unmodifiableMap(map);
   }
 
   private KindBinding<?> binding(RecordKind kind) {
@@ -318,7 +410,11 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
 
     switch (m.op()) {
       case CREATE -> {
-        List<Object> values = List.copyOf(b.rowOf().apply(m.record()).values());
+        // A row map's values legitimately contain null for nullable columns (e.g. a
+        // non-namespace/table entity's location_without_scheme). List.copyOf rejects null
+        // elements, so this copies into a null-tolerant list instead; the columns, the query
+        // shape, and every non-null value are unchanged.
+        List<Object> values = new ArrayList<>(b.rowOf().apply(m.record()).values());
         try {
           datasourceOperations.execute(
               connection,
@@ -336,7 +432,8 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
       case UPDATE -> {
         Map<String, Object> where = whereFor(b, m.target());
         where.putAll(foldedVersions);
-        List<Object> values = List.copyOf(b.rowOf().apply(m.record()).values());
+        // see the CREATE case above for why this is not List.copyOf
+        List<Object> values = new ArrayList<>(b.rowOf().apply(m.record()).values());
         int rows =
             datasourceOperations.execute(
                 connection,
@@ -482,30 +579,102 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
 
   @Override
   public @NonNull <T> Page<T> list(
-      @NonNull ListScope scope, @NonNull PageToken pageToken, @NonNull Class<T> type) {
-    RecordKind kind =
-        scope
-            .kind()
-            .orElseThrow(
-                () ->
-                    new IllegalArgumentException(
-                        "A kind-less scope spans every registered kind and is not implemented by"
-                            + " this store yet; see hasChildren in the plan"));
+      @NonNull RecordKind kind,
+      @NonNull LookupPath path,
+      @NonNull List<Object> anchors,
+      @NonNull PageToken pageToken,
+      @NonNull Class<T> type) {
     KindBinding<?> b = binding(kind);
-    QueryGenerator.PreparedQuery query = listQuery(b, scope, pageToken);
+    PathBinding p = pathBinding(kind, b, path, anchors);
+    QueryGenerator.PreparedQuery query = listQuery(b, p, anchors, pageToken);
     try {
       AtomicReference<Page<T>> result = new AtomicReference<>();
       datasourceOperations.executeSelectOverStream(
-          query, b.reader(), stream -> result.set(pageOf(b, scope, pageToken, stream, type)));
+          query, b.reader(), stream -> result.set(pageOf(b, kind, pageToken, stream, type)));
       return result.get();
     } catch (SQLException e) {
       throw new RuntimeException("Failed to list " + kind.id(), e);
     }
   }
 
+  @Override
+  public @NonNull <T> Page<T> list(
+      @NonNull LookupPath path,
+      @NonNull List<Object> anchors,
+      @NonNull PageToken pageToken,
+      @NonNull Class<T> type) {
+    // The union over every registered kind declaring the path, evaluated store-side. Every Polaris
+    // path today is declared by exactly one kind, so the union delegates with full paging. The
+    // multi-kind branch below is unreachable until a data-model change introduces the first shared
+    // path name, and that change is also where its semantics (paging across kinds, one-snapshot
+    // isolation, per-kind anchor signatures) get declared — a shared path enters the vocabulary
+    // only through the data model, never through this code growing cleverness first.
+    List<RecordKind> declaring =
+        bindings.entrySet().stream()
+            .filter(e -> e.getValue().paths().containsKey(path))
+            .map(Map.Entry::getKey)
+            .toList();
+    if (declaring.isEmpty()) {
+      throw new IllegalArgumentException(
+          "No registered kind declares lookup path '" + path.name() + "' in this store");
+    }
+    if (declaring.size() == 1) {
+      return list(declaring.getFirst(), path, anchors, pageToken, type);
+    }
+    List<T> out = new ArrayList<>();
+    for (RecordKind kind : declaring) {
+      out.addAll(list(kind, path, anchors, pageToken, type).items());
+    }
+    return Page.page(pageToken, out, null);
+  }
+
+  /** Resolves a declared path and validates the anchors against its declared signature. */
+  private PathBinding pathBinding(
+      RecordKind kind, KindBinding<?> b, LookupPath path, List<Object> anchors) {
+    PathBinding p = b.paths().get(path);
+    if (p == null) {
+      throw new IllegalArgumentException(
+          "Record kind '"
+              + kind.id()
+              + "' declares no lookup path '"
+              + path.name()
+              + "' in this store");
+    }
+    int min = p.anchorTypes().size();
+    int max = min + (p.trailingType() == null ? 0 : 1);
+    if (anchors.size() < min || anchors.size() > max) {
+      throw new IllegalArgumentException(
+          "Lookup path '"
+              + path.name()
+              + "' of kind '"
+              + kind.id()
+              + "' declares "
+              + (min == max ? min + " anchors" : min + " to " + max + " anchors")
+              + ", got "
+              + anchors.size());
+    }
+    for (int i = 0; i < anchors.size(); i++) {
+      Class<?> declared = i < min ? p.anchorTypes().get(i) : p.trailingType();
+      if (!declared.isInstance(anchors.get(i))) {
+        throw new IllegalArgumentException(
+            "Lookup path '"
+                + path.name()
+                + "' of kind '"
+                + kind.id()
+                + "' declares anchor "
+                + i
+                + " as "
+                + declared.getSimpleName()
+                + ", got "
+                + (anchors.get(i) == null ? "null" : anchors.get(i).getClass().getSimpleName()));
+      }
+    }
+    return p;
+  }
+
   private <T> Page<T> pageOf(
-      KindBinding<?> b, ListScope scope, PageToken pageToken, Stream<?> stream, Class<T> type) {
-    if (b.orderColumn() != null && PolarisRecordKinds.ENTITY.id().equals(scope.kind().get().id())) {
+      KindBinding<?> b, RecordKind kind, PageToken pageToken, Stream<?> stream, Class<T> type) {
+    if (b.orderColumn() != null && PolarisRecordKinds.ENTITY.equals(kind)) {
       @SuppressWarnings("unchecked")
       Stream<PolarisBaseEntity> entities = (Stream<PolarisBaseEntity>) stream;
       return Page.mapped(pageToken, entities, type::cast, EntityIdToken::fromEntity);
@@ -516,45 +685,20 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
   }
 
   private QueryGenerator.PreparedQuery listQuery(
-      KindBinding<?> b, ListScope scope, PageToken pageToken) {
+      KindBinding<?> b, PathBinding p, List<Object> anchors, PageToken pageToken) {
+    if (p.dedicatedQuery() != null) {
+      return p.dedicatedQuery().apply(anchors);
+    }
     Map<String, Object> whereEquals = new LinkedHashMap<>();
     Map<String, Object> whereGreater = new LinkedHashMap<>();
     String orderBy = null;
 
-    switch (scope.shape()) {
-      case CHILDREN_OF_PARENT -> {
-        // The anchor is the parent ADDRESS, [catalogId, parentId], which is exactly what the
-        // shipped listEntities filters on. See the class javadoc: whether the contract should
-        // carry catalog_id is an open design question, and answering it inside an implementation
-        // would have changed behaviour to settle a contract argument.
-        List<Object> anchor = scope.anchor().key();
-        if (anchor.size() != 2) {
-          throw new IllegalArgumentException(
-              "CHILDREN_OF_PARENT expects the anchor to be the parent address, [catalogId, parentId]");
-        }
-        whereEquals.put("catalog_id", anchor.get(0));
-        whereEquals.put("parent_id", anchor.get(1));
-        scope.subtype().ifPresent(st -> whereEquals.put("sub_type_code", st));
-      }
-      case REFERENCING -> {
-        List<Object> anchor = scope.anchor().key();
-        List<String> columns = referencingColumns(b, anchor.size());
-        for (int i = 0; i < columns.size(); i++) {
-          whereEquals.put(columns.get(i), anchor.get(i));
-        }
-      }
-      case UNDER_LOCATION_PREFIX -> {
-        List<Object> anchor = scope.anchor().key();
-        if (anchor.size() != 1) {
-          throw new IllegalArgumentException(
-              "UNDER_LOCATION_PREFIX expects the anchor key to be [catalogId]");
-        }
-        return QueryGenerator.generateOverlapQuery(
-            realmId,
-            schemaVersion,
-            ((Number) anchor.getFirst()).longValue(),
-            scope.locationPrefix().orElseThrow());
-      }
+    List<String> columns = p.anchorColumns();
+    for (int i = 0; i < columns.size(); i++) {
+      whereEquals.put(columns.get(i), anchors.get(i));
+    }
+    if (anchors.size() > columns.size() && p.trailingColumn() != null) {
+      whereEquals.put(p.trailingColumn(), anchors.get(anchors.size() - 1));
     }
 
     whereEquals.put("realm_id", realmId);
@@ -566,26 +710,6 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     }
     return QueryGenerator.generateSelectQuery(
         b.columns(), b.table(), whereEquals, whereGreater, orderBy);
-  }
-
-  /**
-   * Which columns a {@link ListScope.Shape#REFERENCING} anchor binds to. Grant records are the
-   * shape this exists for: grants on a securable and grants to a grantee are the same scope with a
-   * different anchor, which is why the shipped interface's two methods collapse into one.
-   */
-  private List<String> referencingColumns(KindBinding<?> b, int anchorSize) {
-    if (ModelGrantRecord.TABLE_NAME.equals(b.table()) && anchorSize == 2) {
-      return List.of("securable_catalog_id", "securable_id");
-    }
-    if (ModelPolicyMappingRecord.TABLE_NAME.equals(b.table()) && anchorSize == 2) {
-      return List.of("target_catalog_id", "target_id");
-    }
-    throw new IllegalArgumentException(
-        "REFERENCING is not defined for table "
-            + b.table()
-            + " with a "
-            + anchorSize
-            + "-part anchor");
   }
 
   @Override
