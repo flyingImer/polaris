@@ -36,16 +36,23 @@ import org.jspecify.annotations.NonNull;
  *
  * <ul>
  *   <li><b>Grouping.</b> A mutation's domain is the union of its write target and every record its
- *       preconditions reference. Mutations whose domains are equal form one group; each group is
- *       handed to exactly one primitives implementation as exactly one {@link
+ *       preconditions reference. ADJACENT mutations with equal domains merge into one group; each
+ *       group is handed to exactly one primitives implementation as exactly one {@link
  *       DurableRecordStore#commit} call. There is no form in which one group reaches two
  *       implementations, so a domain never spans logical stores.
+ *   <li><b>Separation in the list is semantic.</b> Two same-domain mutations with another domain's
+ *       mutation between them stay in separate commits, in list order — the caller's order is the
+ *       program, and it is never silently reordered: hoisting a later write forward would be the
+ *       same class of silent semantic change as the split the primitives contract forbids. A caller
+ *       who wants two mutations atomic together places them adjacent; a caller who separates them
+ *       is stating that the intervening write must be durable in between, which is what keeps every
+ *       crash window a prefix of the caller's intended writes.
  *   <li><b>Within a group: atomic.</b> The group applies entirely or not at all, unconditionally —
  *       that is the primitives contract this layer builds on.
- *   <li><b>Across groups: ordered, compensated.</b> Groups commit in the order their first mutation
- *       appears in the list; the caller's list order is the write order. If a group fails, every
- *       group already committed is rolled back synchronously, on this same call, in reverse commit
- *       order. An ordinary failure leaves nothing behind, and a retry simply succeeds.
+ *   <li><b>Across groups: ordered, compensated.</b> Groups commit strictly in list order. If a
+ *       group fails, every group already committed is rolled back synchronously, on this same call,
+ *       in reverse commit order. An ordinary failure leaves nothing behind, and a retry simply
+ *       succeeds.
  *   <li><b>The crash window, disclosed rather than hidden.</b> If the process dies after a group
  *       commits and before the rollback completes, the partial state survives with no compensation
  *       having run. Every such state is inert and reclaimable through normal admin paths; nothing

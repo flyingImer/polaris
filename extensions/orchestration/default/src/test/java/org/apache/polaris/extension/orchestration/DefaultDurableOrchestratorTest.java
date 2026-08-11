@@ -119,11 +119,11 @@ class DefaultDurableOrchestratorTest {
 
   @Test
   void conditionTargetsPullAMutationIntoTheWritersGroup() {
-    // M2 conditions on the record M1 writes. Despite the store-B mutation sitting between them
-    // in the list, M2 lands in the same single commit as the writer of its condition target —
-    // the condition is evaluated atomically with the write it depends on.
+    // M2 is adjacent to M1 and conditions on the record M1 writes: both ride in one commit, so
+    // the condition is evaluated atomically with the write it depends on. The condition target's
+    // domain participates in M2's domain (the union rule); the cross-store rejection case below
+    // proves the participation is real.
     Mutation m1 = create(ALPHA, 1);
-    Mutation m3 = create(GAMMA, 3);
     Mutation m2 =
         Mutation.of(
             BETA,
@@ -131,14 +131,41 @@ class DefaultDurableOrchestratorTest {
             ref(BETA, 2),
             "record-2",
             List.of(Precondition.exists(ref(ALPHA, 1))));
+    Mutation m3 = create(GAMMA, 3);
 
-    OrchestrationResult result = orchestrator.commit(List.of(m1, m3, m2));
+    OrchestrationResult result = orchestrator.commit(List.of(m1, m2, m3));
 
     assertThat(result.isApplied()).isTrue();
     assertThat(storeA.commits).hasSize(1);
     assertThat(storeA.commits.get(0)).containsExactly(m1, m2);
     assertThat(storeB.commits).hasSize(1);
     assertThat(storeB.commits.get(0)).containsExactly(m3);
+  }
+
+  @Test
+  void sameDomainMutationsSeparatedInTheListStaySeparate() {
+    // Separation is semantic: the caller ordered another domain's write between two same-domain
+    // writes, so the two stay separate commits in list order — never hoisted together. On a later
+    // failure, the two same-domain groups also roll back as separate commits, in reverse order.
+    storeA.responder =
+        mutations ->
+            mutations.get(0).target().key().get(0).equals(3L)
+                ? CommitResult.preconditionFailed(List.of(Precondition.none()))
+                : CommitResult.applied();
+
+    Mutation first = create(ALPHA, 1);
+    OrchestrationResult result =
+        orchestrator.commit(List.of(first, create(GAMMA, 2), create(ALPHA, 3)));
+
+    assertThat(result.outcome()).isEqualTo(OrchestrationResult.Outcome.ROLLED_BACK);
+    // Forward: A[1], B[2], A[3] fails. Rollback: B undo, then A undo — strict reverse.
+    assertThat(commitSequence).containsExactly("A", "B", "A", "B", "A");
+    assertThat(storeA.commits).hasSize(3);
+    assertThat(storeA.commits.get(0)).containsExactly(first);
+    assertThat(storeA.commits.get(2).get(0).op()).isEqualTo(Mutation.Op.DELETE);
+    assertThat(storeA.commits.get(2).get(0).target()).isEqualTo(ref(ALPHA, 1));
+    assertThat(storeB.commits).hasSize(2);
+    assertThat(storeB.commits.get(1).get(0).op()).isEqualTo(Mutation.Op.DELETE);
   }
 
   @Test

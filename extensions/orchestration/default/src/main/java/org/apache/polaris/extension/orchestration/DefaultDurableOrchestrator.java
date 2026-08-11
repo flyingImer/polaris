@@ -19,9 +19,7 @@
 package org.apache.polaris.extension.orchestration;
 
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.function.Function;
@@ -104,20 +102,22 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
     }
   }
 
+  /** One adjacent run of same-domain mutations: what the loop below hands to one commit. */
+  private record Group(Domain domain, List<Mutation> mutations) {}
+
   /** A committed group remembered for possible rollback: where, what, and how to reverse it. */
   private record CommittedGroup(
       DurableRecordStore store, List<Mutation> mutations, List<Mutation> undo) {}
 
   @Override
   public @NonNull OrchestrationResult commit(@NonNull List<Mutation> mutations) {
-    Map<Domain, List<Mutation>> groups = groupByDomain(mutations);
+    List<Group> groups = groupAdjacent(mutations);
 
     List<CommittedGroup> committed = new ArrayList<>();
-    int index = 0;
-    for (Map.Entry<Domain, List<Mutation>> entry : groups.entrySet()) {
-      DurableRecordStore store = entry.getKey().store();
-      List<Mutation> group = entry.getValue();
-      boolean hasSuccessor = ++index < groups.size();
+    for (int index = 0; index < groups.size(); index++) {
+      DurableRecordStore store = groups.get(index).domain().store();
+      List<Mutation> group = groups.get(index).mutations();
+      boolean hasSuccessor = index + 1 < groups.size();
 
       List<Mutation> undo = hasSuccessor ? captureUndo(store, group) : List.of();
 
@@ -150,16 +150,25 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
   }
 
   /**
-   * Groups the list by atomicity domain, preserving the order in which each domain first appears —
-   * the caller's list order is the write order across domains.
+   * Merges ADJACENT mutations with equal domains into groups, strictly preserving list order.
    *
-   * <p>A mutation's domain is the union over its write target and every record its preconditions
-   * reference. The union must be one domain: a condition split from its write across domains cannot
-   * be evaluated atomically with it by any backend, and compensation operates across groups, never
-   * inside one mutation, so such a mutation is a caller error caught here before anything commits.
+   * <p>Separation in the list is semantic, never optimized away: two same-domain mutations with
+   * another domain's mutation between them stay in separate commits, in list order. The caller's
+   * order is the program — it is what makes every crash window a prefix of the caller's intended
+   * writes, which is the reasoning Option A's inert-partial-state story rests on — and a caller who
+   * wants two mutations atomic together says so by placing them adjacent. Hoisting a later mutation
+   * forward would change the program silently, the same class of silent semantic change as the
+   * split S12 forbids. (EJ, 2026-08-11, amending the earlier by-equality wording.)
+   *
+   * <p>A mutation's own domain is the union over its write target and every record its
+   * preconditions reference. The union must be one domain: a condition split from its write across
+   * domains cannot be evaluated atomically with it by any backend, and compensation operates across
+   * groups, never inside one mutation, so such a mutation is a caller error caught here before
+   * anything commits.
    */
-  private Map<Domain, List<Mutation>> groupByDomain(List<Mutation> mutations) {
-    Map<Domain, List<Mutation>> groups = new LinkedHashMap<>();
+  private List<Group> groupAdjacent(List<Mutation> mutations) {
+    List<Group> groups = new ArrayList<>();
+    Group current = null;
     for (Mutation mutation : mutations) {
       Domain domain = domainOf(mutation.target());
       for (Precondition precondition : mutation.preconditions()) {
@@ -180,7 +189,11 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
                   + " record with a read and accept its staleness, or co-locate the kinds.");
         }
       }
-      groups.computeIfAbsent(domain, key -> new ArrayList<>()).add(mutation);
+      if (current == null || !current.domain().equals(domain)) {
+        current = new Group(domain, new ArrayList<>());
+        groups.add(current);
+      }
+      current.mutations().add(mutation);
     }
     return groups;
   }
