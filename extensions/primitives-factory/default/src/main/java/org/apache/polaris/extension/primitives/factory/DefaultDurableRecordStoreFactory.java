@@ -24,8 +24,8 @@ import java.util.Set;
 import java.util.TreeMap;
 import java.util.TreeSet;
 import java.util.function.Function;
+import org.apache.polaris.core.persistence.DurableRecordStoreFactory;
 import org.apache.polaris.spi.durable.DurableRecordStore;
-import org.apache.polaris.spi.durable.DurableRecordStoreFactory;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.jspecify.annotations.NonNull;
 

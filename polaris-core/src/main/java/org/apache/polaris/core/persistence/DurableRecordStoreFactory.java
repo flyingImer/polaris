@@ -16,20 +16,28 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.spi.durable;
+package org.apache.polaris.core.persistence;
 
 import java.util.Map;
 import java.util.function.Function;
+import org.apache.polaris.spi.durable.DurableOrchestrator;
+import org.apache.polaris.spi.durable.DurableRecordStore;
+import org.apache.polaris.spi.durable.RecordKind;
 import org.jspecify.annotations.NonNull;
 
 /**
- * The primitives factory: the construction-axis layer that turns the two-level {@code kind → store
- * name → implementation} mapping into the realm-scoped assembly {@link DurableOrchestrator}
+ * The primitives factory: the construction-axis contract that turns the two-level {@code kind →
+ * store name → implementation} mapping into the realm-scoped assembly {@link DurableOrchestrator}
  * consumes, refusing at assembly time a mapping that references stores nobody wired.
  *
- * <p>This is the fourth of the four durable layers, and the only one requests never flow through:
- * it lives on the construction axis, consulted the way a routing table is built, while every
- * request flows manager → orchestration → primitives with the factory nowhere in the path.
+ * <p><b>A construction-axis non-SPI contract, deliberately outside the {@code spi.durable}
+ * package.</b> The factory is pluggable but it is not a layer: nothing flows through it — requests
+ * flow manager → orchestration → primitives with the factory nowhere in the path; it is consulted
+ * the way a routing table is built. Its classification follows the credential-vending precedent
+ * ({@code CredentialVendingCoordinator}, an interface sited in core rather than an spi package),
+ * the pairing this type was named after. This file's first placement was {@code spi.durable}; moved
+ * by decision 2026-08-12. The type's final fate and signature remain the factory-fate question's to
+ * settle; this contract carries only what assembly needs.
  *
  * <h2>The two-level mapping</h2>
  *
