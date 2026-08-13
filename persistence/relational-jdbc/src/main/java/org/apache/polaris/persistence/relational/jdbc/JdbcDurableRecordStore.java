@@ -200,7 +200,13 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             // identity is (realm, id): the table's primary key is (realm_id, id), so id alone
             // addresses one row within a realm. catalog_id is deliberately absent.
             List.of("id"),
-            List.of("catalog_id", "parent_id", "type_code", "name"),
+            // the declared logical uniqueness tuple, realm structural: (parent, type, name).
+            // catalog_id is NOT a reference component: the data model rules it "present for query
+            // locality, not as part of the key", and a store may not demand a locality component
+            // from a caller's reference. The physical UNIQUE index keeps catalog_id; a uniqueness
+            // lookup here filters three columns plus realm and so does not use that index's full
+            // prefix — a locality cost, not a correctness one.
+            List.of("parent_id", "type_code", "name"),
             Map.of(
                 Precondition.VersionAttribute.RECORD_VERSION, "entity_version",
                 Precondition.VersionAttribute.GRANT_RECORDS_VERSION, "grant_records_version"),
@@ -358,6 +364,10 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
       return CommitResult.tooManyItems();
     }
     for (Mutation m : mutations) {
+      if (m.op() == Mutation.Op.DELETE && m.record() != null) {
+        throw new IllegalArgumentException(
+            "A DELETE carries no payload: the record is addressed by its target ref alone");
+      }
       if (!domain.equals(domainOf(m.target()))) {
         return CommitResult.domainMismatch();
       }
@@ -590,7 +600,7 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     try {
       AtomicReference<Page<T>> result = new AtomicReference<>();
       datasourceOperations.executeSelectOverStream(
-          query, b.reader(), stream -> result.set(pageOf(b, kind, pageToken, stream, type)));
+          query, b.reader(), stream -> result.set(pageOf(b, p, kind, pageToken, stream, type)));
       return result.get();
     } catch (SQLException e) {
       throw new RuntimeException("Failed to list " + kind.id(), e);
@@ -673,8 +683,18 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
   }
 
   private <T> Page<T> pageOf(
-      KindBinding<?> b, RecordKind kind, PageToken pageToken, Stream<?> stream, Class<T> type) {
-    if (b.orderColumn() != null && PolarisRecordKinds.ENTITY.equals(kind)) {
+      KindBinding<?> b,
+      PathBinding p,
+      RecordKind kind,
+      PageToken pageToken,
+      Stream<?> stream,
+      Class<T> type) {
+    // A keyset token may only be issued where listQuery actually applied the keyset. A path with
+    // a dedicated query never does, so issuing a token there would hand the caller a continuation
+    // the next request cannot honor — the same first page forever.
+    if (b.orderColumn() != null
+        && p.dedicatedQuery() == null
+        && PolarisRecordKinds.ENTITY.equals(kind)) {
       @SuppressWarnings("unchecked")
       Stream<PolarisBaseEntity> entities = (Stream<PolarisBaseEntity>) stream;
       return Page.mapped(pageToken, entities, type::cast, EntityIdToken::fromEntity);

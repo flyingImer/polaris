@@ -65,7 +65,12 @@ public final class Mutation {
     CREATE,
     /** Replace the record's mutable state. Normally paired with a version condition. */
     UPDATE,
-    /** Remove the record. Carries conditions like any other mutation. */
+    /**
+     * Remove the record. Carries conditions like any other mutation. Addressed by the target
+     * reference alone: a DELETE carries no payload, and any condition it needs is stated explicitly
+     * through {@link Precondition} — a payload can carry no meaning a declared condition cannot, so
+     * permitting one would open a second, implicit condition channel.
+     */
     DELETE,
   }
 
@@ -94,7 +99,8 @@ public final class Mutation {
    * @param kind the record kind being written
    * @param op what to do
    * @param target which record
-   * @param record the record's new state; null for {@link Op#DELETE}
+   * @param record the record's new state; must be null for {@link Op#DELETE}, which is addressed by
+   *     {@code target} alone
    */
   public static @NonNull Mutation of(
       @NonNull RecordKind kind,
@@ -132,7 +138,14 @@ public final class Mutation {
   }
 
   /**
-   * The record's new state, or null for a delete.
+   * The record's new state; null for a delete, which carries no payload.
+   *
+   * <p><b>A DELETE is addressed by its {@link #target() target reference} alone, and a store
+   * rejects a DELETE carrying a payload</b> (decided 2026-08-13): every meaning a payload could
+   * carry on a delete — "only if still at this version", "only if it exists" — is already
+   * expressible through the explicit {@link Precondition} vocabulary, so a payload there would be a
+   * second, implicit condition channel, which is the thing the declared vocabulary exists to rule
+   * out.
    *
    * <p>Typed as {@code Object} because the write surface is record-kind agnostic: the payload's
    * type is a property of {@link #kind()}, and an implementation resolves it through the same

@@ -108,8 +108,14 @@ public interface DurableRecordStore {
    * <p>A failed precondition fails the whole commit. It is never a silent no-op and never a partial
    * apply.
    *
-   * @throws IllegalArgumentException if the mutations and their condition targets do not all share
-   *     one atomicity domain, or if the list exceeds {@link #maxItemsPerCommit}
+   * <p><b>An over-limit list and a domain-spanning list are reported as results, not thrown</b>
+   * (decided 2026-08-13): they return {@link CommitResult.Failure#TOO_MANY_ITEMS} and {@link
+   * CommitResult.Failure#DOMAIN_MISMATCH}, because a correct caller can run into the cap in
+   * ordinary operation and must branch on the distinguishable reason — split the work, or regroup —
+   * rather than catch. Exceptions are reserved for malformed requests no retry or reshaping fixes.
+   *
+   * @throws IllegalArgumentException if a mutation references an unregistered record kind, or if a
+   *     {@link Mutation.Op#DELETE} carries a payload
    */
   @NonNull CommitResult commit(@NonNull List<Mutation> mutations);
 

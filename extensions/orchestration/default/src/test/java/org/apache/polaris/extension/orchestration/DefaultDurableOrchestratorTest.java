@@ -227,13 +227,13 @@ class DefaultDurableOrchestratorTest {
     assertThat(result.groupFailure()).isPresent();
     assertThat(result.groupFailure().get().failure())
         .contains(CommitResult.Failure.PRECONDITION_FAILED);
-    // Store A saw its original commit, then the compensating one: the created record deleted,
-    // with the payload carried (one shipped store derives its key from the payload).
+    // Store A saw its original commit, then the compensating one: the created record deleted by
+    // its target ref alone, no payload (the DELETE addressing contract, decided 2026-08-13).
     assertThat(storeA.commits).hasSize(2);
     Mutation undo = storeA.commits.get(1).get(0);
     assertThat(undo.op()).isEqualTo(Mutation.Op.DELETE);
     assertThat(undo.target()).isEqualTo(ref(ALPHA, 1));
-    assertThat(undo.record()).isEqualTo("record-1");
+    assertThat(undo.record()).isNull();
   }
 
   @Test

@@ -64,9 +64,9 @@ import org.jspecify.annotations.Nullable;
  * read just before the group committed; a DELETE's inverse re-creates the prior state. The inverses
  * are unconditional, because compensation runs on an error path where refusing to compensate over a
  * lost race would convert an ordinary failure into lingering partial state. A compensating DELETE
- * carries the created record as its payload rather than the null the carrier permits, because one
- * shipped store derives the slice key from the payload; the divergence is a conformance question
- * tracked outside this ticket, and carrying the payload is correct under both readings.
+ * carries no payload: the contract pins DELETE to target-ref addressing with a null payload
+ * (decided 2026-08-13, closing the divergence the conformance suite surfaced — one store used to
+ * derive its delete key from the payload and now resolves the ref instead).
  *
  * <p><b>Two windows this class does not close, disclosed rather than hidden.</b> Between a prior
  * state's capture and the compensating write, a concurrent writer's change can be overwritten by
@@ -226,16 +226,13 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
 
   private @Nullable Mutation inverseOf(DurableRecordStore store, Mutation mutation) {
     return switch (mutation.op()) {
-      case CREATE ->
-          Mutation.of(mutation.kind(), Mutation.Op.DELETE, mutation.target(), mutation.record());
+      case CREATE -> Mutation.of(mutation.kind(), Mutation.Op.DELETE, mutation.target(), null);
       case UPDATE -> {
         Optional<Object> prior = store.get(mutation.target(), Object.class);
         yield prior
             .map(p -> Mutation.of(mutation.kind(), Mutation.Op.UPDATE, mutation.target(), p))
             .orElseGet(
-                () ->
-                    Mutation.of(
-                        mutation.kind(), Mutation.Op.DELETE, mutation.target(), mutation.record()));
+                () -> Mutation.of(mutation.kind(), Mutation.Op.DELETE, mutation.target(), null));
       }
       case DELETE -> {
         Optional<Object> prior = store.get(mutation.target(), Object.class);

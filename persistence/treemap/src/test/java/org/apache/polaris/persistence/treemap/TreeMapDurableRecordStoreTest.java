@@ -169,12 +169,13 @@ class TreeMapDurableRecordStoreTest {
   void deleteRemovesTheRecord() {
     PolarisBaseEntity e = entity(10L, 1L, "catalog", 1);
     assertThat(store.commit(createOf(e)).isApplied()).isTrue();
+    // null payload: a DELETE is addressed by its target ref alone (contract, 2026-08-13)
     assertThat(
             store
                 .commit(
                     List.of(
                         Mutation.of(
-                            PolarisRecordKinds.ENTITY, Mutation.Op.DELETE, entityRef(10L), e)))
+                            PolarisRecordKinds.ENTITY, Mutation.Op.DELETE, entityRef(10L), null)))
                 .isApplied())
         .isTrue();
     assertThat(store.get(entityRef(10L), PolarisBaseEntity.class)).isEmpty();

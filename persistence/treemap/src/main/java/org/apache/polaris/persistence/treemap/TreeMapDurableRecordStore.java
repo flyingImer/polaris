@@ -340,6 +340,10 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
       return CommitResult.tooManyItems();
     }
     for (Mutation m : mutations) {
+      if (m.op() == Mutation.Op.DELETE && m.record() != null) {
+        throw new IllegalArgumentException(
+            "A DELETE carries no payload: the record is addressed by its target ref alone");
+      }
       if (!domain.equals(domainOf(m.target()))) {
         return CommitResult.domainMismatch();
       }
@@ -381,7 +385,11 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
         b.slice().write(record);
       }
       case UPDATE -> b.slice().write(record);
-      case DELETE -> b.slice().delete(b.identityKey().apply(record));
+      // Addressed by the target ref alone, per the carrier's contract: resolve the record in
+      // this same transaction, then remove it by its slice key. An absent record is a no-op.
+      case DELETE ->
+          this.<T>lookupInTransaction(m.target())
+              .ifPresent(found -> b.slice().delete(b.identityKey().apply(found)));
     }
   }
 
