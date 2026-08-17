@@ -24,6 +24,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.function.Function;
+import java.util.function.ToLongFunction;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.entity.EntityNameLookupRecord;
@@ -36,6 +37,7 @@ import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
@@ -65,6 +67,7 @@ import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.GrantManager;
+import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.PolarisEventManager;
@@ -610,13 +613,271 @@ public class DefaultDurableManager
 
   // ---------------------------------------------------------- GrantManager (ticket 91)
 
+  /**
+   * Grant-record identity ref: {@code (securable-catalog, securable, grantee-catalog, grantee,
+   * privilege)} — every field is part of the key, so identity and uniqueness are the same tuple
+   * (verified against both shipped stores' bindings, {@code TreeMapDurableRecordStore} and {@code
+   * JdbcDurableRecordStore}).
+   */
+  private static RecordRef grantIdentity(@NonNull PolarisGrantRecord g) {
+    return RecordRef.byIdentity(
+        PolarisRecordKinds.GRANT_RECORD,
+        List.of(
+            g.getSecurableCatalogId(),
+            g.getSecurableId(),
+            g.getGranteeCatalogId(),
+            g.getGranteeId(),
+            g.getPrivilegeCode()));
+  }
+
+  private DurableRecordStore grantStore() {
+    return storeForKind.apply(PolarisRecordKinds.GRANT_RECORD);
+  }
+
+  /**
+   * Loads an entity by identity, throwing uncaught rather than returning a status when it is absent
+   * — ported from both old impls' {@code getDiagnostics().checkNotNull(...)} on a
+   * concurrently-deleted grantee/securable inside {@code persistNewGrantRecord}/{@code
+   * revokeGrantRecord}. Naming both old behaviours rather than silently matching one: {@code
+   * AtomicOperationMetaStoreManager} never returns {@code ENTITY_CANNOT_BE_RESOLVED} for grant
+   * operations and relies on exactly this uncaught throw; {@code TransactionalMetaStoreManagerImpl}
+   * additionally re-resolves through the package-private {@code PolarisEntityResolver} first and
+   * CAN return {@code ENTITY_CANNOT_BE_RESOLVED} for the grant/revoke entry points themselves. We
+   * match Atomic, the same parity choice {@link #catalogIdOf} documents for entity operations; the
+   * fixture does not discriminate between the two.
+   */
+  private PolarisBaseEntity mustLoadEntity(@NonNull PolarisEntityCore entity, String signature) {
+    PolarisBaseEntity loaded =
+        entityStore().get(entityIdentity(entity.getId()), PolarisBaseEntity.class).orElse(null);
+    diagnostics.checkNotNull(loaded, signature, "entity={}", entity);
+    return loaded;
+  }
+
+  /**
+   * The UPDATE mutation that bumps one entity's {@code grantRecordsVersion}, gated by both halves
+   * of the two-column CAS the relational store's {@code entity_version}/{@code
+   * grant_records_version} comparison performs: {@code entityVersion} is asserted unchanged, never
+   * bumped here — only {@code grantRecordsVersion} moves, matching both old impls' {@code
+   * entity.withGrantRecordsVersion(entity.getGrantRecordsVersion() + 1)}.
+   */
+  private Mutation bumpGrantRecordsVersion(@NonNull PolarisBaseEntity entity) {
+    RecordRef ref = entityIdentity(entity.getId());
+    return Mutation.of(
+        PolarisRecordKinds.ENTITY,
+        Mutation.Op.UPDATE,
+        ref,
+        entity.withGrantRecordsVersion(entity.getGrantRecordsVersion() + 1),
+        List.of(
+            Precondition.versionEquals(
+                ref, Precondition.VersionAttribute.RECORD_VERSION, entity.getEntityVersion()),
+            Precondition.versionEquals(
+                ref,
+                Precondition.VersionAttribute.GRANT_RECORDS_VERSION,
+                entity.getGrantRecordsVersion())));
+  }
+
+  /**
+   * Ported from both old impls' {@code persistNewGrantRecord} (structurally identical in {@code
+   * AtomicOperationMetaStoreManager} and {@code TransactionalMetaStoreManagerImpl}): write the
+   * grant, then bump the grantee's and the securable's {@code grantRecordsVersion}, in that order.
+   * Resolved as one atomic orchestrated commit instead of three independent primitive writes, which
+   * as a side effect closes the partial-failure gap both old impls' own {@code TODO: Reorder and/or
+   * expose bulk update...} comments name — a version-bump failing after the grant write already
+   * landed used to leave the two inconsistent; here the whole group applies or none of it does.
+   *
+   * <p><b>{@link Precondition#none()} is used per {@link Mutation.Op#CREATE}'s documented contract
+   * for a kind whose identity and uniqueness are the same tuple — but empirically, NEITHER shipped
+   * store's CREATE handling honors that contract yet.</b> Verified with a throwaway commit-twice
+   * test against {@code TreeMapDurableRecordStore}: {@code applyMutation}'s CREATE case checks
+   * {@code slice.read(identityKey) != null} and throws unconditionally on any hit, regardless of
+   * the mutation's declared preconditions; the second of two identical commits reports {@code
+   * PRECONDITION_FAILED} even with {@code Precondition.none()}. No conformance test exercises this
+   * combination today ({@code grep Precondition.none()} across every test module returns nothing).
+   * {@code Precondition.none()} is kept anyway because it is still the contractually correct
+   * declaration for this kind, for whenever that gap closes — but it is NOT what makes this method
+   * idempotent today. The pre-read below is: on a repeat grant with identical arguments, this
+   * returns the existing record without touching the orchestrator at all, rather than reproducing
+   * the old models' "always bump both versions, even on a no-op write" side effect (itself a
+   * consequence of {@code DurablePrimitives#writeToGrantRecords} being documented as a silent no-op
+   * on a duplicate PK, not a decision either old manager makes). No fixture assertion pins the
+   * exact version-bump count on a duplicate grant, so skipping the commit entirely on a confirmed
+   * repeat is simpler and strictly less wasteful — a disclosed, new choice, not a ported one.
+   */
+  private PrivilegeResult persistNewGrantRecord(
+      @NonNull PolarisEntityCore securable,
+      @NonNull PolarisEntityCore grantee,
+      @NonNull PolarisPrivilege priv) {
+    diagnostics.checkNotNull(securable, "unexpected_null_securable");
+    diagnostics.checkNotNull(grantee, "unexpected_null_grantee");
+    diagnostics.checkNotNull(priv, "unexpected_null_priv");
+    diagnostics.check(
+        grantee.getType().isGrantee(), "entity_must_be_grantee", "entity={}", grantee);
+
+    PolarisGrantRecord grantRecord =
+        new PolarisGrantRecord(
+            securable.getCatalogId(),
+            securable.getId(),
+            grantee.getCatalogId(),
+            grantee.getId(),
+            priv.getCode());
+    RecordRef ref = grantIdentity(grantRecord);
+
+    Optional<PolarisGrantRecord> existing = grantStore().get(ref, PolarisGrantRecord.class);
+    if (existing.isPresent()) {
+      return new PrivilegeResult(existing.get());
+    }
+
+    PolarisBaseEntity granteeEntity = mustLoadEntity(grantee, "grantee_not_found");
+    PolarisBaseEntity securableEntity = mustLoadEntity(securable, "securable_not_found");
+
+    List<Mutation> mutations =
+        List.of(
+            Mutation.of(
+                PolarisRecordKinds.GRANT_RECORD,
+                Mutation.Op.CREATE,
+                ref,
+                grantRecord,
+                List.of(Precondition.none())),
+            bumpGrantRecordsVersion(granteeEntity),
+            bumpGrantRecordsVersion(securableEntity));
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    return result.isApplied() ? new PrivilegeResult(grantRecord) : mapFailedGrantMutation(result);
+  }
+
+  /**
+   * Ported from both old impls' {@code revokeGrantRecord} (structurally identical): delete the
+   * grant, then bump the grantee's and securable's {@code grantRecordsVersion}, same order and same
+   * one-commit atomicity rationale as {@link #persistNewGrantRecord}. The DELETE carries no payload
+   * and no precondition of its own — existence was already confirmed by the caller's own pre-read
+   * ({@link #revokeUsageOnRoleFromGrantee}/{@link #revokePrivilegeOnSecurableFromRole} both look
+   * the grant up first and return {@code GRANT_NOT_FOUND} before calling this), the same risk
+   * profile the old model carries between its own lookup and its own delete call — neither model
+   * closes that particular race.
+   */
+  private PrivilegeResult revokeGrantRecord(
+      @NonNull PolarisEntityCore securable,
+      @NonNull PolarisEntityCore grantee,
+      @NonNull PolarisGrantRecord grantRecord) {
+    diagnostics.check(
+        securable.getCatalogId() == grantRecord.getSecurableCatalogId()
+            && securable.getId() == grantRecord.getSecurableId(),
+        "securable_mismatch",
+        "securable={} grantRec={}",
+        securable,
+        grantRecord);
+    diagnostics.check(
+        grantee.getCatalogId() == grantRecord.getGranteeCatalogId()
+            && grantee.getId() == grantRecord.getGranteeId(),
+        "grantee_mismatch",
+        "grantee={} grantRec={}",
+        grantee,
+        grantRecord);
+    diagnostics.check(grantee.getType().isGrantee(), "not_a_grantee", "grantee={}", grantee);
+
+    PolarisBaseEntity granteeEntity = mustLoadEntity(grantee, "missing_grantee");
+    PolarisBaseEntity securableEntity = mustLoadEntity(securable, "missing_securable");
+
+    List<Mutation> mutations =
+        List.of(
+            Mutation.of(
+                PolarisRecordKinds.GRANT_RECORD,
+                Mutation.Op.DELETE,
+                grantIdentity(grantRecord),
+                null),
+            bumpGrantRecordsVersion(granteeEntity),
+            bumpGrantRecordsVersion(securableEntity));
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    return result.isApplied() ? new PrivilegeResult(grantRecord) : mapFailedGrantMutation(result);
+  }
+
+  /**
+   * Maps a non-applied grant/revoke {@link OrchestrationResult} to a {@link PrivilegeResult}. New
+   * mapping, not ported: the old model never fails atomically here at all (each of its three writes
+   * is an independent primitive call with no shared transaction across all three), so there is no
+   * old-model precedent for what an orchestrated failure means. {@code
+   * TARGET_ENTITY_CONCURRENTLY_MODIFIED} is reused from {@code
+   * updateEntityPropertiesIfNotChanged}'s existing {@code RetryOnConcurrencyException} mapping as
+   * the closest established meaning for "the grantee or securable changed between the read and the
+   * commit" — this call path never returned that status before.
+   */
+  private PrivilegeResult mapFailedGrantMutation(@NonNull OrchestrationResult result) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new PrivilegeResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    return failure == CommitResult.Failure.PRECONDITION_FAILED
+        ? new PrivilegeResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null)
+        : new PrivilegeResult(
+            BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+  }
+
+  /**
+   * Shared by {@link #loadGrantsOnSecurable} and {@link #loadGrantsToGrantee}: read the anchor
+   * entity's {@code grantRecordsVersion} first, treating its absence as {@code ENTITY_NOT_FOUND} —
+   * that is how both old impls infer the entity exists at all ({@code
+   * lookupEntityGrantRecordsVersion} returning {@code 0}), translated here to this store's cleaner
+   * absence signal ({@code Optional.empty()}) rather than a sentinel int, not a separate existence
+   * read. Then list the declared path and batch-fetch the distinct counterpart entities, dropping
+   * the ones no longer resolvable — a grant referencing a dropped grantee/securable disappears from
+   * the resolved view, same as both old impls' {@code entities.stream().filter(Objects::nonNull)}.
+   */
+  private LoadGrantsResult loadGrants(
+      long anchorCatalogId,
+      long anchorId,
+      @NonNull LookupPath path,
+      @NonNull ToLongFunction<PolarisGrantRecord> counterpartId) {
+    Optional<RecordVersions> anchorVersions =
+        entityStore().versionsOf(List.of(entityIdentity(anchorId))).get(0);
+    if (anchorVersions.isEmpty()) {
+      return new LoadGrantsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    int grantsVersion = (int) anchorVersions.get().grantRecordsVersion();
+
+    List<PolarisGrantRecord> grantRecords =
+        grantStore()
+            .list(
+                PolarisRecordKinds.GRANT_RECORD,
+                path,
+                List.of(anchorCatalogId, anchorId),
+                PageToken.readEverything(),
+                PolarisGrantRecord.class)
+            .items();
+
+    List<RecordRef> counterpartRefs =
+        grantRecords.stream()
+            .mapToLong(counterpartId::applyAsLong)
+            .distinct()
+            .mapToObj(DefaultDurableManager::entityIdentity)
+            .toList();
+    List<PolarisBaseEntity> entities =
+        entityStore().getMany(counterpartRefs, PolarisBaseEntity.class).stream()
+            .filter(Optional::isPresent)
+            .map(Optional::get)
+            .toList();
+
+    return new LoadGrantsResult(grantsVersion, grantRecords, entities);
+  }
+
   @Override
   public @NonNull PrivilegeResult grantUsageOnRoleToGrantee(
       @NonNull PolarisCallContext callCtx,
       @Nullable PolarisEntityCore catalog,
       @NonNull PolarisEntityCore role,
       @NonNull PolarisEntityCore grantee) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.check(grantee.getType().isGrantee(), "not_a_grantee", "grantee={}", grantee);
+    // Ported verbatim from AtomicOperationMetaStoreManager: which usage privilege to grant is
+    // decided by the GRANTEE's type, not by whether `role` is a catalog role or a principal role.
+    PolarisPrivilege usagePriv =
+        grantee.getType() == PolarisEntityType.PRINCIPAL_ROLE
+            ? PolarisPrivilege.CATALOG_ROLE_USAGE
+            : PolarisPrivilege.PRINCIPAL_ROLE_USAGE;
+    return persistNewGrantRecord(role, grantee, usagePriv);
   }
 
   @Override
@@ -625,7 +886,27 @@ public class DefaultDurableManager
       @Nullable PolarisEntityCore catalog,
       @NonNull PolarisEntityCore role,
       @NonNull PolarisEntityCore grantee) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    PolarisPrivilege usagePriv =
+        grantee.getType() == PolarisEntityType.PRINCIPAL_ROLE
+            ? PolarisPrivilege.CATALOG_ROLE_USAGE
+            : PolarisPrivilege.PRINCIPAL_ROLE_USAGE;
+    PolarisGrantRecord grantRecord =
+        grantStore()
+            .get(
+                RecordRef.byIdentity(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    List.of(
+                        role.getCatalogId(),
+                        role.getId(),
+                        grantee.getCatalogId(),
+                        grantee.getId(),
+                        usagePriv.getCode())),
+                PolarisGrantRecord.class)
+            .orElse(null);
+    if (grantRecord == null) {
+      return new PrivilegeResult(BaseResult.ReturnStatus.GRANT_NOT_FOUND, null);
+    }
+    return revokeGrantRecord(role, grantee, grantRecord);
   }
 
   @Override
@@ -635,7 +916,10 @@ public class DefaultDurableManager
       @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityCore securable,
       @NonNull PolarisPrivilege privilege) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    // catalogPath is accepted but not consulted, same parity choice as createEntityIfNotExists
+    // (see catalogIdOf's javadoc): AtomicOperationMetaStoreManager's
+    // grantPrivilegeOnSecurableToRole never touches it either.
+    return persistNewGrantRecord(securable, grantee, privilege);
   }
 
   @Override
@@ -645,19 +929,43 @@ public class DefaultDurableManager
       @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityCore securable,
       @NonNull PolarisPrivilege privilege) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    PolarisGrantRecord grantRecord =
+        grantStore()
+            .get(
+                RecordRef.byIdentity(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    List.of(
+                        securable.getCatalogId(),
+                        securable.getId(),
+                        grantee.getCatalogId(),
+                        grantee.getId(),
+                        privilege.getCode())),
+                PolarisGrantRecord.class)
+            .orElse(null);
+    if (grantRecord == null) {
+      return new PrivilegeResult(BaseResult.ReturnStatus.GRANT_NOT_FOUND, null);
+    }
+    return revokeGrantRecord(securable, grantee, grantRecord);
   }
 
   @Override
   public @NonNull LoadGrantsResult loadGrantsOnSecurable(
       @NonNull PolarisCallContext callCtx, PolarisEntityCore securable) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    return loadGrants(
+        securable.getCatalogId(),
+        securable.getId(),
+        PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+        PolarisGrantRecord::getGranteeId);
   }
 
   @Override
   public @NonNull LoadGrantsResult loadGrantsToGrantee(
       @NonNull PolarisCallContext callCtx, PolarisEntityCore grantee) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    return loadGrants(
+        grantee.getCatalogId(),
+        grantee.getId(),
+        PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
+        PolarisGrantRecord::getSecurableId);
   }
 
   // ---------------------------------------------------------- SecretsManager (ticket 91)
