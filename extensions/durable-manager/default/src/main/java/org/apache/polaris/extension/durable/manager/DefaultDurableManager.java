@@ -19,20 +19,26 @@
 package org.apache.polaris.extension.durable.manager;
 
 import java.time.Clock;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.function.Function;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.entity.EntityNameLookupRecord;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
 import org.apache.polaris.core.entity.PolarisEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
@@ -54,21 +60,28 @@ import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
+import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.GrantManager;
+import org.apache.polaris.spi.durable.Mutation;
+import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.PolarisEventManager;
 import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordKind;
+import org.apache.polaris.spi.durable.RecordRef;
+import org.apache.polaris.spi.durable.RecordVersions;
 import org.apache.polaris.spi.durable.SecretsManager;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /**
- * The single new-model durable manager. At ticket 96 this class is a wholesale replacement (整类替换,
- * EJ 2026-08-10) for both {@code AtomicOperationMetaStoreManager} and the transactional old-model
- * manager it sits alongside today; there is no per-method migration, the old implementations are
- * deleted in one step once this class covers their surface.
+ * The single new-model durable manager. At ticket 96 this class is a wholesale replacement for both
+ * {@code AtomicOperationMetaStoreManager} and the transactional old-model manager it sits alongside
+ * today; there is no per-method migration, the old implementations are deleted in one step once
+ * this class covers their surface.
  *
  * <p>This manager owns every business rule and knows no storage topology. It implements {@link
  * DurableManager}, {@link GrantManager}, {@link SecretsManager}, {@link
@@ -77,14 +90,23 @@ import org.jspecify.annotations.NonNull;
  * the concrete instance it is handed to each of those sibling interfaces with a runtime cast; a
  * class missing one of them fails that cast, not a later call.
  *
- * <p>Writes go through the injected {@link DurableOrchestrator}, the write door: it alone knows how
- * to group a mutation list by atomicity domain, commit each group, and compensate across groups on
- * failure. Reads resolve through the injected kind-to-store function, the read door, which is also
- * where {@link DurableRecordStore#generateNewId} lives — reads do not pass through orchestration
- * because orchestration only organizes calls to primitives operations, and a read has no atomicity
- * or recovery story for that layer to promise (decided 2026-08-14).
+ * <h2>Two handles, one floor</h2>
  *
- * <p>This class never reads the old {@link org.apache.polaris.spi.durable.DurablePrimitives} handle
+ * <p>This manager legitimately holds two handles into the new model, and the difference between
+ * them is a write/read split, not a "manager never sees primitives" rule. {@link #orchestrator} is
+ * the WRITE door: it alone knows how to group a mutation list by atomicity domain, commit each
+ * group, and compensate across groups on failure, so every write goes through it. {@link
+ * #storeForKind} is the READ door and the source of {@link DurableRecordStore#generateNewId} — a
+ * read may legitimately be organized by orchestration too (the same-backend read/write optimization
+ * allowance recorded 2026-08-10), but it is not required to be, and this class does not use that
+ * option: every read here goes straight to the primitives read operations resolved through {@code
+ * storeForKind}. What this class may NOT do is go beneath that floor (EJ, 2026-08-17): {@code
+ * storeForKind} resolves to a {@link DurableRecordStore} in a possibly multi-store assembly, which
+ * is itself the primitives-layer handle in its target shape (see {@link DurableRecordStore}'s own
+ * javadoc on the migration); a bare single-store field here would be storage-topology knowledge
+ * this class does not have, and a kind-keyed resolver is not.
+ *
+ * <p>This class never reads the OLD {@link org.apache.polaris.spi.durable.DurablePrimitives} handle
  * carried on {@link PolarisCallContext}. That handle is the old model's write/read door and
  * reaching for it here would silently reintroduce the coupling this class exists to remove.
  */
@@ -111,41 +133,218 @@ public class DefaultDurableManager
     this.storeForKind = storeForKind;
   }
 
+  // ---------------------------------------------------------------------------------- helpers
+
+  private DurableRecordStore entityStore() {
+    return storeForKind.apply(PolarisRecordKinds.ENTITY);
+  }
+
+  /** {@link PolarisRecordKinds#ENTITY}'s identity ref: {@code (realm, id)}, realm implicit. */
+  private static RecordRef entityIdentity(long id) {
+    return RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(id));
+  }
+
+  /**
+   * {@link PolarisRecordKinds#ENTITY}'s uniqueness ref: {@code (parent, type, name)}, verified
+   * against both shipped stores' bindings ({@code TreeMapDurableRecordStore}, {@code
+   * JdbcDurableRecordStore}). Deliberately no catalog-id component: both bindings key uniqueness on
+   * {@code (parentId, typeCode, name)} alone, because ids are realm-wide unique so parentId already
+   * disambiguates across catalogs.
+   */
+  private static RecordRef entityUniqueness(long parentId, int typeCode, @NonNull String name) {
+    return RecordRef.byUniquenessKey(PolarisRecordKinds.ENTITY, List.of(parentId, typeCode, name));
+  }
+
+  /**
+   * Deliberate parity choice, matching {@code AtomicOperationMetaStoreManager} and diverging from
+   * {@code TransactionalMetaStoreManagerImpl}: {@code catalogPath} is never re-resolved against the
+   * store. For reads this derives catalogId/parentId directly from the path the same way Atomic
+   * does (raw {@code 0L} there; the named constants here are the same value). For creates, see
+   * {@link #createEntityIfNotExists}: catalogPath is not even consulted there, because Atomic
+   * itself takes catalogId/parentId from the entity object, not from the path.
+   *
+   * <p>Consequence, disclosed rather than silently matched: this manager never returns {@code
+   * CATALOG_PATH_CANNOT_BE_RESOLVED} or {@code ENTITY_CANNOT_BE_RESOLVED}, which is exactly {@code
+   * AtomicOperationMetaStoreManager}'s behavior and diverges from {@code
+   * TransactionalMetaStoreManagerImpl}, which re-resolves the path through the package-private
+   * {@code PolarisEntityResolver} and can return both. The fixture does not discriminate between
+   * the two (Atomic passes it today). Hardening the path check into {@code EXISTS} preconditions on
+   * the path entities is available under C7 but is an improvement over parity, not parity itself,
+   * and is out of scope here.
+   */
+  private static long catalogIdOf(@Nullable List<PolarisEntityCore> catalogPath) {
+    return catalogPath == null || catalogPath.isEmpty()
+        ? PolarisEntityConstants.getNullId()
+        : catalogPath.get(0).getId();
+  }
+
+  private static long parentIdOf(@Nullable List<PolarisEntityCore> catalogPath) {
+    return catalogPath == null || catalogPath.isEmpty()
+        ? PolarisEntityConstants.getRootEntityId()
+        : catalogPath.get(catalogPath.size() - 1).getId();
+  }
+
+  /**
+   * Ported from {@code BaseMetaStoreManager#prepareToPersistNewEntity}: validates the invariants a
+   * new entity must hold, then stamps the fields the persistence layer owns. No clock usage to port
+   * — the source method never calls one, it only validates that the caller already filled in {@code
+   * createTimestamp} (which {@link PolarisBaseEntity.Builder#build} backfills to "now" if left at
+   * 0, so the check is a defensive invariant rather than a live path).
+   */
+  private PolarisBaseEntity prepareNewEntity(@NonNull PolarisBaseEntity entity) {
+    diagnostics.checkNotNull(entity, "unexpected_null_entity");
+    diagnostics.checkNotNull(entity.getName(), "unexpected_null_name", "entity={}", entity);
+    PolarisEntityType type = PolarisEntityType.fromCode(entity.getTypeCode());
+    diagnostics.checkNotNull(type, "unknown_type", "entity={}", entity);
+    PolarisEntitySubType subType = PolarisEntitySubType.fromCode(entity.getSubTypeCode());
+    diagnostics.checkNotNull(subType, "unexpected_null_subType", "entity={}", entity);
+    diagnostics.check(
+        subType.getParentType() == null || subType.getParentType() == type,
+        "invalid_subtype",
+        "type={} subType={}",
+        type,
+        subType);
+    diagnostics.check(
+        !type.isTopLevel() || entity.getParentId() == PolarisEntityConstants.getRootEntityId(),
+        "top_level_parent_should_be_account",
+        "entity={}",
+        entity);
+    diagnostics.check(
+        entity.getId() != 0 || type == PolarisEntityType.ROOT, "id_not_set", "entity={}", entity);
+    diagnostics.check(entity.getCreateTimestamp() != 0, "null_create_timestamp");
+
+    return new PolarisBaseEntity.Builder(entity)
+        .lastUpdateTimestamp(entity.getCreateTimestamp())
+        .dropTimestamp(0)
+        .purgeTimestamp(0)
+        .toPurgeTimestamp(0)
+        .build();
+  }
+
+  /**
+   * The children of one parent, narrowed by subtype at the store (a declared anchor) and by type in
+   * this method (not a declared anchor).
+   *
+   * <p>{@link PolarisRecordKinds#ENTITY_BY_PARENT}'s declared anchors are the parent address {@code
+   * (catalog, parent)} plus an optional trailing subtype code — verified by reading both shipped
+   * stores' {@code PathBinding}s for the path. Neither declares a type-code anchor, so entityType
+   * narrowing cannot be pushed to the store the way subtype narrowing can; it happens here, as a
+   * plain in-memory filter over whatever the store returns. This is a real gap in the current
+   * lookup-path declaration (both stores agree, so it is not an implementation slip), not a
+   * caller-side filter of the kind the SPI otherwise forbids — the store still evaluates everything
+   * it CAN evaluate, and only the undeclared dimension falls through to the manager.
+   */
+  private List<PolarisBaseEntity> listChildEntities(
+      @Nullable List<PolarisEntityCore> catalogPath,
+      @NonNull PolarisEntityType entityType,
+      @NonNull PolarisEntitySubType entitySubType,
+      @NonNull PageToken pageToken) {
+    long catalogId = catalogIdOf(catalogPath);
+    long parentId = parentIdOf(catalogPath);
+    List<Object> anchors =
+        entitySubType == PolarisEntitySubType.ANY_SUBTYPE
+            ? List.of(catalogId, parentId)
+            : List.of(catalogId, parentId, entitySubType.getCode());
+    Page<PolarisBaseEntity> page =
+        entityStore()
+            .list(
+                PolarisRecordKinds.ENTITY,
+                PolarisRecordKinds.ENTITY_BY_PARENT,
+                anchors,
+                pageToken,
+                PolarisBaseEntity.class);
+    return page.items().stream().filter(e -> e.getTypeCode() == entityType.getCode()).toList();
+  }
+
+  /**
+   * Maps an {@link OrchestrationResult} that did not apply to the caller-facing result for a single
+   * create, re-reading the uniqueness key on a lost race so the caller learns the winner's subtype
+   * the same way the pre-check path reports it. There is no old-model precedent for this mapping —
+   * the old primitives interface has no multi-outcome commit result to map from, it either
+   * succeeds, throws, or (for a batch) partially applies inside one DB transaction — so this is a
+   * new decision, not a ported one, and is named as such for review.
+   */
+  private EntityResult mapFailedCreate(
+      @NonNull DurableRecordStore store,
+      @NonNull RecordRef uniqueness,
+      @NonNull OrchestrationResult result) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new EntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      // TOO_MANY_ITEMS / DOMAIN_MISMATCH on a single mutation is a caller or deployment bug, not
+      // an ordinary race; surfacing it as ENTITY_ALREADY_EXISTS would misreport the cause.
+      return new EntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    // Lost the race between our pre-check read and the commit: something else created the same
+    // (parent, type, name) in between. Re-read to report its subtype, mirroring the pre-check
+    // path's own EntityResult(ENTITY_ALREADY_EXISTS, subTypeCode) shape.
+    Optional<PolarisBaseEntity> winner = store.get(uniqueness, PolarisBaseEntity.class);
+    return new EntityResult(
+        BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+        winner.map(PolarisBaseEntity::getSubTypeCode).orElse(0));
+  }
+
   // ---------------------------------------------------------- DurableManager (ticket 91)
 
   @Override
   public @NonNull EntityResult readEntityByName(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityType entityType,
       @NonNull PolarisEntitySubType entitySubType,
       @NonNull String name) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    long parentId = parentIdOf(catalogPath);
+    Optional<PolarisBaseEntity> found =
+        entityStore()
+            .get(entityUniqueness(parentId, entityType.getCode(), name), PolarisBaseEntity.class);
+    // Shipped rule, ported verbatim from AtomicOperationMetaStoreManager#readEntityByName: a
+    // subtype mismatch reads as not-found unless the caller asked for ANY_SUBTYPE. The uniqueness
+    // key carries no subtype component, so this check happens after the read, not as part of it.
+    if (found.isPresent()
+        && entitySubType != PolarisEntitySubType.ANY_SUBTYPE
+        && found.get().getSubTypeCode() != entitySubType.getCode()) {
+      found = Optional.empty();
+    }
+    return found
+        .<EntityResult>map(EntityResult::new)
+        .orElseGet(() -> new EntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null));
   }
 
   @Override
   public @NonNull ListEntitiesResult listEntities(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityType entityType,
       @NonNull PolarisEntitySubType entitySubType,
       @NonNull PageToken pageToken) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    List<EntityNameLookupRecord> records =
+        listChildEntities(catalogPath, entityType, entitySubType, pageToken).stream()
+            .map(EntityNameLookupRecord::new)
+            .toList();
+    return ListEntitiesResult.fromPage(Page.page(pageToken, records, null));
   }
 
   @Override
   public @NonNull Page<PolarisBaseEntity> listFullEntities(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityType entityType,
       @NonNull PolarisEntitySubType entitySubType,
       @NonNull PageToken pageToken) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    return Page.page(
+        pageToken, listChildEntities(catalogPath, entityType, entitySubType, pageToken), null);
   }
 
   @Override
   public @NonNull GenerateEntityIdResult generateNewEntityId(@NonNull PolarisCallContext callCtx) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    return new GenerateEntityIdResult(entityStore().generateNewId());
   }
 
   @Override
@@ -165,23 +364,132 @@ public class DefaultDurableManager
   @Override
   public @NonNull EntityResult createEntityIfNotExists(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisBaseEntity entity) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(entity, "unexpected_null_entity");
+    diagnostics.checkNotNull(entity.getName(), "unexpected_null_entity_name");
+
+    // catalogPath is accepted but not consulted: AtomicOperationMetaStoreManager's own create path
+    // takes catalogId/parentId from the entity object, never from catalogPath. See catalogIdOf's
+    // javadoc for the parity choice this follows.
+    PolarisBaseEntity prepared = prepareNewEntity(entity);
+    DurableRecordStore store = entityStore();
+    RecordRef uniqueness =
+        entityUniqueness(prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
+
+    Optional<PolarisBaseEntity> existing = store.get(uniqueness, PolarisBaseEntity.class);
+    if (existing.isPresent()) {
+      // EXPLICIT, PROVISIONAL ASSUMPTION (EJ, 2026-08-17: not certain this is purely a business
+      // rule, revisit if it causes trouble): "same id means idempotent create-retry; a different
+      // id holding the name is a real conflict." In the old model this lives in the primitives
+      // layer, not the manager:
+      // AbstractTransactionalPersistence#checkConditionsForWriteEntityInCurrentTxn
+      // throws EntityAlreadyExistsException on any name collision, and
+      // AtomicOperationMetaStoreManager#persistNewEntity catches it and applies exactly this
+      // id-equality test. We do the same test here, against a plain read instead of a caught
+      // exception, because the new store's Precondition#notExists is a flat exists/not-exists
+      // test with no id-aware exception to catch.
+      return existing.get().getId() == prepared.getId()
+          // Return the entity we were trying to create, not the stored one — matching
+          // persistNewEntity's own comment: the caller should see what it asked to create, even
+          // if a concurrent update landed on the stored row first.
+          ? new EntityResult(prepared)
+          : new EntityResult(
+              BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, existing.get().getSubTypeCode());
+    }
+
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.ENTITY,
+                    Mutation.Op.CREATE,
+                    entityIdentity(prepared.getId()),
+                    prepared,
+                    List.of(Precondition.notExists(uniqueness)))));
+    return result.isApplied()
+        ? new EntityResult(prepared)
+        : mapFailedCreate(store, uniqueness, result);
   }
 
   @Override
   public @NonNull EntitiesResult createEntitiesIfNotExist(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull List<? extends PolarisBaseEntity> entities) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    DurableRecordStore store = entityStore();
+    List<PolarisBaseEntity> resolved = new ArrayList<>(entities.size());
+    List<Mutation> mutations = new ArrayList<>();
+
+    // Same provisional assumption as createEntityIfNotExists, applied per entity. In the old
+    // model the batch form of this rule lives one layer further down than the single-entity form:
+    // AbstractTransactionalPersistence#writeEntities (around lines 254-265) catches
+    // EntityAlreadyExistsException per entity inside its own transaction loop and swallows it when
+    // the existing entity's id matches, rethrowing (aborting the whole batch) otherwise.
+    // TreeMapDurablePrimitivesImpl extends AbstractTransactionalPersistence without overriding
+    // writeEntities, so both old managers get the rule "for free" from the primitives layer for the
+    // batch case. The new store's commit has no such per-mutation swallow — a failed precondition
+    // fails the whole commit — so S3 puts the rule here, in the manager, explicitly and by hand.
+    for (PolarisBaseEntity entity : entities) {
+      PolarisBaseEntity prepared = prepareNewEntity(entity);
+      RecordRef uniqueness =
+          entityUniqueness(prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
+      Optional<PolarisBaseEntity> existing = store.get(uniqueness, PolarisBaseEntity.class);
+      if (existing.isPresent() && existing.get().getId() != prepared.getId()) {
+        // One real conflict fails the whole batch before anything is committed, matching
+        // AtomicOperationMetaStoreManager#createEntitiesIfNotExist's own catch, which aborts
+        // writeEntities() for the whole list regardless of how many other entities would have
+        // succeeded (BaseDurableManagerTest#testCreateEntitiesWithConflict).
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+            String.format(
+                "Existing entity id: '%s', type %s subtype %s",
+                existing.get().getId(),
+                existing.get().getTypeCode(),
+                existing.get().getSubTypeCode()));
+      }
+      resolved.add(prepared);
+      if (existing.isEmpty()) {
+        mutations.add(
+            Mutation.of(
+                PolarisRecordKinds.ENTITY,
+                Mutation.Op.CREATE,
+                entityIdentity(prepared.getId()),
+                prepared,
+                List.of(Precondition.notExists(uniqueness))));
+      }
+      // else: idempotent retry, same id — no mutation needed, `resolved` already carries the
+      // entity we were trying to create.
+    }
+
+    if (mutations.isEmpty()) {
+      // Every entity in the batch was already there under a matching id.
+      return new EntitiesResult(Page.fromItems(resolved));
+    }
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    if (result.isApplied()) {
+      return new EntitiesResult(Page.fromItems(resolved));
+    }
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new EntitiesResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    return failure == CommitResult.Failure.PRECONDITION_FAILED
+        ? new EntitiesResult(
+            BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+            "lost the race against a concurrent create for one or more entities in this batch")
+        : new EntitiesResult(BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
   }
 
   @Override
   public @NonNull EntityResult updateEntityPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisBaseEntity entity) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
   }
@@ -195,9 +503,9 @@ public class DefaultDurableManager
   @Override
   public @NonNull EntityResult renameEntity(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisBaseEntity entityToRename,
-      List<PolarisEntityCore> newCatalogPath,
+      @Nullable List<PolarisEntityCore> newCatalogPath,
       @NonNull PolarisEntity renamedEntity) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
   }
@@ -205,9 +513,9 @@ public class DefaultDurableManager
   @Override
   public @NonNull DropEntityResult dropEntityIfExists(
       @NonNull PolarisCallContext callCtx,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisBaseEntity entityToDrop,
-      Map<String, String> cleanupProperties,
+      @Nullable Map<String, String> cleanupProperties,
       boolean cleanup) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
   }
@@ -218,13 +526,33 @@ public class DefaultDurableManager
       long entityCatalogId,
       long entityId,
       @NonNull PolarisEntityType entityType) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    // entityCatalogId and entityType are accepted for interface parity but not used to filter:
+    // the new model's ENTITY identity key is (realm, id) alone (see RecordRef's own javadoc), and
+    // the shipped DurablePrimitives#lookupEntity already treats both as optimization hints rather
+    // than a required filter ("The type code parameter is redundant..."). Both old impls are
+    // identical here, so there is nothing else to port.
+    Optional<PolarisBaseEntity> found =
+        entityStore().get(entityIdentity(entityId), PolarisBaseEntity.class);
+    return found
+        .<EntityResult>map(EntityResult::new)
+        .orElseGet(() -> new EntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null));
   }
 
   @Override
   public @NonNull ChangeTrackingResult loadEntitiesChangeTracking(
       @NonNull PolarisCallContext callCtx, @NonNull List<PolarisEntityId> entityIds) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    List<RecordRef> refs = entityIds.stream().map(id -> entityIdentity(id.id())).toList();
+    List<Optional<RecordVersions>> versions = entityStore().versionsOf(refs);
+    List<PolarisChangeTrackingVersions> result = new ArrayList<>(versions.size());
+    for (Optional<RecordVersions> v : versions) {
+      result.add(
+          v.map(
+                  rv ->
+                      new PolarisChangeTrackingVersions(
+                          (int) rv.recordVersion(), (int) rv.grantRecordsVersion()))
+              .orElse(null));
+    }
+    return new ChangeTrackingResult(result);
   }
 
   @Override
@@ -285,7 +613,7 @@ public class DefaultDurableManager
   @Override
   public @NonNull PrivilegeResult grantUsageOnRoleToGrantee(
       @NonNull PolarisCallContext callCtx,
-      PolarisEntityCore catalog,
+      @Nullable PolarisEntityCore catalog,
       @NonNull PolarisEntityCore role,
       @NonNull PolarisEntityCore grantee) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
@@ -294,7 +622,7 @@ public class DefaultDurableManager
   @Override
   public @NonNull PrivilegeResult revokeUsageOnRoleFromGrantee(
       @NonNull PolarisCallContext callCtx,
-      PolarisEntityCore catalog,
+      @Nullable PolarisEntityCore catalog,
       @NonNull PolarisEntityCore role,
       @NonNull PolarisEntityCore grantee) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
@@ -304,7 +632,7 @@ public class DefaultDurableManager
   public @NonNull PrivilegeResult grantPrivilegeOnSecurableToRole(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityCore grantee,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityCore securable,
       @NonNull PolarisPrivilege privilege) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
@@ -314,7 +642,7 @@ public class DefaultDurableManager
   public @NonNull PrivilegeResult revokePrivilegeOnSecurableFromRole(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityCore grantee,
-      List<PolarisEntityCore> catalogPath,
+      @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisEntityCore securable,
       @NonNull PolarisPrivilege privilege) {
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
