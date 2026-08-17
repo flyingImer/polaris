@@ -33,6 +33,7 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
@@ -48,12 +49,11 @@ import org.junit.jupiter.api.Test;
  * grantUsageOnRoleToGrantee}, {@code revokeUsageOnRoleFromGrantee}, {@code
  * grantPrivilegeOnSecurableToRole}, {@code revokePrivilegeOnSecurableFromRole}, {@code
  * loadGrantsOnSecurable}, {@code loadGrantsToGrantee} — against {@link DefaultDurableManager}
- * assembled the same way {@link AbstractDefaultDurableManagerTest} assembles it. Scaffolding for
- * this increment, not the ticket's parity evidence: {@code BaseDurableManagerTest} is the judge of
- * that and still cannot run a single test (bootstrap needs later increments). These tests mirror
- * that fixture's own assertions (from {@code testPrivileges}, {@code
- * testGrantRecordWriteIsIdempotent}, {@code testLoadGrantsGranteeVsSecurableRecords}) rather than
- * inventing looser ones.
+ * assembled the same way {@link AbstractDefaultDurableManagerTest} assembles it. Scaffolding, not
+ * the ticket's parity evidence: {@code BaseDurableManagerTest} is the judge of that, and as of
+ * increment 4 it runs (bootstrap works) and its grant-related tests — {@code testPrivileges},
+ * {@code testGrantRecordWriteIsIdempotent}, {@code testLoadGrantsGranteeVsSecurableRecords} — pass.
+ * These tests mirror that fixture's own assertions rather than inventing looser ones.
  */
 class DefaultDurableManagerGrantOpsTest {
 
@@ -68,7 +68,11 @@ class DefaultDurableManagerGrantOpsTest {
     var orchestrator = new DefaultDurableOrchestrator(storeForKind);
     manager =
         new DefaultDurableManager(
-            Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, storeForKind);
+            Clock.systemUTC(),
+            new PolarisDefaultDiagServiceImpl(),
+            orchestrator,
+            storeForKind,
+            PrincipalSecretsGenerator.RANDOM_SECRETS);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
   }

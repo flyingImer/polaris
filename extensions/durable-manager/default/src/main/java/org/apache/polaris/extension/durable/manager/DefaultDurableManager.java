@@ -20,6 +20,7 @@ package org.apache.polaris.extension.durable.manager;
 
 import java.time.Clock;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -38,9 +39,13 @@ import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.entity.PrincipalRoleEntity;
+import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
+import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
@@ -112,6 +117,17 @@ import org.jspecify.annotations.Nullable;
  * <p>This class never reads the OLD {@link org.apache.polaris.spi.durable.DurablePrimitives} handle
  * carried on {@link PolarisCallContext}. That handle is the old model's write/read door and
  * reaching for it here would silently reintroduce the coupling this class exists to remove.
+ *
+ * <h2>A third collaborator that is not a data-access door</h2>
+ *
+ * <p>{@link #secretsGenerator} produces a principal's client id and secret. In the old model this
+ * lived one layer down: the old bindings hand {@code PrincipalSecretsGenerator.RANDOM_SECRETS} to
+ * the primitives implementation itself (e.g. {@code new TreeMapDurablePrimitivesImpl(diag, store,
+ * RANDOM_SECRETS)}), so the OLD primitives layer generates secrets. The new {@link
+ * DurableRecordStore} carries no such parameter and must not gain one: generating a credential is a
+ * business rule, not a storage concern, so S3 puts it here, one layer up from where it used to
+ * live. {@link PrincipalSecretsGenerator} is an existing type — this coins no new term, it only
+ * moves an existing collaborator to its correct layer.
  */
 public class DefaultDurableManager
     implements DurableManager,
@@ -124,16 +140,19 @@ public class DefaultDurableManager
   private final PolarisDiagnostics diagnostics;
   private final DurableOrchestrator orchestrator;
   private final Function<RecordKind, DurableRecordStore> storeForKind;
+  private final PrincipalSecretsGenerator secretsGenerator;
 
   public DefaultDurableManager(
       @NonNull Clock clock,
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull DurableOrchestrator orchestrator,
-      @NonNull Function<RecordKind, DurableRecordStore> storeForKind) {
+      @NonNull Function<RecordKind, DurableRecordStore> storeForKind,
+      @NonNull PrincipalSecretsGenerator secretsGenerator) {
     this.clock = clock;
     this.diagnostics = diagnostics;
     this.orchestrator = orchestrator;
     this.storeForKind = storeForKind;
+    this.secretsGenerator = secretsGenerator;
   }
 
   // ---------------------------------------------------------------------------------- helpers
@@ -294,6 +313,38 @@ public class DefaultDurableManager
         winner.map(PolarisBaseEntity::getSubTypeCode).orElse(0));
   }
 
+  /**
+   * Maps a non-applied {@code createPrincipal}/{@code createCatalog} {@link OrchestrationResult}.
+   * Having already pre-checked the relevant uniqueness before building the mutation list, a failure
+   * here can only be a lost race on that same check — the identical collision the pre-check path
+   * itself reports — or a genuine bug (TOO_MANY_ITEMS, DOMAIN_MISMATCH, ROLLBACK_INCOMPLETE). No
+   * old-model precedent for this mapping exists for the same reason {@link #mapFailedCreate} has
+   * none: the old primitives interface has no multi-outcome commit result, and for {@code
+   * createCatalog}/{@code createPrincipal} specifically, neither old impl wraps its several writes
+   * in one shared transaction at all (see {@link #createCatalog}'s and {@link #createPrincipal}'s
+   * own javadoc for what the one-commit shape closes as a side effect).
+   */
+  private BaseResult.ReturnStatus classifyFailedCreate(@NonNull OrchestrationResult result) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED;
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    return failure == CommitResult.Failure.PRECONDITION_FAILED
+        ? BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS
+        : BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED;
+  }
+
+  /** {@code extraInformation} for a {@link #classifyFailedCreate} mapping, when non-null helps. */
+  private @Nullable String failureDetail(@NonNull OrchestrationResult result) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return "rollback incomplete: "
+          + result.uncompensated().size()
+          + " mutation(s) require admin reclamation";
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    return failure == CommitResult.Failure.PRECONDITION_FAILED ? null : failure.toString();
+  }
+
   // ---------------------------------------------------------- DurableManager (ticket 91)
 
   @Override
@@ -350,18 +401,284 @@ public class DefaultDurableManager
     return new GenerateEntityIdResult(entityStore().generateNewId());
   }
 
+  /**
+   * {@code PRINCIPAL_SECRETS}'s identity ref: {@code (realm, client-id)} — every field is part of
+   * the key, the same shape as {@link #grantIdentity}.
+   */
+  private static RecordRef secretsIdentity(@NonNull String clientId) {
+    return RecordRef.byIdentity(PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(clientId));
+  }
+
+  private DurableRecordStore secretsStore() {
+    return storeForKind.apply(PolarisRecordKinds.PRINCIPAL_SECRETS);
+  }
+
+  /**
+   * Ported from {@code TreeMapDurablePrimitivesImpl#generateNewPrincipalSecretsInCurrentTxn}'s
+   * collision-avoidance loop: {@link #secretsGenerator} produces a client id that is expected to be
+   * unique but not reserved the way {@link DurableRecordStore#generateNewId} reserves an entity id,
+   * so this re-checks and retries rather than trusting the generator outright.
+   */
+  private PolarisPrincipalSecrets generateUniqueSecrets(
+      @NonNull String principalName, long principalId) {
+    DurableRecordStore store = secretsStore();
+    PolarisPrincipalSecrets candidate;
+    do {
+      candidate = secretsGenerator.produceSecrets(principalName, principalId);
+    } while (store
+        .get(secretsIdentity(candidate.getPrincipalClientId()), PolarisPrincipalSecrets.class)
+        .isPresent());
+    return candidate;
+  }
+
+  /**
+   * Ported from {@code AtomicOperationMetaStoreManager#createPrincipal} / {@code
+   * TransactionalMetaStoreManagerImpl#createPrincipal}, which diverge and this picks one, disclosed
+   * rather than silently: Atomic generates secrets unconditionally, writes the principal, and on an
+   * {@code ENTITY_ALREADY_EXISTS} collision compensates with a call to {@code
+   * deletePrincipalSecrets} — its own TODO concedes a crash between that write and the compensating
+   * delete leaks the secrets row. Transactional checks the name first and only then generates
+   * secrets, needing no compensation at all. This matches Transactional's shape: C7 prescribes
+   * resolving reads before writes, and it wastes no generated secret on a name that was already
+   * taken.
+   *
+   * <p>The WRITE ORDER inside the one commit still matches BOTH old impls: secrets before the
+   * principal. The reason survives the move from two independent primitive writes to one
+   * orchestrated commit: in a multi-store deployment where {@code PRINCIPAL_SECRETS} and {@code
+   * ENTITY} resolve to different stores, this becomes two orchestrated groups rather than one, and
+   * {@link DurableOrchestrator}'s own disclosed, un-closed crash window — the process dying between
+   * committing group 1 and compensating a group-2 failure — can leave the first group's effect
+   * stranded. Secrets first means that stranded state is an orphan {@code PRINCIPAL_SECRETS} row:
+   * inert, nothing references it. Principal first would instead strand an orphan {@code PRINCIPAL}
+   * entity whose {@code clientId} resolves to nothing — unusable. Same rationale ADR-0002 records
+   * for the "never a principal without secrets" invariant itself.
+   */
   @Override
   public @NonNull CreatePrincipalResult createPrincipal(
       @NonNull PolarisCallContext callCtx, @NonNull PrincipalEntity principal) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(principal, "unexpected_null_principal");
+
+    Optional<PolarisBaseEntity> existing =
+        entityStore().get(entityIdentity(principal.getId()), PolarisBaseEntity.class);
+    if (existing.isPresent()) {
+      // Same-id idempotent-retry collisions are necessarily sequential (the id was already
+      // reserved by generateNewEntityId before this call reached us), so this pre-check needs no
+      // atomicity of its own — matches both old impls' own comment to this effect.
+      PrincipalEntity refreshPrincipal = PrincipalEntity.of(existing.get());
+      String clientId = refreshPrincipal.getClientId();
+      diagnostics.checkNotNull(clientId, "null_client_id", "principal={}", refreshPrincipal);
+      diagnostics.check(!clientId.isEmpty(), "empty_client_id", "principal={}", refreshPrincipal);
+      PolarisPrincipalSecrets secrets =
+          secretsStore().get(secretsIdentity(clientId), PolarisPrincipalSecrets.class).orElse(null);
+      diagnostics.checkNotNull(
+          secrets,
+          "missing_principal_secrets",
+          "clientId={} principal={}",
+          clientId,
+          refreshPrincipal);
+      return new CreatePrincipalResult(existing.get(), secrets);
+    }
+
+    boolean nameTaken =
+        entityStore()
+            .get(
+                entityUniqueness(
+                    PolarisEntityConstants.getRootEntityId(),
+                    PolarisEntityType.PRINCIPAL.getCode(),
+                    principal.getName()),
+                PolarisBaseEntity.class)
+            .isPresent();
+    if (nameTaken) {
+      return new CreatePrincipalResult(BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, null);
+    }
+
+    PolarisPrincipalSecrets secrets = generateUniqueSecrets(principal.getName(), principal.getId());
+    PrincipalEntity updatedPrincipal =
+        new PrincipalEntity.Builder(principal).setClientId(secrets.getPrincipalClientId()).build();
+    PolarisBaseEntity prepared = prepareNewEntity(updatedPrincipal);
+    RecordRef principalUniqueness =
+        entityUniqueness(prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
+
+    List<Mutation> mutations =
+        List.of(
+            Mutation.of(
+                PolarisRecordKinds.PRINCIPAL_SECRETS,
+                Mutation.Op.CREATE,
+                secretsIdentity(secrets.getPrincipalClientId()),
+                secrets,
+                List.of(Precondition.none())),
+            Mutation.of(
+                PolarisRecordKinds.ENTITY,
+                Mutation.Op.CREATE,
+                entityIdentity(prepared.getId()),
+                prepared,
+                List.of(Precondition.notExists(principalUniqueness))));
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    if (result.isApplied()) {
+      return new CreatePrincipalResult(prepared, secrets);
+    }
+    // No compensating delete of the secrets on failure: the orchestrator's own cross-group
+    // compensation already rolls back a committed earlier group when a later one fails, which is
+    // strictly better than Atomic's manual best-effort cleanup for the ordinary (non-crash)
+    // failure case.
+    return new CreatePrincipalResult(classifyFailedCreate(result), failureDetail(result));
   }
 
+  /**
+   * ADR-0002's other hard invariant (2026-08-07, grants stay OUTSIDE it): {@code createCatalog}
+   * yields BOTH the catalog and its admin {@link
+   * org.apache.polaris.core.entity.PolarisEntityType#CATALOG_ROLE}, both durably persisted, or
+   * neither. This class does not itself implement that guarantee — there is no special-case
+   * atomicity code for "these two entities" anywhere below. It holds because of composition (Issue
+   * 47's framing): both are {@code ENTITY} records, {@code ENTITY} resolves to exactly one store
+   * under the kind-to-store mapping, and {@link DurableOrchestrator#commit} merges adjacent
+   * mutations sharing one atomicity domain into a single commit. Keeping the catalog and admin-role
+   * {@code CREATE} mutations ADJACENT in the list below is what lets that composition apply; the
+   * conformance suite is what verifies the composition holds, not this method.
+   *
+   * <p>Grants (both {@code CATALOG_MANAGE_ACCESS}/{@code CATALOG_MANAGE_METADATA} on the catalog to
+   * the admin role, and {@code CATALOG_ROLE_USAGE} on the admin role to each assignee) ride in the
+   * SAME commit as the catalog/admin-role pair for atomicity's sake where the one-commit shape
+   * gives it for free, but are not themselves part of the hard guarantee: a grant failing does not
+   * get a weaker catalog/admin-role pair, it fails the whole {@code createCatalog} call, same as
+   * any other precondition failure below.
+   *
+   * <p>Storage integration ({@code IntegrationPersistence#createStorageIntegration}/{@code
+   * persistStorageIntegrationIfNeeded}, both old impls' branch for a catalog carrying an inline
+   * storage config) is intentionally NOT ported: no fixture catalog carries one (checked — {@code
+   * PolarisTestMetaStoreManager} never sets a storage-config internal property on any catalog it
+   * builds), and {@code IntegrationPersistence}'s own class note records that every OSS
+   * implementation of the hook already returns null / does nothing. Left to the migration tickets
+   * rather than writing code no test exercises.
+   */
   @Override
   public @NonNull CreateCatalogResult createCatalog(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisBaseEntity catalog,
       @NonNull List<PolarisEntityCore> principalRoles) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(catalog, "unexpected_null_catalog");
+
+    Optional<PolarisBaseEntity> existingCatalog =
+        entityStore().get(entityIdentity(catalog.getId()), PolarisBaseEntity.class);
+    if (existingCatalog.isPresent()) {
+      PolarisBaseEntity found = existingCatalog.get();
+      diagnostics.check(
+          found.getTypeCode() == PolarisEntityType.CATALOG.getCode(),
+          "not_a_catalog",
+          "catalog={}",
+          catalog);
+      PolarisBaseEntity adminRole =
+          entityStore()
+              .get(
+                  entityUniqueness(
+                      found.getId(),
+                      PolarisEntityType.CATALOG_ROLE.getCode(),
+                      PolarisEntityConstants.getNameOfCatalogAdminRole()),
+                  PolarisBaseEntity.class)
+              .orElse(null);
+      diagnostics.checkNotNull(adminRole, "catalog_admin_role_not_found", "catalog={}", found);
+      return new CreateCatalogResult(found, adminRole);
+    }
+
+    PolarisBaseEntity preparedCatalog = prepareNewEntity(catalog);
+    long adminRoleId = entityStore().generateNewId();
+    PolarisBaseEntity adminRole =
+        prepareNewEntity(
+            new PolarisBaseEntity(
+                preparedCatalog.getId(),
+                adminRoleId,
+                PolarisEntityType.CATALOG_ROLE,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                preparedCatalog.getId(),
+                PolarisEntityConstants.getNameOfCatalogAdminRole()));
+
+    List<Mutation> mutations = new ArrayList<>();
+    mutations.add(
+        Mutation.of(
+            PolarisRecordKinds.ENTITY,
+            Mutation.Op.CREATE,
+            entityIdentity(preparedCatalog.getId()),
+            preparedCatalog,
+            List.of(
+                Precondition.notExists(
+                    entityUniqueness(
+                        preparedCatalog.getParentId(),
+                        preparedCatalog.getTypeCode(),
+                        preparedCatalog.getName())))));
+    mutations.add(
+        Mutation.of(
+            PolarisRecordKinds.ENTITY,
+            Mutation.Op.CREATE,
+            entityIdentity(adminRole.getId()),
+            adminRole,
+            List.of(
+                Precondition.notExists(
+                    entityUniqueness(
+                        adminRole.getParentId(), adminRole.getTypeCode(), adminRole.getName())))));
+
+    PolarisBaseEntity catalogState = preparedCatalog;
+    PolarisBaseEntity adminRoleState = adminRole;
+    for (PolarisPrivilege priv :
+        List.of(PolarisPrivilege.CATALOG_MANAGE_ACCESS, PolarisPrivilege.CATALOG_MANAGE_METADATA)) {
+      PolarisGrantRecord grantRecord =
+          new PolarisGrantRecord(
+              catalogState.getCatalogId(),
+              catalogState.getId(),
+              adminRoleState.getCatalogId(),
+              adminRoleState.getId(),
+              priv.getCode());
+      mutations.add(createGrantMutation(grantRecord));
+      VersionBump granteeBump = bumpGrantRecordsVersion(adminRoleState);
+      mutations.add(granteeBump.mutation());
+      adminRoleState = granteeBump.updated();
+      VersionBump securableBump = bumpGrantRecordsVersion(catalogState);
+      mutations.add(securableBump.mutation());
+      catalogState = securableBump.updated();
+    }
+
+    List<PolarisBaseEntity> assignees;
+    if (principalRoles.isEmpty()) {
+      PrincipalRoleEntity serviceAdminRole =
+          findPrincipalRoleByName(
+                  callCtx, PolarisEntityConstants.getNameOfPrincipalServiceAdminRole())
+              .orElse(null);
+      diagnostics.checkNotNull(serviceAdminRole, "missing_service_admin_role");
+      assignees = List.of(serviceAdminRole);
+    } else {
+      assignees = new ArrayList<>(principalRoles.size());
+      for (PolarisEntityCore principalRole : principalRoles) {
+        diagnostics.checkNotNull(principalRole, "null principal role");
+        diagnostics.check(
+            principalRole.getTypeCode() == PolarisEntityType.PRINCIPAL_ROLE.getCode(),
+            "not_principal_role",
+            "type={}",
+            principalRole.getType());
+        assignees.add(mustLoadEntity(principalRole, "grantee_not_found"));
+      }
+    }
+    for (PolarisBaseEntity principalRole : assignees) {
+      PolarisGrantRecord grantRecord =
+          new PolarisGrantRecord(
+              adminRoleState.getCatalogId(),
+              adminRoleState.getId(),
+              principalRole.getCatalogId(),
+              principalRole.getId(),
+              PolarisPrivilege.CATALOG_ROLE_USAGE.getCode());
+      mutations.add(createGrantMutation(grantRecord));
+      mutations.add(bumpGrantRecordsVersion(principalRole).mutation());
+      VersionBump securableBump = bumpGrantRecordsVersion(adminRoleState);
+      mutations.add(securableBump.mutation());
+      adminRoleState = securableBump.updated();
+    }
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    if (result.isApplied()) {
+      // Matches both old impls: returns the pre-grant state of the catalog and admin role, not
+      // the state after the grant-driven grantRecordsVersion bumps.
+      return new CreateCatalogResult(preparedCatalog, adminRole);
+    }
+    return new CreateCatalogResult(classifyFailedCreate(result), failureDetail(result));
   }
 
   @Override
@@ -523,19 +840,30 @@ public class DefaultDurableManager
     throw new UnsupportedOperationException("ticket 91: not yet implemented");
   }
 
+  /**
+   * CORRECTION to increment 2's version of this method (found by {@code testLookup}, which asserts
+   * that looking up a real id under the wrong {@code entityType} — a namespace's id looked up as a
+   * {@code TABLE_LIKE} — returns not-found): {@code entityType} DOES filter, verified in {@code
+   * TreeMapDurablePrimitivesImpl#lookupEntityInCurrentTxn}'s actual body — {@code if (entity !=
+   * null && entity.getTypeCode() != typeCode) return null;} — not merely "MAY" as the abstract
+   * {@code DurablePrimitives#lookupEntity} javadoc alone would suggest ("The type code parameter is
+   * redundant..."). Increment 2 read only the javadoc and picked the weaker of the two documented
+   * options; this reads the concrete backend the fixture actually exercises and matches its real
+   * behavior. {@code entityCatalogId} remains genuinely unused: the new model's ENTITY identity key
+   * is {@code (realm, id)} alone, with no catalog component for identity lookups to filter on at
+   * all.
+   */
   @Override
   public @NonNull EntityResult loadEntity(
       @NonNull PolarisCallContext callCtx,
       long entityCatalogId,
       long entityId,
       @NonNull PolarisEntityType entityType) {
-    // entityCatalogId and entityType are accepted for interface parity but not used to filter:
-    // the new model's ENTITY identity key is (realm, id) alone (see RecordRef's own javadoc), and
-    // the shipped DurablePrimitives#lookupEntity already treats both as optimization hints rather
-    // than a required filter ("The type code parameter is redundant..."). Both old impls are
-    // identical here, so there is nothing else to port.
     Optional<PolarisBaseEntity> found =
         entityStore().get(entityIdentity(entityId), PolarisBaseEntity.class);
+    if (found.isPresent() && found.get().getTypeCode() != entityType.getCode()) {
+      found = Optional.empty();
+    }
     return found
         .<EntityResult>map(EntityResult::new)
         .orElseGet(() -> new EntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null));
@@ -654,26 +982,52 @@ public class DefaultDurableManager
   }
 
   /**
-   * The UPDATE mutation that bumps one entity's {@code grantRecordsVersion}, gated by both halves
-   * of the two-column CAS the relational store's {@code entity_version}/{@code
-   * grant_records_version} comparison performs: {@code entityVersion} is asserted unchanged, never
-   * bumped here — only {@code grantRecordsVersion} moves, matching both old impls' {@code
+   * A grant-record {@code CREATE} mutation, declaring {@link Precondition#none()} per {@link
+   * Mutation.Op#CREATE}'s contract for a kind whose identity and uniqueness are the same tuple. See
+   * {@link #persistNewGrantRecord}'s javadoc for why that contract is not yet honored by either
+   * shipped store's actual {@code CREATE} handling, and why this method still declares it.
+   */
+  private static Mutation createGrantMutation(@NonNull PolarisGrantRecord grantRecord) {
+    return Mutation.of(
+        PolarisRecordKinds.GRANT_RECORD,
+        Mutation.Op.CREATE,
+        grantIdentity(grantRecord),
+        grantRecord,
+        List.of(Precondition.none()));
+  }
+
+  /**
+   * One entity's {@code grantRecordsVersion} bump: the mutation to commit, and the resulting entity
+   * state. Returning the updated state (rather than just the {@link Mutation}) lets a caller
+   * building several grants against the SAME entity within one mutation list — {@link
+   * #createCatalog}'s catalog and admin role, each touched by more than one grant — thread the
+   * running version forward between them instead of re-reading the store in between.
+   */
+  private record VersionBump(Mutation mutation, PolarisBaseEntity updated) {}
+
+  /**
+   * Gated by both halves of the two-column CAS the relational store's {@code entity_version}/
+   * {@code grant_records_version} comparison performs: {@code entityVersion} is asserted unchanged,
+   * never bumped here — only {@code grantRecordsVersion} moves, matching both old impls' {@code
    * entity.withGrantRecordsVersion(entity.getGrantRecordsVersion() + 1)}.
    */
-  private Mutation bumpGrantRecordsVersion(@NonNull PolarisBaseEntity entity) {
+  private VersionBump bumpGrantRecordsVersion(@NonNull PolarisBaseEntity entity) {
     RecordRef ref = entityIdentity(entity.getId());
-    return Mutation.of(
-        PolarisRecordKinds.ENTITY,
-        Mutation.Op.UPDATE,
-        ref,
-        entity.withGrantRecordsVersion(entity.getGrantRecordsVersion() + 1),
-        List.of(
-            Precondition.versionEquals(
-                ref, Precondition.VersionAttribute.RECORD_VERSION, entity.getEntityVersion()),
-            Precondition.versionEquals(
-                ref,
-                Precondition.VersionAttribute.GRANT_RECORDS_VERSION,
-                entity.getGrantRecordsVersion())));
+    PolarisBaseEntity updated = entity.withGrantRecordsVersion(entity.getGrantRecordsVersion() + 1);
+    Mutation mutation =
+        Mutation.of(
+            PolarisRecordKinds.ENTITY,
+            Mutation.Op.UPDATE,
+            ref,
+            updated,
+            List.of(
+                Precondition.versionEquals(
+                    ref, Precondition.VersionAttribute.RECORD_VERSION, entity.getEntityVersion()),
+                Precondition.versionEquals(
+                    ref,
+                    Precondition.VersionAttribute.GRANT_RECORDS_VERSION,
+                    entity.getGrantRecordsVersion())));
+    return new VersionBump(mutation, updated);
   }
 
   /**
@@ -732,14 +1086,9 @@ public class DefaultDurableManager
 
     List<Mutation> mutations =
         List.of(
-            Mutation.of(
-                PolarisRecordKinds.GRANT_RECORD,
-                Mutation.Op.CREATE,
-                ref,
-                grantRecord,
-                List.of(Precondition.none())),
-            bumpGrantRecordsVersion(granteeEntity),
-            bumpGrantRecordsVersion(securableEntity));
+            createGrantMutation(grantRecord),
+            bumpGrantRecordsVersion(granteeEntity).mutation(),
+            bumpGrantRecordsVersion(securableEntity).mutation());
 
     OrchestrationResult result = orchestrator.commit(mutations);
     return result.isApplied() ? new PrivilegeResult(grantRecord) : mapFailedGrantMutation(result);
@@ -785,8 +1134,8 @@ public class DefaultDurableManager
                 Mutation.Op.DELETE,
                 grantIdentity(grantRecord),
                 null),
-            bumpGrantRecordsVersion(granteeEntity),
-            bumpGrantRecordsVersion(securableEntity));
+            bumpGrantRecordsVersion(granteeEntity).mutation(),
+            bumpGrantRecordsVersion(securableEntity).mutation());
 
     OrchestrationResult result = orchestrator.commit(mutations);
     return result.isApplied() ? new PrivilegeResult(grantRecord) : mapFailedGrantMutation(result);
@@ -970,12 +1319,79 @@ public class DefaultDurableManager
 
   // ---------------------------------------------------------- SecretsManager (ticket 91)
 
+  /**
+   * Maps a non-applied secrets-mutation {@link OrchestrationResult}. No old-model precedent, same
+   * reasoning as {@link #mapFailedGrantMutation}: the old primitives calls this replaces are raw
+   * read-modify-writes with no commit-outcome type to map from.
+   */
+  private PrincipalSecretsResult mapFailedSecretsMutation(@NonNull OrchestrationResult result) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new PrincipalSecretsResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    return new PrincipalSecretsResult(
+        BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+  }
+
+  /**
+   * The {@code ENTITY} UPDATE that persists a changed {@code internalPropertiesAsMap}, bumping only
+   * {@code entityVersion} — ported from {@code AtomicOperationMetaStoreManager}'s / {@code
+   * TransactionalMetaStoreManagerImpl}'s {@code rotatePrincipalSecrets}, which bump entityVersion
+   * but never grantRecordsVersion for this write, so only one half of the two-column CAS {@link
+   * #bumpGrantRecordsVersion} uses applies here.
+   */
+  private Mutation internalPropertiesMutation(
+      @NonNull PolarisBaseEntity current, @NonNull Map<String, String> internalProperties) {
+    RecordRef ref = entityIdentity(current.getId());
+    PolarisBaseEntity updated =
+        new PolarisBaseEntity.Builder(current)
+            .internalPropertiesAsMap(internalProperties)
+            .entityVersion(current.getEntityVersion() + 1)
+            .build();
+    return Mutation.of(
+        PolarisRecordKinds.ENTITY,
+        Mutation.Op.UPDATE,
+        ref,
+        updated,
+        List.of(
+            Precondition.versionEquals(
+                ref, Precondition.VersionAttribute.RECORD_VERSION, current.getEntityVersion())));
+  }
+
   @Override
   public @NonNull PrincipalSecretsResult loadPrincipalSecrets(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    return secretsStore()
+        .get(secretsIdentity(clientId), PolarisPrincipalSecrets.class)
+        .<PrincipalSecretsResult>map(PrincipalSecretsResult::new)
+        .orElseGet(
+            () -> new PrincipalSecretsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null));
   }
 
+  /**
+   * Ported from {@code TreeMapDurablePrimitivesImpl#rotatePrincipalSecretsInCurrentTxn} for the
+   * secret rotation itself, and from both old managers' {@code rotatePrincipalSecrets} for the
+   * {@code PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE} bookkeeping:
+   *
+   * <ul>
+   *   <li>One rotation always happens: {@code secondary <- oldSecretHash}, {@code main <- fresh
+   *       random}. {@code oldSecretHash} is trusted, not verified against the current main —
+   *       neither old primitives implementation checks it either.
+   *   <li>{@code doReset} (the caller's {@code reset} flag OR the flag already being set on the
+   *       principal) chains a SECOND rotation using the just-generated main as the new secondary.
+   *       That is what makes a reset invalidate both the caller's old value and the intermediate
+   *       value nobody ever saw, rather than merely rotating once.
+   *   <li>The entity write branches on the caller's raw {@code reset}, not {@code doReset}: {@code
+   *       reset && !flagPresent} SETS the flag (a caller-requested "next rotation must reset"
+   *       mark); {@code flagPresent} (regardless of {@code reset}) CLEARS it (the flag that was
+   *       already set has now been honored by this call). Neither branch firing means no entity
+   *       write at all for this call.
+   * </ul>
+   */
   @Override
   public @NonNull PrincipalSecretsResult rotatePrincipalSecrets(
       @NonNull PolarisCallContext callCtx,
@@ -983,22 +1399,139 @@ public class DefaultDurableManager
       long principalId,
       boolean reset,
       @NonNull String oldSecretHash) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    Optional<PrincipalEntity> principalOpt = findPrincipalById(callCtx, principalId);
+    if (principalOpt.isEmpty()) {
+      return new PrincipalSecretsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    PrincipalEntity principal = principalOpt.get();
+    Map<String, String> internalProps = new HashMap<>(principal.getInternalPropertiesAsMap());
+    boolean flagPresent =
+        internalProps.containsKey(
+            PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE);
+    boolean doReset = reset || flagPresent;
+
+    PolarisPrincipalSecrets current =
+        secretsStore().get(secretsIdentity(clientId), PolarisPrincipalSecrets.class).orElse(null);
+    diagnostics.checkNotNull(
+        current, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+    diagnostics.check(
+        principalId == current.getPrincipalId(),
+        "principal_id_mismatch",
+        "expectedId={} id={}",
+        principalId,
+        current.getPrincipalId());
+
+    PolarisPrincipalSecrets updated = new PolarisPrincipalSecrets(current);
+    updated.rotateSecrets(oldSecretHash);
+    if (doReset) {
+      updated.rotateSecrets(updated.getMainSecretHash());
+    }
+
+    List<Mutation> mutations = new ArrayList<>();
+    mutations.add(
+        Mutation.of(
+            PolarisRecordKinds.PRINCIPAL_SECRETS,
+            Mutation.Op.UPDATE,
+            secretsIdentity(clientId),
+            updated,
+            List.of(Precondition.none())));
+    if (reset && !flagPresent) {
+      internalProps.put(
+          PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE, "true");
+      mutations.add(internalPropertiesMutation(principal, internalProps));
+    } else if (flagPresent) {
+      internalProps.remove(PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE);
+      mutations.add(internalPropertiesMutation(principal, internalProps));
+    }
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    return result.isApplied()
+        ? new PrincipalSecretsResult(updated)
+        : mapFailedSecretsMutation(result);
   }
 
+  /**
+   * Ported from {@code IntegrationPersistence#storePrincipalSecrets}: throws {@link
+   * AlreadyExistsException} uncaught on ANY existing row for {@code resolvedClientId}, regardless
+   * of which principal it belongs to — {@code testResetCredentialsClientIdCollision} exercises
+   * exactly this (principal B tries to claim principal A's already-in-use client id). C7: resolve
+   * that read before building anything to commit, matching the file's style elsewhere.
+   */
   @Override
   public @NonNull PrincipalSecretsResult resetPrincipalSecrets(
       @NonNull PolarisCallContext callCtx,
       long principalId,
       @NonNull String resolvedClientId,
       String customClientSecret) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    if (findPrincipalById(callCtx, principalId).isEmpty()) {
+      return new PrincipalSecretsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+
+    RecordRef ref = secretsIdentity(resolvedClientId);
+    if (secretsStore().get(ref, PolarisPrincipalSecrets.class).isPresent()) {
+      throw new AlreadyExistsException("Client ID already in use: " + resolvedClientId);
+    }
+
+    PolarisPrincipalSecrets secrets =
+        new PolarisPrincipalSecrets(principalId, resolvedClientId, customClientSecret);
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.CREATE,
+                    ref,
+                    secrets,
+                    List.of(Precondition.none()))));
+    if (result.isApplied()) {
+      return new PrincipalSecretsResult(secrets);
+    }
+    boolean lostRace =
+        result.outcome() != OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE
+            && result
+                .groupFailure()
+                .flatMap(CommitResult::failure)
+                .filter(f -> f == CommitResult.Failure.PRECONDITION_FAILED)
+                .isPresent();
+    if (lostRace) {
+      // Lost the race between the pre-check above and this commit: someone else claimed
+      // resolvedClientId in between. Same exception the pre-check reports.
+      throw new AlreadyExistsException("Client ID already in use: " + resolvedClientId);
+    }
+    return mapFailedSecretsMutation(result);
   }
 
+  /**
+   * Ported from {@code TreeMapDurablePrimitivesImpl#deletePrincipalSecretsInCurrentTxn}'s two
+   * checks (secrets must exist, principal id must match), then a plain DELETE — same risk profile
+   * as {@link #revokeGrantRecord}'s DELETE: existence was just confirmed by this method's own read,
+   * and no precondition closes the (equally present in the old model) race between that read and
+   * the write.
+   */
   @Override
   public void deletePrincipalSecrets(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId, long principalId) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    RecordRef ref = secretsIdentity(clientId);
+    PolarisPrincipalSecrets secrets =
+        secretsStore().get(ref, PolarisPrincipalSecrets.class).orElse(null);
+    diagnostics.checkNotNull(
+        secrets, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+    diagnostics.check(
+        principalId == secrets.getPrincipalId(),
+        "principal_id_mismatch",
+        "expectedId={} id={}",
+        principalId,
+        secrets.getPrincipalId());
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(PolarisRecordKinds.PRINCIPAL_SECRETS, Mutation.Op.DELETE, ref, null)));
+    diagnostics.check(
+        result.isApplied(),
+        "failed_to_delete_principal_secrets",
+        "clientId={} result={}",
+        clientId,
+        result);
   }
 
   // ------------------------------------------------- PolarisPolicyMappingManager (ticket 92)

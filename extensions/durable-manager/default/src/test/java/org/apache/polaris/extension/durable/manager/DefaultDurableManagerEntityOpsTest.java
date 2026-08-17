@@ -32,6 +32,7 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -50,12 +51,14 @@ import org.junit.jupiter.api.Test;
  * AbstractDefaultDurableManagerTest} assembles it: a fresh {@link TreeMapDurableRecordStore}
  * through {@link DefaultDurableRecordStoreFactory} and {@link DefaultDurableOrchestrator}.
  *
- * <p><b>This is scaffolding for this increment, not the ticket's parity evidence.</b> {@link
- * org.apache.polaris.core.persistence.BaseDurableManagerTest} is the judge of parity, and it cannot
- * run a single test yet: its {@code @BeforeEach} calls {@code bootstrapPolarisService}, which needs
- * {@code createPrincipal}/{@code createCatalog}/grants from later increments. These tests mirror
- * that fixture's own assertions for the eight operations already implemented, rather than inventing
- * looser ones, so the fixture flipping green at ticket 91's final increment is not a surprise.
+ * <p><b>This is scaffolding, not the ticket's parity evidence.</b> {@link
+ * org.apache.polaris.core.persistence.BaseDurableManagerTest} is the judge of parity. As of
+ * increment 4, {@code createPrincipal}/{@code createCatalog}/grants/secrets exist and {@code
+ * bootstrapPolarisService} runs, so most of that fixture now passes against {@link
+ * TreeMapDefaultDurableManagerTest} — the remaining red tests call {@code renameEntity}/{@code
+ * updateEntityPropertiesIfNotChanged}/{@code dropEntityIfExists}/the resolved-entity-cache reads,
+ * none of which increment 4 touches. These tests mirror the fixture's own assertions for the eight
+ * operations in THIS class's scope, rather than inventing looser ones.
  */
 class DefaultDurableManagerEntityOpsTest {
 
@@ -70,7 +73,11 @@ class DefaultDurableManagerEntityOpsTest {
     var orchestrator = new DefaultDurableOrchestrator(storeForKind);
     manager =
         new DefaultDurableManager(
-            Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, storeForKind);
+            Clock.systemUTC(),
+            new PolarisDefaultDiagServiceImpl(),
+            orchestrator,
+            storeForKind,
+            PrincipalSecretsGenerator.RANDOM_SECRETS);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
   }

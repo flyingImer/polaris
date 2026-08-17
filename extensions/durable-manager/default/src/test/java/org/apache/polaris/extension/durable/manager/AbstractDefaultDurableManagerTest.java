@@ -24,6 +24,7 @@ import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.BaseDurableManagerTest;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
+import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
 import org.apache.polaris.extension.primitives.factory.DefaultDurableRecordStoreFactory;
 import org.apache.polaris.spi.durable.DurableRecordStore;
@@ -62,13 +63,24 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     var orchestrator = new DefaultDurableOrchestrator(storeForKind);
     var manager =
         new DefaultDurableManager(
-            clock, new PolarisDefaultDiagServiceImpl(), orchestrator, storeForKind);
+            clock,
+            new PolarisDefaultDiagServiceImpl(),
+            orchestrator,
+            storeForKind,
+            PrincipalSecretsGenerator.RANDOM_SECRETS);
 
     RealmContext realmContext = () -> "testRealm";
     PolarisCallContext callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
 
+    // testStartTime must be captured BEFORE bootstrap runs, matching the standard 2-arg
+    // PolarisTestMetaStoreManager constructor's own sequencing (it captures the time, then calls
+    // purge+bootstrap). Bootstrap-created entities stamp createTimestamp via
+    // System.currentTimeMillis() at build time; capturing testStartTime afterward would make every
+    // fixture assertion of "testStartTime <= entity.getCreateTimestamp()" (ensureExistsById, used
+    // by validateBootstrap/testLookup/etc.) fail for the bootstrapped root principal and role.
+    long testStartTime = System.currentTimeMillis();
     manager.bootstrapPolarisService(callCtx);
-    return new PolarisTestMetaStoreManager(manager, callCtx, System.currentTimeMillis(), true);
+    return new PolarisTestMetaStoreManager(manager, callCtx, testStartTime, true);
   }
 
   @Override
