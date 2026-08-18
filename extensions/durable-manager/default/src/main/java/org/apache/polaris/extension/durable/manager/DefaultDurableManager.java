@@ -53,6 +53,7 @@ import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
+import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
@@ -1536,21 +1537,109 @@ public class DefaultDurableManager
     return new ChangeTrackingResult(result);
   }
 
+  /**
+   * The grant records on which {@code entity} is the securable — the anchor every entity gets,
+   * grantee or not. Shared by {@link #loadResolvedEntityById}, {@link #loadResolvedEntities} and
+   * their {@code toResolvedPolarisEntity} helper below.
+   */
+  private List<PolarisGrantRecord> grantsAsSecurable(@NonNull PolarisEntityCore entity) {
+    return grantStore()
+        .list(
+            PolarisRecordKinds.GRANT_RECORD,
+            PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+            List.of(entity.getCatalogId(), entity.getId()),
+            PageToken.readEverything(),
+            PolarisGrantRecord.class)
+        .items();
+  }
+
+  /** The grant records where {@code entity} is the grantee — only meaningful when it is one. */
+  private List<PolarisGrantRecord> grantsAsGrantee(@NonNull PolarisEntityCore entity) {
+    return grantStore()
+        .list(
+            PolarisRecordKinds.GRANT_RECORD,
+            PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
+            List.of(entity.getCatalogId(), entity.getId()),
+            PageToken.readEverything(),
+            PolarisGrantRecord.class)
+        .items();
+  }
+
+  /**
+   * Ported from both old impls' {@code loadResolvedEntityById}, identical apart from the {@code
+   * InCurrentTxn} suffix and the read-transaction wrapper (confirmed by reading both). {@code
+   * entityType} filters the lookup the same way {@link #loadEntity} does — this reuses it rather
+   * than re-deriving the type check, since both old impls resolve through the SAME {@code
+   * lookupEntity}/{@code lookupEntityInCurrentTxn} call {@link #loadEntity} already ports. No
+   * counterpart-entity fetch here: both old impls return the raw {@link PolarisGrantRecord} list
+   * unenriched, which is why a grant referencing a dropped counterpart is already absent — the
+   * counterpart's own drop deleted the grant record itself (increment 5's {@code
+   * collectDropMutations}), not a filter this method applies.
+   */
   @Override
   public @NonNull ResolvedEntityResult loadResolvedEntityById(
       @NonNull PolarisCallContext callCtx,
       long entityCatalogId,
       long entityId,
       PolarisEntityType entityType) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    EntityResult found = loadEntity(callCtx, entityCatalogId, entityId, entityType);
+    if (!found.isSuccess()) {
+      return new ResolvedEntityResult(found.getReturnStatus(), found.getExtraInformation());
+    }
+    PolarisBaseEntity entity = found.getEntity();
+
+    List<PolarisGrantRecord> grantRecords;
+    if (entity.getType().isGrantee()) {
+      grantRecords = new ArrayList<>(grantsAsGrantee(entity));
+      grantRecords.addAll(grantsAsSecurable(entity));
+    } else {
+      grantRecords = grantsAsSecurable(entity);
+    }
+    return new ResolvedEntityResult(entity, entity.getGrantRecordsVersion(), grantRecords);
   }
 
+  /**
+   * A single position's resolved view, or {@code null} when the entity is absent or the wrong type
+   * — ported from both old impls' shared {@code toResolvedPolarisEntity}/{@code
+   * getResolvedEntitiesResult}. Unlike {@link #loadResolvedEntityById}'s combined list, {@code
+   * ResolvedPolarisEntity}'s constructor here takes the grantee/securable lists pre-split (the
+   * OTHER constructor, the one with a {@code PolarisDiagnostics} parameter, is what does the
+   * splitting from a combined list — neither old impl uses that one here).
+   */
+  private @Nullable ResolvedPolarisEntity toResolvedPolarisEntity(
+      @Nullable PolarisBaseEntity entity) {
+    if (entity == null) {
+      return null;
+    }
+    List<PolarisGrantRecord> asSecurable = grantsAsSecurable(entity);
+    List<PolarisGrantRecord> asGrantee =
+        entity.getType().isGrantee() ? grantsAsGrantee(entity) : List.of();
+    return new ResolvedPolarisEntity(PolarisEntity.of(entity), asGrantee, asSecurable);
+  }
+
+  /**
+   * Ported from both old impls' shared {@code getResolvedEntitiesResult}: batch-fetch by identity
+   * (positional, per {@link DurableRecordStore#getMany}'s own contract), filter each position by
+   * {@code entityType}, and resolve grants for whichever positions survive. A missing or wrong-type
+   * position becomes a {@code null} entry in the returned list — the call itself still succeeds,
+   * matching {@code testLoadResolvedEntitiesById}'s own assertion that a batch mixing real, absent
+   * and wrong-type ids returns {@code SUCCESS} with nulls at the losing positions.
+   */
   @Override
   public @NonNull ResolvedEntitiesResult loadResolvedEntities(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityType entityType,
       @NonNull List<PolarisEntityId> entityIds) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    List<RecordRef> refs = entityIds.stream().map(id -> entityIdentity(id.id())).toList();
+    List<Optional<PolarisBaseEntity>> found = entityStore().getMany(refs, PolarisBaseEntity.class);
+
+    List<ResolvedPolarisEntity> resolved = new ArrayList<>(entityIds.size());
+    for (Optional<PolarisBaseEntity> maybeEntity : found) {
+      PolarisBaseEntity entity =
+          maybeEntity.filter(e -> e.getTypeCode() == entityType.getCode()).orElse(null);
+      resolved.add(toResolvedPolarisEntity(entity));
+    }
+    return new ResolvedEntitiesResult(resolved);
   }
 
   // ------------------------------------------------------- DurableManager (ticket 92 surfaces)
