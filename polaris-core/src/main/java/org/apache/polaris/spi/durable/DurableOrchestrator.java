@@ -82,10 +82,12 @@ import org.jspecify.annotations.NonNull;
  *
  * <h2>Construction, not configuration</h2>
  *
- * <p>An instance is a realm-scoped assembly: it is constructed knowing which primitives
- * implementation holds each record kind, and requests never carry routing information. The
- * kind-to-store mapping machinery is the factory's business, on the construction axis; requests do
- * not pass through it. Like the primitives, no method takes a call context or realm parameter.
+ * <p>An instance is realm-scoped through the primitives handle it is constructed over, and requests
+ * never carry routing information. Orchestration holds ONE {@link DurableRecordStore} and no
+ * kind-to-store knowledge at all: in a multi-store deployment that handle is the routing
+ * implementation of the primitives SPI, whose mapping hides BEHIND the SPI on the construction axis
+ * (decided 2026-08-18, dissolving the earlier factory whose resolved kind-keyed function was handed
+ * here). Like the primitives, no method takes a call context or realm parameter.
  */
 public interface DurableOrchestrator {
 

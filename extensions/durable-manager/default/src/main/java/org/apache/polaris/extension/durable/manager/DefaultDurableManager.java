@@ -27,7 +27,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import java.util.Set;
-import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
@@ -87,7 +86,6 @@ import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.PolarisEventManager;
 import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
 import org.apache.polaris.spi.durable.Precondition;
-import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
 import org.apache.polaris.spi.durable.SecretsManager;
@@ -113,15 +111,14 @@ import org.jspecify.annotations.Nullable;
  * them is a write/read split, not a "manager never sees primitives" rule. {@link #orchestrator} is
  * the WRITE door: it alone knows how to group a mutation list by atomicity domain, commit each
  * group, and compensate across groups on failure, so every write goes through it. {@link
- * #storeForKind} is the READ door and the source of {@link DurableRecordStore#generateNewId} — a
- * read may legitimately be organized by orchestration too (the same-backend read/write optimization
+ * #primitives} is the READ door and the source of {@link DurableRecordStore#generateNewId} — a read
+ * may legitimately be organized by orchestration too (the same-backend read/write optimization
  * allowance recorded 2026-08-10), but it is not required to be, and this class does not use that
- * option: every read here goes straight to the primitives read operations resolved through {@code
- * storeForKind}. What this class may NOT do is go beneath that floor (EJ, 2026-08-17): {@code
- * storeForKind} resolves to a {@link DurableRecordStore} in a possibly multi-store assembly, which
- * is itself the primitives-layer handle in its target shape (see {@link DurableRecordStore}'s own
- * javadoc on the migration); a bare single-store field here would be storage-topology knowledge
- * this class does not have, and a kind-keyed resolver is not.
+ * option: every read here goes straight to the primitives handle. That handle IS the floor (EJ,
+ * 2026-08-17/18): in a multi-store deployment it is the routing implementation, whose kind-to-store
+ * mapping hides BEHIND the primitives SPI, so holding one handle carries no storage-topology
+ * knowledge — this class cannot tell one backend from five, and the kind-keyed resolver it used to
+ * hold (a reachable routing table) is dissolved (ticket 111, 2026-08-18).
  *
  * <p>This class never reads the OLD {@link org.apache.polaris.spi.durable.DurablePrimitives} handle
  * carried on {@link PolarisCallContext}. That handle is the old model's write/read door and
@@ -148,26 +145,26 @@ public class DefaultDurableManager
   private final Clock clock;
   private final PolarisDiagnostics diagnostics;
   private final DurableOrchestrator orchestrator;
-  private final Function<RecordKind, DurableRecordStore> storeForKind;
+  private final DurableRecordStore primitives;
   private final PrincipalSecretsGenerator secretsGenerator;
 
   public DefaultDurableManager(
       @NonNull Clock clock,
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull DurableOrchestrator orchestrator,
-      @NonNull Function<RecordKind, DurableRecordStore> storeForKind,
+      @NonNull DurableRecordStore primitives,
       @NonNull PrincipalSecretsGenerator secretsGenerator) {
     this.clock = clock;
     this.diagnostics = diagnostics;
     this.orchestrator = orchestrator;
-    this.storeForKind = storeForKind;
+    this.primitives = primitives;
     this.secretsGenerator = secretsGenerator;
   }
 
   // ---------------------------------------------------------------------------------- helpers
 
   private DurableRecordStore entityStore() {
-    return storeForKind.apply(PolarisRecordKinds.ENTITY);
+    return primitives;
   }
 
   /** {@link PolarisRecordKinds#ENTITY}'s identity ref: {@code (realm, id)}, realm implicit. */
@@ -527,7 +524,7 @@ public class DefaultDurableManager
   }
 
   private DurableRecordStore secretsStore() {
-    return storeForKind.apply(PolarisRecordKinds.PRINCIPAL_SECRETS);
+    return primitives;
   }
 
   /**
@@ -1866,7 +1863,7 @@ public class DefaultDurableManager
   }
 
   private DurableRecordStore grantStore() {
-    return storeForKind.apply(PolarisRecordKinds.GRANT_RECORD);
+    return primitives;
   }
 
   /**

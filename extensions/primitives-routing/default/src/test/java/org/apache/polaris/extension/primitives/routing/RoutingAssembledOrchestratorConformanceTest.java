@@ -16,40 +16,45 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.extension.durable.manager;
+package org.apache.polaris.extension.primitives.routing;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.sql.SQLException;
+import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
+import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.durable.conformance.BaseDurableOrchestratorConformanceTest;
+import org.apache.polaris.core.persistence.PolarisRecordKinds;
+import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
 import org.apache.polaris.persistence.relational.jdbc.DatabaseType;
 import org.apache.polaris.persistence.relational.jdbc.DatasourceOperations;
 import org.apache.polaris.persistence.relational.jdbc.JdbcDurableRecordStore;
 import org.apache.polaris.persistence.relational.jdbc.RelationalJdbcConfiguration;
+import org.apache.polaris.persistence.treemap.TreeMapDurableRecordStore;
+import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.h2.jdbcx.JdbcConnectionPool;
 
 /**
- * {@link DefaultDurableManager} over {@link JdbcDurableRecordStore} on a fresh H2 in-memory
- * database. Same recipe as {@code RoutingAssembledOrchestratorConformanceTest} (the routing
- * extensions module) and {@code JdbcDurableRecordStoreConformanceTest} (persistence/relational-
- * jdbc), copied rather than reinvented.
- *
- * <p>{@link AbstractDefaultDurableManagerTest#createPolarisTestMetaStoreManager()} calls {@link
- * #newStore()} from JUnit's {@code @BeforeEach}, so every test method needs its own database or
- * state leaks between tests — the {@code jdbc:h2:mem:} URL is suffixed with {@link
- * System#nanoTime()} per call for exactly that reason, matching both reference recipes.
+ * Runs the Seam-2 conformance suite against the C11 multi-store configuration: a mapped locator and
+ * the routing store assemble JDBC-on-H2 as {@code main} and the in-memory store as {@code authz}
+ * (the second logical store the record says to use) behind one primitives handle, and {@link
+ * DefaultDurableOrchestrator} is the implementation under test.
  */
-public class JdbcDefaultDurableManagerTest extends AbstractDefaultDurableManagerTest {
+class RoutingAssembledOrchestratorConformanceTest extends BaseDurableOrchestratorConformanceTest {
 
+  private static final PolarisDiagnostics DIAGNOSTICS = new PolarisDefaultDiagServiceImpl();
   private static final String REALM = "REALM";
   private static final int SCHEMA_VERSION = 4;
 
   @Override
-  protected DurableRecordStore newStore() {
+  protected DurableRecordStore newMainStore() {
     JdbcConnectionPool dataSource =
         JdbcConnectionPool.create(
-            "jdbc:h2:mem:durable_manager_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", "");
+            "jdbc:h2:mem:orch_conformance_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", "");
     DatasourceOperations datasourceOperations =
         new DatasourceOperations(dataSource, new TestJdbcConfiguration());
     try (InputStream scriptStream = DatabaseType.H2.openInitScriptResource(SCHEMA_VERSION)) {
@@ -58,6 +63,31 @@ public class JdbcDefaultDurableManagerTest extends AbstractDefaultDurableManager
       throw new RuntimeException(e);
     }
     return new JdbcDurableRecordStore(datasourceOperations, REALM, SCHEMA_VERSION);
+  }
+
+  @Override
+  protected DurableRecordStore newAuthzStore() {
+    return new TreeMapDurableRecordStore(DIAGNOSTICS);
+  }
+
+  @Override
+  protected DurableRecordStore assemble(DurableRecordStore main, DurableRecordStore authz) {
+    // No default store: every kind is mapped explicitly, GRANT_RECORD to authz, the rest to main.
+    MappedDurableRecordStoreLocator locator =
+        new MappedDurableRecordStoreLocator(
+            Map.of(
+                PolarisRecordKinds.ENTITY, "main",
+                PolarisRecordKinds.POLICY_MAPPING, "main",
+                PolarisRecordKinds.PRINCIPAL_SECRETS, "main",
+                PolarisRecordKinds.EVENT, "main",
+                PolarisRecordKinds.GRANT_RECORD, "authz"),
+            Map.of("main", main, "authz", authz));
+    return new RoutingDurableRecordStore(locator, List.of(main, authz), main);
+  }
+
+  @Override
+  protected DurableOrchestrator orchestratorOver(DurableRecordStore primitives) {
+    return new DefaultDurableOrchestrator(primitives);
   }
 
   private static final class TestJdbcConfiguration implements RelationalJdbcConfiguration {

@@ -33,12 +33,14 @@ import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
-import org.apache.polaris.extension.primitives.factory.DefaultDurableRecordStoreFactory;
+import org.apache.polaris.extension.primitives.routing.MappedDurableRecordStoreLocator;
+import org.apache.polaris.extension.primitives.routing.RoutingDurableRecordStore;
 import org.apache.polaris.persistence.treemap.TreeMapDurableRecordStore;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -63,15 +65,25 @@ class DefaultDurableManagerGrantOpsTest {
   @BeforeEach
   void setup() {
     DurableRecordStore store = new TreeMapDurableRecordStore(new PolarisDefaultDiagServiceImpl());
-    var storeForKind =
-        new DefaultDurableRecordStoreFactory().produce(Map.of(), "main", Map.of("main", store));
-    var orchestrator = new DefaultDurableOrchestrator(storeForKind);
+    DurableRecordStore primitives =
+        new RoutingDurableRecordStore(
+            new MappedDurableRecordStoreLocator(
+                Map.of(
+                    PolarisRecordKinds.ENTITY, "main",
+                    PolarisRecordKinds.GRANT_RECORD, "main",
+                    PolarisRecordKinds.POLICY_MAPPING, "main",
+                    PolarisRecordKinds.PRINCIPAL_SECRETS, "main",
+                    PolarisRecordKinds.EVENT, "main"),
+                Map.of("main", store)),
+            List.of(store),
+            store);
+    var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
         new DefaultDurableManager(
             Clock.systemUTC(),
             new PolarisDefaultDiagServiceImpl(),
             orchestrator,
-            storeForKind,
+            primitives,
             PrincipalSecretsGenerator.RANDOM_SECRETS);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());

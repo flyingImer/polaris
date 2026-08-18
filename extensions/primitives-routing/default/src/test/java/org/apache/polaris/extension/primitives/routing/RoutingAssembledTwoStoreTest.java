@@ -16,7 +16,7 @@
  * specific language governing permissions and limitations
  * under the License.
  */
-package org.apache.polaris.extension.primitives.factory;
+package org.apache.polaris.extension.primitives.routing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
@@ -27,7 +27,6 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -51,12 +50,13 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * Ticket 89's gate, end to end: the factory's two-level {@code kind → store name → impl} mapping
- * assembles the two record stores — JDBC on H2 and the in-memory one — and the assembly serves both
- * kinds through one orchestrator; remapping one kind's store name moves it with no other change.
- * This is S11 exercised for real: the integrator's whole act is one map entry.
+ * The routing binding, end to end: the two-level {@code kind → store name → impl} mapping builds a
+ * locator, the routing store fronts the two record stores — JDBC on H2 and the in-memory one —
+ * behind ONE primitives handle, and both kinds serve through one orchestrator holding that handle;
+ * remapping one kind's store name moves it with no other change. This is S11 exercised for real:
+ * the integrator's whole act is one map entry, and nothing above the primitives SPI can tell.
  */
-class FactoryAssembledTwoStoreTest {
+class RoutingAssembledTwoStoreTest {
 
   private static final PolarisDiagnostics DIAGNOSTICS = new PolarisDefaultDiagServiceImpl();
   private static final String REALM = "REALM";
@@ -66,7 +66,6 @@ class FactoryAssembledTwoStoreTest {
 
   private JdbcDurableRecordStore jdbcStore;
   private TreeMapDurableRecordStore treeMapStore;
-  private DefaultDurableRecordStoreFactory factory;
 
   /** Minimal configuration against the module's public interface; H2 stated explicitly. */
   private static final class H2Configuration implements RelationalJdbcConfiguration {
@@ -105,11 +104,19 @@ class FactoryAssembledTwoStoreTest {
     }
     jdbcStore = new JdbcDurableRecordStore(datasourceOperations, REALM, SCHEMA_VERSION);
     treeMapStore = new TreeMapDurableRecordStore(DIAGNOSTICS);
-    factory = new DefaultDurableRecordStoreFactory();
   }
 
   private Map<String, DurableRecordStore> bothStores() {
     return Map.of(MAIN, jdbcStore, AUTHZ, treeMapStore);
+  }
+
+  /** The whole assembly for a mapping: locator, routing store, orchestrator over the one handle. */
+  private DefaultDurableOrchestrator orchestratorFor(Map<RecordKind, String> mapping) {
+    MappedDurableRecordStoreLocator locator =
+        new MappedDurableRecordStoreLocator(mapping, bothStores());
+    RoutingDurableRecordStore primitives =
+        new RoutingDurableRecordStore(locator, List.of(jdbcStore, treeMapStore), jdbcStore);
+    return new DefaultDurableOrchestrator(primitives);
   }
 
   private static PolarisBaseEntity entity(long id, String name) {
@@ -155,11 +162,11 @@ class FactoryAssembledTwoStoreTest {
 
   @Test
   void kindsSplitAcrossTheTwoStoresBothServeThroughOneOrchestrator() {
-    // Gate 1. Entities ride the default entry into the JDBC store; grant records are mapped to
-    // their own store name wired to the in-memory store.
-    Function<RecordKind, DurableRecordStore> assembly =
-        factory.produce(Map.of(PolarisRecordKinds.GRANT_RECORD, AUTHZ), MAIN, bothStores());
-    DefaultDurableOrchestrator orchestrator = new DefaultDurableOrchestrator(assembly);
+    // Entities are mapped to the JDBC store, grant records to their own store name wired to the
+    // in-memory store; the orchestrator holds one primitives handle and cannot tell.
+    DefaultDurableOrchestrator orchestrator =
+        orchestratorFor(
+            Map.of(PolarisRecordKinds.ENTITY, MAIN, PolarisRecordKinds.GRANT_RECORD, AUTHZ));
 
     PolarisBaseEntity catalog = entity(10L, "catalog");
     PolarisGrantRecord g = grant(10L, 20L, 3);
@@ -177,29 +184,27 @@ class FactoryAssembledTwoStoreTest {
 
   @Test
   void remappingOneKindsStoreNameMovesItWithNoOtherChange() {
-    // Gate 2. Under mapping A the grant kind rides the default entry into the JDBC store.
+    // Under mapping A both kinds name the JDBC store: co-location, stated explicitly (there is no
+    // default entry to ride).
     Map<RecordKind, String> mappingA = new HashMap<>();
-    Function<RecordKind, DurableRecordStore> assemblyA =
-        factory.produce(mappingA, MAIN, bothStores());
+    mappingA.put(PolarisRecordKinds.ENTITY, MAIN);
+    mappingA.put(PolarisRecordKinds.GRANT_RECORD, MAIN);
     PolarisGrantRecord before = grant(10L, 20L, 3);
     assertThat(
-            new DefaultDurableOrchestrator(assemblyA)
+            orchestratorFor(mappingA)
                 .commit(List.of(createEntity(entity(10L, "catalog")), createGrant(before)))
                 .isApplied())
         .isTrue();
     assertThat(jdbcStore.get(grantRef(before), PolarisGrantRecord.class)).isPresent();
 
-    // The integrator's whole change: ONE map entry. Same stores, same default, same
-    // construction path.
+    // The integrator's whole change: ONE map entry's value. Same stores, same construction path.
     Map<RecordKind, String> mappingB = new HashMap<>(mappingA);
     mappingB.put(PolarisRecordKinds.GRANT_RECORD, AUTHZ);
-    assertThat(mappingB).hasSize(mappingA.size() + 1);
+    assertThat(mappingB).hasSize(mappingA.size());
 
-    Function<RecordKind, DurableRecordStore> assemblyB =
-        factory.produce(mappingB, MAIN, bothStores());
     PolarisGrantRecord after = grant(10L, 21L, 3);
     assertThat(
-            new DefaultDurableOrchestrator(assemblyB)
+            orchestratorFor(mappingB)
                 .commit(List.of(createEntity(entity(11L, "catalog2")), createGrant(after)))
                 .isApplied())
         .isTrue();

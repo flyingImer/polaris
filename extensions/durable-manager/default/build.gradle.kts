@@ -27,7 +27,7 @@ dependencies {
   compileOnly(libs.jspecify)
 
   testImplementation(project(":polaris-extensions-orchestration-default"))
-  testImplementation(project(":polaris-extensions-primitives-factory-default"))
+  testImplementation(project(":polaris-extensions-primitives-routing-default"))
   testImplementation(project(":polaris-treemap"))
   testImplementation(project(":polaris-relational-jdbc"))
   testImplementation(libs.h2)

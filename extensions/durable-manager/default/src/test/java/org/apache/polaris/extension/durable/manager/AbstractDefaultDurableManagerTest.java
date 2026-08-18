@@ -18,23 +18,26 @@
  */
 package org.apache.polaris.extension.durable.manager;
 
+import java.util.List;
 import java.util.Map;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.BaseDurableManagerTest;
+import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
-import org.apache.polaris.extension.primitives.factory.DefaultDurableRecordStoreFactory;
+import org.apache.polaris.extension.primitives.routing.MappedDurableRecordStoreLocator;
+import org.apache.polaris.extension.primitives.routing.RoutingDurableRecordStore;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
  * Wires {@link DefaultDurableManager} into {@link BaseDurableManagerTest} against a fresh {@link
- * DurableRecordStore} per test, assembled through the same factory and orchestrator every
- * production deployment uses.
+ * DurableRecordStore} per test, assembled through the same mapped locator, routing store, and
+ * orchestrator every production deployment uses.
  *
  * <p>The {@link PolarisCallContext} handed to the manager under test carries a {@link
  * NeverCallOldPrimitives} stub whose every method throws. That stub is not filler: it is the test's
@@ -58,15 +61,27 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
   @Override
   protected PolarisTestMetaStoreManager createPolarisTestMetaStoreManager() {
     DurableRecordStore store = newStore();
-    var storeForKind =
-        new DefaultDurableRecordStoreFactory().produce(Map.of(), "main", Map.of("main", store));
-    var orchestrator = new DefaultDurableOrchestrator(storeForKind);
+    // The real assembly path, single-store: every kind mapped explicitly (no default store), the
+    // routing implementation as the ONE primitives handle both collaborators hold.
+    DurableRecordStore primitives =
+        new RoutingDurableRecordStore(
+            new MappedDurableRecordStoreLocator(
+                Map.of(
+                    PolarisRecordKinds.ENTITY, "main",
+                    PolarisRecordKinds.GRANT_RECORD, "main",
+                    PolarisRecordKinds.POLICY_MAPPING, "main",
+                    PolarisRecordKinds.PRINCIPAL_SECRETS, "main",
+                    PolarisRecordKinds.EVENT, "main"),
+                Map.of("main", store)),
+            List.of(store),
+            store);
+    var orchestrator = new DefaultDurableOrchestrator(primitives);
     var manager =
         new DefaultDurableManager(
             clock,
             new PolarisDefaultDiagServiceImpl(),
             orchestrator,
-            storeForKind,
+            primitives,
             PrincipalSecretsGenerator.RANDOM_SECRETS);
 
     RealmContext realmContext = () -> "testRealm";

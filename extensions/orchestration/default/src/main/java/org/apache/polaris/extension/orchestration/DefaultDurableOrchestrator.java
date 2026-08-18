@@ -22,28 +22,35 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
-import java.util.function.Function;
 import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.Precondition;
-import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
  * The default implementation of {@link DurableOrchestrator}, and the in-process one: groups
- * in-process, commits each group on its own primitives implementation, compensates synchronously on
+ * in-process, commits each group through the one primitives handle, compensates synchronously on
  * this thread.
  *
- * <p><b>Construction is the hand-wired stand-in for the factory's realm-scoped assembly.</b> The
- * kind-to-store-name-to-implementation mapping machinery is the factory's business; this class
- * takes the already-resolved form of it, a function from record kind to the store holding that
- * kind, and asks nothing else about topology. A kind the function cannot resolve is a configuration
- * error and is rejected, never guessed at.
+ * <p><b>Construction takes ONE primitives handle and nothing else about storage.</b> This class
+ * holds a single {@link DurableRecordStore} — in a multi-store deployment that handle is the
+ * routing implementation, whose kind-to-store mapping hides BEHIND the primitives SPI (decided
+ * 2026-08-18, dissolving the factory whose resolved kind-keyed function used to be handed here).
+ * Orchestration therefore never learns that stores exist: it asks the handle {@code domainOf} per
+ * target and groups by the answers. A kind the handle cannot resolve is rejected by the handle
+ * itself, naming the kind, before anything commits.
+ *
+ * <p><b>A domain is the opaque {@code domainOf} value alone.</b> The handle is the single declaring
+ * store, so its values are comparable among themselves by the SPI's own rule (opaque, comparable
+ * within the declaring store). The routing implementation forwards each backend's identity-distinct
+ * declaration untouched, which is what keeps two co-located kinds mergeable; a hypothetical backend
+ * pair declaring colliding values degrades LOUDLY — the merged group is refused by the routing
+ * {@code commit} as {@code DOMAIN_MISMATCH} — never silently.
  *
  * <p><b>One code path for any number of domains.</b> The list is grouped, the groups commit in
  * order, and a failure compensates the groups already committed. A single-domain list produces one
@@ -77,37 +84,27 @@ import org.jspecify.annotations.Nullable;
  */
 public class DefaultDurableOrchestrator implements DurableOrchestrator {
 
-  private final Function<RecordKind, DurableRecordStore> storeForKind;
+  private final DurableRecordStore primitives;
 
   /**
-   * @param storeForKind resolves the store holding each record kind — the already-resolved form of
-   *     the factory's realm-scoped assembly. Returning null marks the kind unknown to this
-   *     assembly.
+   * @param primitives the one primitives handle every read, commit, and declaration goes through —
+   *     the routing implementation in a multi-store deployment, a single backend otherwise
    */
-  public DefaultDurableOrchestrator(
-      @NonNull Function<RecordKind, DurableRecordStore> storeForKind) {
-    this.storeForKind = storeForKind;
-  }
-
-  /**
-   * A group's atomicity domain: the declaring store and its opaque domain value. The store is part
-   * of the key because domain values are opaque and comparable only within the store that declared
-   * them; two distinct stores may both declare equal-looking constants without sharing a domain.
-   * Store identity, not store equality: two instances are two stores.
-   */
-  private record Domain(DurableRecordStore store, Object value) {
-    private Domain {
-      Objects.requireNonNull(store);
-      Objects.requireNonNull(value);
-    }
+  public DefaultDurableOrchestrator(@NonNull DurableRecordStore primitives) {
+    this.primitives = primitives;
   }
 
   /** One adjacent run of same-domain mutations: what the loop below hands to one commit. */
-  private record Group(Domain domain, List<Mutation> mutations) {}
+  private record Group(Object domain, List<Mutation> mutations) {
+    private Group {
+      Objects.requireNonNull(domain);
+    }
+  }
 
-  /** A committed group remembered for possible rollback: where, what, and how to reverse it. */
-  private record CommittedGroup(
-      DurableRecordStore store, List<Mutation> mutations, List<Mutation> undo) {}
+  /**
+   * A committed group remembered for possible rollback: what was applied, and how to reverse it.
+   */
+  private record CommittedGroup(List<Mutation> mutations, List<Mutation> undo) {}
 
   @Override
   public @NonNull OrchestrationResult commit(@NonNull List<Mutation> mutations) {
@@ -115,15 +112,14 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
 
     List<CommittedGroup> committed = new ArrayList<>();
     for (int index = 0; index < groups.size(); index++) {
-      DurableRecordStore store = groups.get(index).domain().store();
       List<Mutation> group = groups.get(index).mutations();
       boolean hasSuccessor = index + 1 < groups.size();
 
-      List<Mutation> undo = hasSuccessor ? captureUndo(store, group) : List.of();
+      List<Mutation> undo = hasSuccessor ? captureUndo(group) : List.of();
 
       CommitResult result;
       try {
-        result = store.commit(group);
+        result = primitives.commit(group);
       } catch (RuntimeException e) {
         List<Mutation> uncompensated = compensate(committed);
         if (!uncompensated.isEmpty()) {
@@ -144,7 +140,7 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
             : OrchestrationResult.rollbackIncomplete(result, uncompensated);
       }
 
-      committed.add(new CommittedGroup(store, group, undo));
+      committed.add(new CommittedGroup(group, undo));
     }
     return OrchestrationResult.applied();
   }
@@ -170,13 +166,13 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
     List<Group> groups = new ArrayList<>();
     Group current = null;
     for (Mutation mutation : mutations) {
-      Domain domain = domainOf(mutation.target());
+      Object domain = domainOf(mutation.target());
       for (Precondition precondition : mutation.preconditions()) {
         Optional<RecordRef> conditionRef = precondition.ref();
         if (conditionRef.isEmpty()) {
           continue;
         }
-        Domain conditionDomain = domainOf(conditionRef.get());
+        Object conditionDomain = domainOf(conditionRef.get());
         if (!domain.equals(conditionDomain)) {
           throw new IllegalArgumentException(
               "A mutation's write target and condition targets must share one atomicity domain;"
@@ -198,13 +194,8 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
     return groups;
   }
 
-  private Domain domainOf(RecordRef ref) {
-    DurableRecordStore store = storeForKind.apply(ref.kind());
-    if (store == null) {
-      throw new IllegalArgumentException(
-          "No store holds record kind '" + ref.kind().id() + "' in this assembly");
-    }
-    return new Domain(store, store.domainOf(ref));
+  private Object domainOf(RecordRef ref) {
+    return primitives.domainOf(ref);
   }
 
   /**
@@ -213,10 +204,10 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
    * An UPDATE whose target is concurrently absent inverts to a DELETE of what the update is about
    * to write; a DELETE whose target is already absent needs no inverse at all.
    */
-  private List<Mutation> captureUndo(DurableRecordStore store, List<Mutation> group) {
+  private List<Mutation> captureUndo(List<Mutation> group) {
     List<Mutation> undo = new ArrayList<>(group.size());
     for (Mutation mutation : group) {
-      Mutation inverse = inverseOf(store, mutation);
+      Mutation inverse = inverseOf(mutation);
       if (inverse != null) {
         undo.add(inverse);
       }
@@ -224,18 +215,18 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
     return undo;
   }
 
-  private @Nullable Mutation inverseOf(DurableRecordStore store, Mutation mutation) {
+  private @Nullable Mutation inverseOf(Mutation mutation) {
     return switch (mutation.op()) {
       case CREATE -> Mutation.of(mutation.kind(), Mutation.Op.DELETE, mutation.target(), null);
       case UPDATE -> {
-        Optional<Object> prior = store.get(mutation.target(), Object.class);
+        Optional<Object> prior = primitives.get(mutation.target(), Object.class);
         yield prior
             .map(p -> Mutation.of(mutation.kind(), Mutation.Op.UPDATE, mutation.target(), p))
             .orElseGet(
                 () -> Mutation.of(mutation.kind(), Mutation.Op.DELETE, mutation.target(), null));
       }
       case DELETE -> {
-        Optional<Object> prior = store.get(mutation.target(), Object.class);
+        Optional<Object> prior = primitives.get(mutation.target(), Object.class);
         yield prior
             .map(p -> Mutation.of(mutation.kind(), Mutation.Op.CREATE, mutation.target(), p))
             .orElse(null);
@@ -258,7 +249,7 @@ public class DefaultDurableOrchestrator implements DurableOrchestrator {
         continue;
       }
       try {
-        CommitResult result = group.store().commit(group.undo());
+        CommitResult result = primitives.commit(group.undo());
         if (!result.isApplied()) {
           uncompensated.addAll(group.mutations());
         }

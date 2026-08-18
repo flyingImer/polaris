@@ -44,13 +44,18 @@ import org.junit.jupiter.api.Test;
 
 /**
  * Behaviour of the orchestration seam, asserted against the contract only: grouping, ordering,
- * compensation. The store here is a scripted double so the cases observe what the orchestrator
- * does, never how any real store achieves atomicity; the end-to-end multi-store path against real
- * stores is {@link TwoStoreDemoTest}.
+ * compensation. The stores here are scripted doubles behind {@link KindRoutedTestStore}, the
+ * contract-shaped stand-in for the routing primitives handle, so the cases observe what the
+ * orchestrator does, never how any real store achieves atomicity; the end-to-end multi-store path
+ * against real stores is {@link TwoStoreDemoTest}, and the orchestrator runs over the REAL routing
+ * implementation in that module's Seam-2 conformance runner and two-store tests.
  *
- * <p>Both doubles deliberately declare the same constant domain VALUE: domain values are opaque and
- * comparable only within the store that declared them, so equal values from two stores must still
- * be two domains. The grouping cases would break if the implementation keyed on the value alone.
+ * <p>The orchestrator holds ONE primitives handle and groups by the bare {@code domainOf} value it
+ * answers (the (store, value) pair collapsed by decision 2026-08-18); each double therefore
+ * declares its own distinct default value, mirroring the identity-distinct declarations of the
+ * shipped stores. The colliding-values case — two backends declaring equal values behind one
+ * routing handle — is pinned where its subject lives, in the routing store's own tests: it fails
+ * loudly as {@code DOMAIN_MISMATCH}, never as a silent cross-store commit.
  */
 class DefaultDurableOrchestratorTest {
 
@@ -68,8 +73,9 @@ class DefaultDurableOrchestratorTest {
     commitSequence = new ArrayList<>();
     storeA = new TestStore("A", commitSequence);
     storeB = new TestStore("B", commitSequence);
-    Map<RecordKind, DurableRecordStore> wiring = Map.of(ALPHA, storeA, BETA, storeA, GAMMA, storeB);
-    orchestrator = new DefaultDurableOrchestrator(wiring::get);
+    orchestrator =
+        new DefaultDurableOrchestrator(
+            new KindRoutedTestStore(Map.of(ALPHA, storeA, BETA, storeA, GAMMA, storeB)));
   }
 
   private static RecordRef ref(RecordKind kind, long id) {
@@ -102,19 +108,6 @@ class DefaultDurableOrchestratorTest {
     assertThat(storeB.commits).hasSize(1);
     // The caller's list order is the write order across domains: GAMMA (store B) appears first.
     assertThat(commitSequence).containsExactly("B", "A");
-  }
-
-  @Test
-  void equalDomainValuesFromTwoStoresAreStillTwoDomains() {
-    // Both doubles declare the same constant "d"; keying on the value alone would merge them
-    // into one group and reach one store with the other store's mutations.
-    OrchestrationResult result = orchestrator.commit(List.of(create(ALPHA, 1), create(GAMMA, 2)));
-
-    assertThat(result.isApplied()).isTrue();
-    assertThat(storeA.commits).hasSize(1);
-    assertThat(storeA.commits.get(0)).extracting(Mutation::kind).containsExactly(ALPHA);
-    assertThat(storeB.commits).hasSize(1);
-    assertThat(storeB.commits.get(0)).extracting(Mutation::kind).containsExactly(GAMMA);
   }
 
   @Test
@@ -243,8 +236,8 @@ class DefaultDurableOrchestratorTest {
     List<String> order = new ArrayList<>();
     TestStore partitioned = new TestStore("P", order);
     partitioned.domainFn = target -> target.key().get(0); // domain = the id itself
-    Map<RecordKind, DurableRecordStore> wiring = Map.of(ALPHA, partitioned);
-    DefaultDurableOrchestrator local = new DefaultDurableOrchestrator(wiring::get);
+    DefaultDurableOrchestrator local =
+        new DefaultDurableOrchestrator(new KindRoutedTestStore(Map.of(ALPHA, partitioned)));
 
     partitioned.responder =
         mutations ->
@@ -376,8 +369,9 @@ class DefaultDurableOrchestratorTest {
 
   /**
    * A scripted store: records every commit and read, answers get() from a primed map, declares
-   * domains via a configurable function (constant by default, deliberately the same constant in
-   * every instance), and fails on script. Reads the orchestrator never needs are unsupported.
+   * domains via a configurable function (a per-instance constant by default, mirroring the shipped
+   * stores' identity-distinct declarations), and fails on script. Reads the orchestrator never
+   * needs are unsupported.
    */
   private static final class TestStore implements DurableRecordStore {
     final List<List<Mutation>> commits = new ArrayList<>();
@@ -386,11 +380,12 @@ class DefaultDurableOrchestratorTest {
     final String name;
     final List<String> sequence;
     Function<List<Mutation>, CommitResult> responder = mutations -> CommitResult.applied();
-    Function<RecordRef, Object> domainFn = target -> "d";
+    Function<RecordRef, Object> domainFn;
 
     TestStore(String name, List<String> sequence) {
       this.name = name;
       this.sequence = sequence;
+      this.domainFn = target -> "domain-of-" + name;
     }
 
     @Override

@@ -32,7 +32,6 @@ import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
-import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -59,11 +58,12 @@ class TwoStoreDemoTest {
   void setUp() {
     entityStore = new TreeMapDurableRecordStore(DIAGNOSTICS);
     grantStore = new TreeMapDurableRecordStore(DIAGNOSTICS);
-    Map<RecordKind, DurableRecordStore> wiring =
-        Map.of(
-            PolarisRecordKinds.ENTITY, entityStore,
-            PolarisRecordKinds.GRANT_RECORD, grantStore);
-    orchestrator = new DefaultDurableOrchestrator(wiring::get);
+    DurableRecordStore primitives =
+        new KindRoutedTestStore(
+            Map.of(
+                PolarisRecordKinds.ENTITY, entityStore,
+                PolarisRecordKinds.GRANT_RECORD, grantStore));
+    orchestrator = new DefaultDurableOrchestrator(primitives);
   }
 
   private static PolarisBaseEntity entity(long id, String name) {

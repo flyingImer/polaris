@@ -32,12 +32,14 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
-import org.apache.polaris.extension.primitives.factory.DefaultDurableRecordStoreFactory;
+import org.apache.polaris.extension.primitives.routing.MappedDurableRecordStoreLocator;
+import org.apache.polaris.extension.primitives.routing.RoutingDurableRecordStore;
 import org.apache.polaris.persistence.treemap.TreeMapDurableRecordStore;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.junit.jupiter.api.BeforeEach;
@@ -48,8 +50,8 @@ import org.junit.jupiter.api.Test;
  * loadEntity}, {@code readEntityByName}, {@code listEntities}, {@code listFullEntities}, {@code
  * loadEntitiesChangeTracking}, {@code createEntityIfNotExists}, {@code createEntitiesIfNotExist} —
  * against {@link DefaultDurableManager} assembled the same way {@link
- * AbstractDefaultDurableManagerTest} assembles it: a fresh {@link TreeMapDurableRecordStore}
- * through {@link DefaultDurableRecordStoreFactory} and {@link DefaultDurableOrchestrator}.
+ * AbstractDefaultDurableManagerTest} assembles it: a fresh {@link TreeMapDurableRecordStore} behind
+ * {@link RoutingDurableRecordStore} and {@link DefaultDurableOrchestrator}.
  *
  * <p><b>This is scaffolding, not the ticket's parity evidence.</b> {@link
  * org.apache.polaris.core.persistence.BaseDurableManagerTest} is the judge of parity. As of
@@ -68,15 +70,25 @@ class DefaultDurableManagerEntityOpsTest {
   @BeforeEach
   void setup() {
     DurableRecordStore store = new TreeMapDurableRecordStore(new PolarisDefaultDiagServiceImpl());
-    var storeForKind =
-        new DefaultDurableRecordStoreFactory().produce(Map.of(), "main", Map.of("main", store));
-    var orchestrator = new DefaultDurableOrchestrator(storeForKind);
+    DurableRecordStore primitives =
+        new RoutingDurableRecordStore(
+            new MappedDurableRecordStoreLocator(
+                Map.of(
+                    PolarisRecordKinds.ENTITY, "main",
+                    PolarisRecordKinds.GRANT_RECORD, "main",
+                    PolarisRecordKinds.POLICY_MAPPING, "main",
+                    PolarisRecordKinds.PRINCIPAL_SECRETS, "main",
+                    PolarisRecordKinds.EVENT, "main"),
+                Map.of("main", store)),
+            List.of(store),
+            store);
+    var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
         new DefaultDurableManager(
             Clock.systemUTC(),
             new PolarisDefaultDiagServiceImpl(),
             orchestrator,
-            storeForKind,
+            primitives,
             PrincipalSecretsGenerator.RANDOM_SECRETS);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());

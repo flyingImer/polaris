@@ -24,7 +24,6 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
-import java.util.function.Function;
 import org.apache.polaris.core.durable.conformance.CommitRecordingDurableRecordStore.RecordedCommit;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -69,17 +68,16 @@ public abstract class BaseDurableOrchestratorConformanceTest {
   protected abstract DurableRecordStore newAuthzStore();
 
   /**
-   * The realm-scoped assembly over the two given stores, routing {@code GRANT_RECORD} to {@code
-   * authz} and every other kind (the default) to {@code main}. The local runner produces this
-   * through the real factory; a remote runner wires its transport however it likes, as long as the
-   * routing holds and every request passes through the given instances.
+   * The ONE primitives handle over the two given stores, routing {@code GRANT_RECORD} to {@code
+   * authz} and every other kind to {@code main} (every kind mapped explicitly — there is no default
+   * store). The local runner assembles the routing implementation over a mapped locator; a remote
+   * runner wires its transport however it likes, as long as the routing holds and every request
+   * passes through the given instances.
    */
-  protected abstract Function<RecordKind, DurableRecordStore> assemble(
-      DurableRecordStore main, DurableRecordStore authz);
+  protected abstract DurableRecordStore assemble(DurableRecordStore main, DurableRecordStore authz);
 
-  /** The orchestrator under test, constructed over the given assembly. */
-  protected abstract DurableOrchestrator orchestratorOver(
-      Function<RecordKind, DurableRecordStore> assembly);
+  /** The orchestrator under test, constructed over the given primitives handle. */
+  protected abstract DurableOrchestrator orchestratorOver(DurableRecordStore primitives);
 
   protected List<RecordedCommit> log;
   protected CommitRecordingDurableRecordStore main;
