@@ -21,13 +21,18 @@ package org.apache.polaris.extension.durable.manager;
 import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.function.ToLongFunction;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.config.FeatureConfiguration;
+import org.apache.polaris.core.entity.AsyncTaskType;
+import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.EntityNameLookupRecord;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -41,9 +46,11 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -179,20 +186,27 @@ public class DefaultDurableManager
 
   /**
    * Deliberate parity choice, matching {@code AtomicOperationMetaStoreManager} and diverging from
-   * {@code TransactionalMetaStoreManagerImpl}: {@code catalogPath} is never re-resolved against the
-   * store. For reads this derives catalogId/parentId directly from the path the same way Atomic
-   * does (raw {@code 0L} there; the named constants here are the same value). For creates, see
-   * {@link #createEntityIfNotExists}: catalogPath is not even consulted there, because Atomic
-   * itself takes catalogId/parentId from the entity object, not from the path.
+   * {@code TransactionalMetaStoreManagerImpl}: for plain reads and for {@link
+   * #createEntityIfNotExists}'s id/name derivation, {@code catalogPath} is never re-resolved
+   * against the store — it derives catalogId/parentId directly from the path the same way Atomic
+   * does (raw {@code 0L} there; the named constants here are the same value).
    *
-   * <p>Consequence, disclosed rather than silently matched: this manager never returns {@code
-   * CATALOG_PATH_CANNOT_BE_RESOLVED} or {@code ENTITY_CANNOT_BE_RESOLVED}, which is exactly {@code
-   * AtomicOperationMetaStoreManager}'s behavior and diverges from {@code
-   * TransactionalMetaStoreManagerImpl}, which re-resolves the path through the package-private
-   * {@code PolarisEntityResolver} and can return both. The fixture does not discriminate between
-   * the two (Atomic passes it today). Hardening the path check into {@code EXISTS} preconditions on
-   * the path entities is available under C7 but is an improvement over parity, not parity itself,
-   * and is out of scope here.
+   * <p><b>CORRECTION to this method's increment-2 disclosure</b> (EJ's retrofit, 2026-08-17): that
+   * text claimed this manager never returns {@code CATALOG_PATH_CANNOT_BE_RESOLVED}, matching only
+   * Atomic. It now does, for {@link #createEntityIfNotExists}, {@link #createEntitiesIfNotExist},
+   * {@link #renameEntity} and {@link #dropEntityIfExists}: each attaches an {@code EXISTS}
+   * precondition per {@code catalogPath} entity to its mutation (see {@link
+   * #pathExistsPreconditions}), so a path entity deleted between the read below and the commit
+   * fails the write instead of silently succeeding underneath it — the concrete failure mode this
+   * closes is a table left hanging under a concurrently-dropped namespace, which Atomic's own
+   * unconditional derivation cannot detect. This is a REAL happens-before guarantee neither old
+   * implementation has: Atomic never re-checks the path at all, and Transactional's re-check (via
+   * the package-private {@code PolarisEntityResolver}) is safe only because it runs inside the same
+   * DB transaction as the write — nothing states that as a condition, a wrapping transaction just
+   * happens to serialize against the concurrent delete. {@code updateEntityPropertiesIfNotChanged}
+   * and its batch form deliberately do NOT get this treatment: neither old implementation's update
+   * path uses {@code catalogPath} to reach the entity being updated (it is resolved directly by
+   * catalogId+id), so there is no "hanging under a deleted path" failure mode for update to close.
    */
   private static long catalogIdOf(@Nullable List<PolarisEntityCore> catalogPath) {
     return catalogPath == null || catalogPath.isEmpty()
@@ -204,6 +218,59 @@ public class DefaultDurableManager
     return catalogPath == null || catalogPath.isEmpty()
         ? PolarisEntityConstants.getRootEntityId()
         : catalogPath.get(catalogPath.size() - 1).getId();
+  }
+
+  /**
+   * EJ's retrofit (2026-08-17): one {@link Precondition#exists} per distinct entity across both
+   * path arguments, so the store checks at commit time that every element the caller resolved this
+   * write against is still there. Path entities are {@code ENTITY} records like the write target
+   * they gate, so they share the atomicity domain and add no extra round trip.
+   *
+   * @param extraPath a second path to fold in, deduplicated against {@code path} by id — {@link
+   *     #renameEntity} is the only caller that passes one, for the destination path alongside the
+   *     source path
+   */
+  private static List<Precondition> pathExistsPreconditions(
+      @Nullable List<PolarisEntityCore> path, @Nullable List<PolarisEntityCore> extraPath) {
+    return pathIds(path, extraPath).stream()
+        .map(id -> Precondition.exists(entityIdentity(id)))
+        .toList();
+  }
+
+  /** The identity refs {@link #pathExistsPreconditions} declared, for mapping a failure back. */
+  private static Set<RecordRef> pathRefs(
+      @Nullable List<PolarisEntityCore> path, @Nullable List<PolarisEntityCore> extraPath) {
+    Set<RecordRef> refs = new HashSet<>();
+    for (long id : pathIds(path, extraPath)) {
+      refs.add(entityIdentity(id));
+    }
+    return refs;
+  }
+
+  private static Set<Long> pathIds(
+      @Nullable List<PolarisEntityCore> path, @Nullable List<PolarisEntityCore> extraPath) {
+    Set<Long> ids = new HashSet<>();
+    if (path != null) {
+      path.forEach(e -> ids.add(e.getId()));
+    }
+    if (extraPath != null) {
+      extraPath.forEach(e -> ids.add(e.getId()));
+    }
+    return ids;
+  }
+
+  /**
+   * True when {@code result}'s reported failed preconditions include one whose {@link
+   * Precondition#ref()} names a path entity — distinguishes a stale {@code catalogPath} from an
+   * ordinary uniqueness/version race on the same commit. Relies on {@code
+   * CommitResult#failedPreconditions()}'s own disclosure that a store may report only a subset (at
+   * least one, per {@code TreeMapDurableRecordStore}'s stop-at-first-failure behavior verified in
+   * increment 3): this checks membership rather than counting, so reporting one is enough.
+   */
+  private static boolean failedOnPath(
+      @NonNull OrchestrationResult result, @NonNull Set<RecordRef> pathRefs) {
+    return result.groupFailure().map(CommitResult::failedPreconditions).orElse(List.of()).stream()
+        .anyMatch(p -> p.ref().filter(pathRefs::contains).isPresent());
   }
 
   /**
@@ -289,6 +356,7 @@ public class DefaultDurableManager
   private EntityResult mapFailedCreate(
       @NonNull DurableRecordStore store,
       @NonNull RecordRef uniqueness,
+      @NonNull Set<RecordRef> pathRefs,
       @NonNull OrchestrationResult result) {
     if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
       return new EntityResult(
@@ -303,6 +371,11 @@ public class DefaultDurableManager
       // an ordinary race; surfacing it as ENTITY_ALREADY_EXISTS would misreport the cause.
       return new EntityResult(
           BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    if (failedOnPath(result, pathRefs)) {
+      // The retrofit (see catalogIdOf's javadoc): a path entity was gone by commit time. Matches
+      // TransactionalMetaStoreManagerImpl's status for exactly this situation.
+      return new EntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
     }
     // Lost the race between our pre-check read and the commit: something else created the same
     // (parent, type, name) in between. Re-read to report its subtype, mirroring the pre-check
@@ -378,10 +451,16 @@ public class DefaultDurableManager
       @NonNull PolarisEntityType entityType,
       @NonNull PolarisEntitySubType entitySubType,
       @NonNull PageToken pageToken) {
+    // Mutable, not Stream#toList()'s unmodifiable result: found by testDropEntities (increment 5),
+    // whose dropEntity helper calls children.clear() on this exact return value when exactly one
+    // catalog role is left. A real increment-2 bug, only reachable once drop existed to walk that
+    // far — fixed here since it blocks this increment's own target, not the type_code anchor gap
+    // the tripwire on this method is actually about.
     List<EntityNameLookupRecord> records =
-        listChildEntities(catalogPath, entityType, entitySubType, pageToken).stream()
-            .map(EntityNameLookupRecord::new)
-            .toList();
+        new ArrayList<>(
+            listChildEntities(catalogPath, entityType, entitySubType, pageToken).stream()
+                .map(EntityNameLookupRecord::new)
+                .toList());
     return ListEntitiesResult.fromPage(Page.page(pageToken, records, null));
   }
 
@@ -689,9 +768,9 @@ public class DefaultDurableManager
     diagnostics.checkNotNull(entity, "unexpected_null_entity");
     diagnostics.checkNotNull(entity.getName(), "unexpected_null_entity_name");
 
-    // catalogPath is accepted but not consulted: AtomicOperationMetaStoreManager's own create path
-    // takes catalogId/parentId from the entity object, never from catalogPath. See catalogIdOf's
-    // javadoc for the parity choice this follows.
+    // catalogId/parentId are taken from the entity object, never re-derived from catalogPath:
+    // AtomicOperationMetaStoreManager's own create path does the same. catalogPath is still
+    // consulted below, for the retrofit's EXISTS preconditions — see catalogIdOf's javadoc.
     PolarisBaseEntity prepared = prepareNewEntity(entity);
     DurableRecordStore store = entityStore();
     RecordRef uniqueness =
@@ -718,6 +797,8 @@ public class DefaultDurableManager
               BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, existing.get().getSubTypeCode());
     }
 
+    List<Precondition> preconditions = new ArrayList<>(pathExistsPreconditions(catalogPath, null));
+    preconditions.add(Precondition.notExists(uniqueness));
     OrchestrationResult result =
         orchestrator.commit(
             List.of(
@@ -726,10 +807,10 @@ public class DefaultDurableManager
                     Mutation.Op.CREATE,
                     entityIdentity(prepared.getId()),
                     prepared,
-                    List.of(Precondition.notExists(uniqueness)))));
+                    preconditions)));
     return result.isApplied()
         ? new EntityResult(prepared)
-        : mapFailedCreate(store, uniqueness, result);
+        : mapFailedCreate(store, uniqueness, pathRefs(catalogPath, null), result);
   }
 
   @Override
@@ -770,13 +851,16 @@ public class DefaultDurableManager
       }
       resolved.add(prepared);
       if (existing.isEmpty()) {
+        List<Precondition> preconditions =
+            new ArrayList<>(pathExistsPreconditions(catalogPath, null));
+        preconditions.add(Precondition.notExists(uniqueness));
         mutations.add(
             Mutation.of(
                 PolarisRecordKinds.ENTITY,
                 Mutation.Op.CREATE,
                 entityIdentity(prepared.getId()),
                 prepared,
-                List.of(Precondition.notExists(uniqueness))));
+                preconditions));
       }
       // else: idempotent retry, same id — no mutation needed, `resolved` already carries the
       // entity we were trying to create.
@@ -799,27 +883,198 @@ public class DefaultDurableManager
               + " mutation(s) require admin reclamation");
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    return failure == CommitResult.Failure.PRECONDITION_FAILED
-        ? new EntitiesResult(
-            BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
-            "lost the race against a concurrent create for one or more entities in this batch")
-        : new EntitiesResult(BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      return new EntitiesResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    if (failedOnPath(result, pathRefs(catalogPath, null))) {
+      return new EntitiesResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
+    }
+    return new EntitiesResult(
+        BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+        "lost the race against a concurrent create for one or more entities in this batch");
   }
 
+  /**
+   * Rebuilds from a fresh read, overlaying ONLY {@code properties}/{@code internalProperties} —
+   * {@code TransactionalMetaStoreManagerImpl}'s shape (its {@code
+   * updateEntityPropertiesIfNotChanged} re-reads and copies across just those two fields), not
+   * {@code AtomicOperationMetaStoreManager}'s, which persists the caller's {@code entity} argument
+   * verbatim and so silently writes back whatever stale {@code parentId}/{@code name}/timestamps
+   * the caller's copy happened to carry. The brief calls for Transactional's shape here; this
+   * follows it.
+   *
+   * <p>{@code catalogPath} is accepted but not consulted, same parity choice {@link #catalogIdOf}
+   * documents elsewhere — but for a different reason than usual: it is not merely unconsulted by
+   * the old impl this follows for parity, it is genuinely irrelevant to the write. Neither old
+   * implementation resolves the entity being updated THROUGH its path; both go straight to it by
+   * {@code catalogId}+{@code id}. {@code TransactionalMetaStoreManagerImpl} DOES additionally
+   * re-resolve {@code catalogPath} via the package-private {@code PolarisEntityResolver} and can
+   * return {@code CATALOG_PATH_CANNOT_BE_RESOLVED} for a stale one — found while reading it for
+   * this increment, and NOT reproduced here: the retrofit's target failure mode is a write that
+   * SUCCEEDS underneath a deleted path (see {@link #catalogIdOf}'s javadoc), and an update's own
+   * version precondition below already fails a concurrently-changed entity regardless of what
+   * happened to its ancestors, so there is no equivalent hole for the retrofit to close. Flagging
+   * this rather than silently applying the retrofit here anyway, since the brief's own retrofit
+   * list names only the create paths plus this increment's rename/drop.
+   *
+   * <p>Not-found and stale-version COLLAPSE into the same {@code
+   * TARGET_ENTITY_CONCURRENTLY_MODIFIED} signal, matching {@code AtomicOperationMetaStoreManager}'s
+   * actually observed behavior rather than the weaker two-branch reading its own javadoc comment
+   * suggests: its write goes through {@code
+   * AbstractTransactionalPersistence#checkConditionsForWriteEntityInCurrentTxn}, whose update-path
+   * check is {@code if (refreshedEntity == null || refreshedEntity.getEntityVersion() !=
+   * originalEntity.getEntityVersion() || refreshedEntity.getGrantRecordsVersion() !=
+   * originalEntity.getGrantRecordsVersion()) throw RetryOnConcurrencyException} — absence and a
+   * stale version throw the identical exception, caught by {@code
+   * AtomicOperationMetaStoreManager#updateEntityPropertiesIfNotChanged} into one status. {@code
+   * TransactionalMetaStoreManagerImpl} diverges here too (its own not-found path is an uncaught
+   * {@code checkNotNull}, a crash rather than a status) but is not one of the fixture's five tested
+   * bindings, and the fixture's own {@code testUpdateEntities} — "update an entity which does not
+   * exist" — exercises exactly this and expects a graceful null, which only Atomic's shape
+   * delivers. Realized here as two {@code VERSION_EQUALS} preconditions mirroring {@link
+   * #bumpGrantRecordsVersion}'s own two-column CAS, since a {@code VERSION_EQUALS} precondition
+   * against an absent record already evaluates false (see {@code Precondition}'s {@code holds()}),
+   * so absence and staleness fail the same way without a separate branch.
+   */
   @Override
   public @NonNull EntityResult updateEntityPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx,
       @Nullable List<PolarisEntityCore> catalogPath,
       @NonNull PolarisBaseEntity entity) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(entity, "unexpected_null_entity");
+
+    RecordRef ref = entityIdentity(entity.getId());
+    Optional<PolarisBaseEntity> current = entityStore().get(ref, PolarisBaseEntity.class);
+    if (current.isEmpty()
+        || current.get().getEntityVersion() != entity.getEntityVersion()
+        || current.get().getGrantRecordsVersion() != entity.getGrantRecordsVersion()) {
+      return new EntityResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
+    }
+    PolarisBaseEntity currentEntity = current.get();
+
+    PolarisBaseEntity updated =
+        new PolarisBaseEntity.Builder(currentEntity)
+            .properties(entity.getProperties())
+            .internalProperties(entity.getInternalProperties())
+            .entityVersion(currentEntity.getEntityVersion() + 1)
+            // System.currentTimeMillis(), not clock.millis(): PolarisBaseEntity.Builder#build()'s
+            // own createTimestamp default is real wall-clock time, decoupled from any injected
+            // clock, and the fixture's testStartTime is captured the same way. This class's clock
+            // field is real in production; the fixture's own MutableClock is fixed at construction
+            // and only advances via explicit clock.add(...) (for ticket 92's task-leasing tests) —
+            // using it here made every update's timestamp read as BEFORE the entity's own
+            // real-time createTimestamp. Found by testUpdateEntities/testRename failing on exactly
+            // that ordering.
+            .lastUpdateTimestamp(System.currentTimeMillis())
+            .build();
+
+    OrchestrationResult result =
+        orchestrator.commit(List.of(entityPropertiesUpdateMutation(ref, currentEntity, updated)));
+    return result.isApplied()
+        ? new EntityResult(updated)
+        : new EntityResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
   }
 
+  /**
+   * The two-precondition {@code ENTITY} UPDATE shared by {@link
+   * #updateEntityPropertiesIfNotChanged} and its batch form: both halves of the CAS {@code
+   * checkConditionsForWriteEntityInCurrentTxn} performs (record version AND grant-records version,
+   * both asserted unchanged), gating the write that carries the new {@code properties}/{@code
+   * internalProperties} state.
+   */
+  private static Mutation entityPropertiesUpdateMutation(
+      @NonNull RecordRef ref,
+      @NonNull PolarisBaseEntity current,
+      @NonNull PolarisBaseEntity updated) {
+    return Mutation.of(
+        PolarisRecordKinds.ENTITY,
+        Mutation.Op.UPDATE,
+        ref,
+        updated,
+        List.of(
+            Precondition.versionEquals(
+                ref, Precondition.VersionAttribute.RECORD_VERSION, current.getEntityVersion()),
+            Precondition.versionEquals(
+                ref,
+                Precondition.VersionAttribute.GRANT_RECORDS_VERSION,
+                current.getGrantRecordsVersion())));
+  }
+
+  /**
+   * Same per-entity rule as the single form, applied across one atomic mutation list so the batch
+   * stays atomic — matching both old impls' batch shape (Atomic's single {@code ms.writeEntities}
+   * call, Transactional's one wrapping DB transaction): one entity failing its pre-check aborts the
+   * WHOLE batch before anything commits, rather than partially applying. {@code
+   * EntityWithPath#catalogPath()} is accepted (it rides on the record) but not consulted, for the
+   * same reason given in the single form's javadoc.
+   */
   @Override
   public @NonNull EntitiesResult updateEntitiesPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx, @NonNull List<EntityWithPath> entities) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(entities, "unexpected_null_entities");
+
+    List<PolarisBaseEntity> updated = new ArrayList<>(entities.size());
+    List<Mutation> mutations = new ArrayList<>(entities.size());
+
+    for (EntityWithPath entityWithPath : entities) {
+      PolarisBaseEntity entity = entityWithPath.entity();
+      RecordRef ref = entityIdentity(entity.getId());
+      Optional<PolarisBaseEntity> current = entityStore().get(ref, PolarisBaseEntity.class);
+      if (current.isEmpty()
+          || current.get().getEntityVersion() != entity.getEntityVersion()
+          || current.get().getGrantRecordsVersion() != entity.getGrantRecordsVersion()) {
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
+      }
+      PolarisBaseEntity currentEntity = current.get();
+      PolarisBaseEntity updatedEntity =
+          new PolarisBaseEntity.Builder(currentEntity)
+              .properties(entity.getProperties())
+              .internalProperties(entity.getInternalProperties())
+              .entityVersion(currentEntity.getEntityVersion() + 1)
+              // See the single form's javadoc: real wall-clock time, not this class's clock field.
+              .lastUpdateTimestamp(System.currentTimeMillis())
+              .build();
+      updated.add(updatedEntity);
+      mutations.add(entityPropertiesUpdateMutation(ref, currentEntity, updatedEntity));
+    }
+
+    if (mutations.isEmpty()) {
+      return new EntitiesResult(Page.fromItems(updated));
+    }
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    if (result.isApplied()) {
+      return new EntitiesResult(Page.fromItems(updated));
+    }
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new EntitiesResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    return new EntitiesResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
   }
 
+  /**
+   * One {@code UPDATE} mutation carrying {@link Mutation}'s own worked rename example verbatim: the
+   * source still at the version read, the destination name free, the destination parent still
+   * present — plus the retrofit's path-EXISTS hardening over both {@code catalogPath} and {@code
+   * newCatalogPath} (their union covers "destination parent still present" as one instance of the
+   * broader check, so it is not declared a second time). Ported structurally from both old impls,
+   * which are identical here except for {@code TransactionalMetaStoreManagerImpl}'s additional
+   * {@code PolarisEntityResolver} path re-check — which the retrofit's {@code EXISTS} preconditions
+   * now subsume with a real happens-before guarantee instead of a same-transaction coincidence (see
+   * {@link #catalogIdOf}'s javadoc).
+   *
+   * <p>{@code cannotBeDroppedOrRenamed()} → {@code ENTITY_CANNOT_BE_RENAMED}; a taken destination
+   * name → {@code ENTITY_ALREADY_EXISTS} carrying the existing entity's subtype code; a missing
+   * source → {@code ENTITY_NOT_FOUND}; a stale source version → {@code
+   * TARGET_ENTITY_CONCURRENTLY_MODIFIED} — all four read directly off both old impls' own {@code
+   * renameEntity}, which agree on every status here.
+   */
   @Override
   public @NonNull EntityResult renameEntity(
       @NonNull PolarisCallContext callCtx,
@@ -827,9 +1082,264 @@ public class DefaultDurableManager
       @NonNull PolarisBaseEntity entityToRename,
       @Nullable List<PolarisEntityCore> newCatalogPath,
       @NonNull PolarisEntity renamedEntity) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(entityToRename, "unexpected_null_entityToRename");
+    diagnostics.checkNotNull(renamedEntity, "unexpected_null_renamedEntity");
+    diagnostics.check(
+        newCatalogPath == null || catalogPath != null,
+        "newCatalogPath_specified_without_catalogPath");
+
+    // null newCatalogPath is shorthand for "the path isn't changing" (both old impls' own comment).
+    List<PolarisEntityCore> effectiveNewPath =
+        newCatalogPath == null ? catalogPath : newCatalogPath;
+
+    Optional<PolarisBaseEntity> found =
+        entityStore().get(entityIdentity(entityToRename.getId()), PolarisBaseEntity.class);
+    if (found.isEmpty()) {
+      return new EntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    PolarisBaseEntity current = found.get();
+
+    if (current.getEntityVersion() != renamedEntity.getEntityVersion()) {
+      return new EntityResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
+    }
+    if (current.cannotBeDroppedOrRenamed()) {
+      return new EntityResult(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RENAMED, null);
+    }
+
+    long newParentId = parentIdOf(effectiveNewPath);
+    RecordRef destinationUniqueness =
+        entityUniqueness(newParentId, current.getTypeCode(), renamedEntity.getName());
+    Optional<PolarisBaseEntity> destinationTaken =
+        entityStore().get(destinationUniqueness, PolarisBaseEntity.class);
+    if (destinationTaken.isPresent()) {
+      return new EntityResult(
+          BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, destinationTaken.get().getSubTypeCode());
+    }
+
+    PolarisBaseEntity.Builder updatedBuilder =
+        new PolarisBaseEntity.Builder(current)
+            .name(renamedEntity.getName())
+            .properties(renamedEntity.getProperties())
+            .internalProperties(renamedEntity.getInternalProperties())
+            .entityVersion(current.getEntityVersion() + 1)
+            // Real wall-clock time, not this class's clock field — see
+            // updateEntityPropertiesIfNotChanged's javadoc for why.
+            .lastUpdateTimestamp(System.currentTimeMillis());
+    if (newCatalogPath != null) {
+      updatedBuilder.parentId(newParentId);
+    }
+    PolarisBaseEntity updated = updatedBuilder.build();
+
+    RecordRef sourceRef = entityIdentity(current.getId());
+    List<Precondition> preconditions =
+        new ArrayList<>(pathExistsPreconditions(catalogPath, newCatalogPath));
+    preconditions.add(
+        Precondition.versionEquals(
+            sourceRef, Precondition.VersionAttribute.RECORD_VERSION, current.getEntityVersion()));
+    preconditions.add(Precondition.notExists(destinationUniqueness));
+
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.ENTITY,
+                    Mutation.Op.UPDATE,
+                    sourceRef,
+                    updated,
+                    preconditions)));
+    return result.isApplied()
+        ? new EntityResult(updated)
+        : mapFailedRename(
+            result, sourceRef, destinationUniqueness, pathRefs(catalogPath, newCatalogPath));
   }
 
+  /**
+   * Maps a non-applied rename {@link OrchestrationResult}, distinguishing which of the mutation's
+   * several declared preconditions failed by checking {@link CommitResult#failedPreconditions()}'s
+   * reported ref/attribute against each candidate. No old-model precedent: neither old impl commits
+   * rename as one atomic write with several declared conditions at once (each checks its conditions
+   * as separate reads before a single unconditioned persist), so there is no commit-outcome type to
+   * map from — this is a new decision, not a ported one.
+   */
+  private EntityResult mapFailedRename(
+      @NonNull OrchestrationResult result,
+      @NonNull RecordRef sourceRef,
+      @NonNull RecordRef destinationUniqueness,
+      @NonNull Set<RecordRef> pathRefs) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new EntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult groupFailure = result.groupFailure().orElseThrow();
+    CommitResult.Failure failure = groupFailure.failure().orElseThrow();
+    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      return new EntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    if (failedOnPath(result, pathRefs)) {
+      return new EntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
+    }
+    boolean sourceStale =
+        groupFailure.failedPreconditions().stream()
+            .anyMatch(
+                p ->
+                    p.op() == Precondition.Op.VERSION_EQUALS
+                        && p.ref().filter(sourceRef::equals).isPresent());
+    if (sourceStale) {
+      return new EntityResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
+    }
+    // Lost the race on the destination name: something else claimed it between our pre-check and
+    // the commit. Re-read to report its subtype, mirroring the pre-check path's own shape.
+    Optional<PolarisBaseEntity> winner =
+        entityStore().get(destinationUniqueness, PolarisBaseEntity.class);
+    return new EntityResult(
+        BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+        winner.map(PolarisBaseEntity::getSubTypeCode).orElse(0));
+  }
+
+  /**
+   * All children checks below are READS, not preconditions: {@code Precondition} declares no
+   * set-emptiness operator (see its own "Deliberately absent" section), so "no children under this
+   * parent" cannot ride into the commit the way the retrofit's path checks do. This leaves the
+   * identical TOCTOU window both old impls already carry between this read and the write — {@code
+   * AtomicOperationMetaStoreManager}'s own five TODOs concede the same gap for the same reason, so
+   * this is parity, not a regression introduced here.
+   */
+  private List<PolarisBaseEntity> rawChildEntities(long catalogId, long parentId) {
+    return entityStore()
+        .list(
+            PolarisRecordKinds.ENTITY,
+            PolarisRecordKinds.ENTITY_BY_PARENT,
+            List.of(catalogId, parentId),
+            PageToken.readEverything(),
+            PolarisBaseEntity.class)
+        .items();
+  }
+
+  /**
+   * The full removal of one entity: an atomic mutation list combining the entity {@code DELETE},
+   * both old impls' private {@code dropEntity} helper (grant-record cleanup, counterpart {@code
+   * grantRecordsVersion} bumps, principal-secrets delete), and — when requested — a cleanup {@code
+   * TASK} entity, all as ONE commit rather than the old impls' separate calls.
+   *
+   * <h2>Cleanup-order divergence: dissolved, not resolved</h2>
+   *
+   * <p>{@code TransactionalMetaStoreManagerImpl}'s private {@code dropEntity} deletes the entity
+   * LAST — grant cleanup, then counterpart version bumps, then best-effort policy-mapping cleanup,
+   * then {@code ms.deleteEntityInCurrentTxn}. {@code AtomicOperationMetaStoreManager}'s deletes the
+   * entity FIRST, and swaps the other two: grant cleanup, then policy-mapping cleanup, THEN the
+   * version bumps. Inside one commit, where every mutation applies or none do, that order is
+   * unobservable — this method builds the mutations in whichever order is simplest, and the store
+   * applies them as one unordered set. The divergence dissolves rather than being resolved.
+   *
+   * <h2>What is NOT ported</h2>
+   *
+   * <p>Best-effort policy-mapping cleanup is not implemented. Both old impls only consult it when
+   * the caller's OWN {@code cleanup} flag is {@code false} (see {@code dropEntityIfExists}'s {@code
+   * POLICY_HAS_MAPPINGS} branch); {@code PolarisTestMetaStoreManager#dropEntity} always calls with
+   * {@code cleanup=true}, so that branch is unreachable through the fixture regardless of what this
+   * method does. Left out for that reason — an unreachable path, not a deferred gap — not because
+   * ticket 92 owns policy mappings; if a future caller exercises {@code cleanup=false} with real
+   * policy mappings attached, THAT would be a real gap worth its own finding.
+   *
+   * <p>{@code PolarisBaseEntity} instances in {@code droppedEntities} beyond the first are the
+   * catalog's own recursively-dropped admin {@code CATALOG_ROLE} (see the caller): a grant between
+   * two entities that are BOTH being removed in this same call (e.g. {@code CATALOG_MANAGE_ACCESS}
+   * with securable=catalog, grantee=admin-role) must delete the grant but must NOT bump either
+   * side's {@code grantRecordsVersion} — both sides are about to be deleted by this SAME commit,
+   * and an {@code UPDATE} mutation on an identity the SAME commit also {@code DELETE}s would either
+   * resurrect the row or race against mutation order, neither of which any old-model equivalent
+   * needs to consider (their two calls are genuinely separate writes). {@code droppedIds} is what
+   * lets this method recognize and skip that case.
+   */
+  private void collectDropMutations(
+      @NonNull List<PolarisBaseEntity> droppedEntities,
+      @NonNull Set<Long> droppedIds,
+      @NonNull List<Precondition> topLevelPreconditions,
+      @NonNull List<Mutation> mutations) {
+    List<PolarisGrantRecord> allGrants = new ArrayList<>();
+    boolean first = true;
+    for (PolarisBaseEntity dropped : droppedEntities) {
+      mutations.add(
+          Mutation.of(
+              PolarisRecordKinds.ENTITY,
+              Mutation.Op.DELETE,
+              entityIdentity(dropped.getId()),
+              null,
+              first ? topLevelPreconditions : List.of()));
+      first = false;
+      allGrants.addAll(
+          grantStore()
+              .list(
+                  PolarisRecordKinds.GRANT_RECORD,
+                  PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+                  List.of(dropped.getCatalogId(), dropped.getId()),
+                  PageToken.readEverything(),
+                  PolarisGrantRecord.class)
+              .items());
+      allGrants.addAll(
+          grantStore()
+              .list(
+                  PolarisRecordKinds.GRANT_RECORD,
+                  PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
+                  List.of(dropped.getCatalogId(), dropped.getId()),
+                  PageToken.readEverything(),
+                  PolarisGrantRecord.class)
+              .items());
+      if (dropped.getType() == PolarisEntityType.PRINCIPAL) {
+        String clientId = PrincipalEntity.of(dropped).getClientId();
+        if (clientId != null && !clientId.isEmpty()) {
+          mutations.add(
+              Mutation.of(
+                  PolarisRecordKinds.PRINCIPAL_SECRETS,
+                  Mutation.Op.DELETE,
+                  secretsIdentity(clientId),
+                  null));
+        }
+      }
+    }
+
+    // One combined counterpart set across every dropped entity, not one per entity: a counterpart
+    // reached from two different grants (e.g. the same principal role usage-granted on both the
+    // catalog admin role AND some unrelated role) must be bumped exactly once. Two UPDATE
+    // mutations on the same identity in one commit would have the second's version precondition
+    // fail against the first's already-applied bump (mutations in one commit apply in list order
+    // within the same transaction), spuriously failing the whole drop.
+    Set<Long> counterpartIds = new HashSet<>();
+    for (PolarisGrantRecord g : allGrants) {
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantIdentity(g), null));
+      if (!droppedIds.contains(g.getGranteeId())) {
+        counterpartIds.add(g.getGranteeId());
+      }
+      if (!droppedIds.contains(g.getSecurableId())) {
+        counterpartIds.add(g.getSecurableId());
+      }
+    }
+    if (!counterpartIds.isEmpty()) {
+      List<RecordRef> counterpartRefs =
+          counterpartIds.stream().map(DefaultDurableManager::entityIdentity).toList();
+      entityStore().getMany(counterpartRefs, PolarisBaseEntity.class).stream()
+          .filter(Optional::isPresent)
+          .map(Optional::get)
+          .forEach(counterpart -> mutations.add(bumpGrantRecordsVersion(counterpart).mutation()));
+    }
+  }
+
+  /**
+   * Ported from both old impls' {@code dropEntityIfExists}, which agree on every check here except
+   * for the retrofit's path hardening (neither re-checks {@code catalogPath} at all, {@code
+   * AtomicOperationMetaStoreManager}'s own choice this generally matches — but the brief calls for
+   * the retrofit natively here, so this diverges from that parity choice on this one point,
+   * disclosed rather than silent) and for the one-commit cleanup-task atomicity described on {@link
+   * #collectDropMutations}. {@code ENTITY_NOT_FOUND}, {@code ENTITY_UNDROPPABLE}, the
+   * passthrough-facade branch, {@code NAMESPACE_NOT_EMPTY}/{@code CATALOG_NOT_EMPTY} with
+   * single-admin-role recursion — all read directly off both old impls, which agree on every status
+   * and every threshold here.
+   */
   @Override
   public @NonNull DropEntityResult dropEntityIfExists(
       @NonNull PolarisCallContext callCtx,
@@ -837,7 +1347,147 @@ public class DefaultDurableManager
       @NonNull PolarisBaseEntity entityToDrop,
       @Nullable Map<String, String> cleanupProperties,
       boolean cleanup) {
-    throw new UnsupportedOperationException("ticket 91: not yet implemented");
+    diagnostics.checkNotNull(entityToDrop, "unexpected_null_entity");
+
+    Optional<PolarisBaseEntity> found =
+        entityStore().get(entityIdentity(entityToDrop.getId()), PolarisBaseEntity.class);
+    if (found.isEmpty()) {
+      return new DropEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    PolarisBaseEntity current = found.get();
+
+    if (current.cannotBeDroppedOrRenamed()) {
+      return new DropEntityResult(BaseResult.ReturnStatus.ENTITY_UNDROPPABLE, null);
+    }
+
+    List<PolarisBaseEntity> recurseCatalogRoles = List.of();
+    if (current.getType() == PolarisEntityType.CATALOG) {
+      long catalogId = current.getId();
+      CatalogEntity catalogEntity = CatalogEntity.of(current);
+      List<PolarisBaseEntity> children = rawChildEntities(catalogId, catalogId);
+      // Passthrough-facade catalogs may carry passthrough entities that are not source-of-truth;
+      // both old impls temporarily allow dropping over them when the feature config says so.
+      boolean allowNonEmptyPassthrough =
+          catalogEntity.isPassthroughFacade()
+              && callCtx
+                  .getRealmConfig()
+                  .getConfig(
+                      FeatureConfiguration.ALLOW_DROPPING_NON_EMPTY_PASSTHROUGH_FACADE_CATALOG,
+                      catalogEntity);
+      if (!allowNonEmptyPassthrough
+          && children.stream()
+              .anyMatch(e -> e.getTypeCode() == PolarisEntityType.NAMESPACE.getCode())) {
+        return new DropEntityResult(
+            BaseResult.ReturnStatus.NAMESPACE_NOT_EMPTY,
+            catalogEntity.isPassthroughFacade()
+                ? String.format(
+                    "Set %s to true to drop non-empty passthrough facade catalogs",
+                    FeatureConfiguration.ALLOW_DROPPING_NON_EMPTY_PASSTHROUGH_FACADE_CATALOG.key())
+                : null);
+      }
+      List<PolarisBaseEntity> catalogRoles =
+          children.stream()
+              .filter(e -> e.getTypeCode() == PolarisEntityType.CATALOG_ROLE.getCode())
+              .toList();
+      if (catalogRoles.size() > 1) {
+        return new DropEntityResult(BaseResult.ReturnStatus.CATALOG_NOT_EMPTY, null);
+      }
+      // If exactly one role is left, it should be the admin role (not validated, same as both old
+      // impls) — drop it too, in the SAME commit as the catalog.
+      recurseCatalogRoles = catalogRoles;
+    } else if (current.getType() == PolarisEntityType.NAMESPACE
+        && !rawChildEntities(current.getCatalogId(), current.getId()).isEmpty()) {
+      return new DropEntityResult(BaseResult.ReturnStatus.NAMESPACE_NOT_EMPTY, null);
+    }
+    // POLICY_HAS_MAPPINGS is not checked here: see collectDropMutations's javadoc for why it is
+    // unreachable through this fixture rather than a gap deferred to ticket 92.
+
+    List<PolarisBaseEntity> droppedEntities = new ArrayList<>();
+    droppedEntities.add(current);
+    droppedEntities.addAll(recurseCatalogRoles);
+    Set<Long> droppedIds =
+        Set.copyOf(droppedEntities.stream().map(PolarisBaseEntity::getId).toList());
+
+    List<Mutation> mutations = new ArrayList<>();
+    collectDropMutations(
+        droppedEntities, droppedIds, pathExistsPreconditions(catalogPath, null), mutations);
+
+    Long cleanupTaskId = null;
+    if (cleanup && current.getType() != PolarisEntityType.POLICY) {
+      // Cleanup-task creation rides in the SAME mutation list as the drop, unlike both old impls:
+      // Transactional gets this atomicity for free from its wrapping DB transaction, Atomic's own
+      // TODO concedes a crash between its two separate calls can drop the entity with no task
+      // persisted at all. Folding it into one commit closes that gap rather than reproducing it.
+      Map<String, String> properties = new HashMap<>();
+      properties.put(
+          PolarisTaskConstants.TASK_TYPE,
+          String.valueOf(AsyncTaskType.ENTITY_CLEANUP_SCHEDULER.typeCode()));
+      properties.put(PolarisTaskConstants.TASK_DATA, PolarisObjectMapperUtil.serialize(current));
+      PolarisBaseEntity.Builder taskBuilder =
+          new PolarisBaseEntity.Builder()
+              .id(entityStore().generateNewId())
+              .catalogId(0L)
+              .name("entityCleanup_" + entityToDrop.getId())
+              .typeCode(PolarisEntityType.TASK.getCode())
+              .subTypeCode(PolarisEntitySubType.NULL_SUBTYPE.getCode())
+              // The INJECTED clock here, unlike the entity-timestamp sites, because this is the one
+              // place the old model uses it too: AtomicOperationMetaStoreManager stamps the cleanup
+              // task with clock.millis() while BaseMetaStoreManager stamps entities with
+              // System.currentTimeMillis(). The split is not an inconsistency to tidy up — task
+              // leasing reads the same injected clock to decide whether a lease has expired, so a
+              // task stamped from real time while the lease check runs on a test clock would mix
+              // two
+              // time bases. Entity timestamps have no such reader.
+              .createTimestamp(clock.millis())
+              .propertiesAsMap(properties);
+      if (cleanupProperties != null) {
+        taskBuilder.internalPropertiesAsMap(cleanupProperties);
+      }
+      PolarisBaseEntity taskEntity = prepareNewEntity(taskBuilder.build());
+      cleanupTaskId = taskEntity.getId();
+      mutations.add(
+          Mutation.of(
+              PolarisRecordKinds.ENTITY,
+              Mutation.Op.CREATE,
+              entityIdentity(taskEntity.getId()),
+              taskEntity,
+              List.of(
+                  Precondition.notExists(
+                      entityUniqueness(
+                          taskEntity.getParentId(),
+                          taskEntity.getTypeCode(),
+                          taskEntity.getName())))));
+    }
+
+    OrchestrationResult result = orchestrator.commit(mutations);
+    if (!result.isApplied()) {
+      return mapFailedDrop(result, pathRefs(catalogPath, null));
+    }
+    return cleanupTaskId != null ? new DropEntityResult(cleanupTaskId) : new DropEntityResult();
+  }
+
+  /**
+   * Maps a non-applied drop {@link OrchestrationResult}. No old-model precedent — same reasoning as
+   * {@link #mapFailedRename}: neither old impl commits its whole cleanup sequence as one
+   * conditioned write, so there is no commit-outcome type to map from.
+   */
+  private DropEntityResult mapFailedDrop(
+      @NonNull OrchestrationResult result, @NonNull Set<RecordRef> pathRefs) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new DropEntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      return new DropEntityResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    return failedOnPath(result, pathRefs)
+        ? new DropEntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null)
+        : new DropEntityResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
   }
 
   /**
