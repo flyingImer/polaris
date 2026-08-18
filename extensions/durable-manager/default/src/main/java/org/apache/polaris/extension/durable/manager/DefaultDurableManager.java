@@ -22,6 +22,7 @@ import java.time.Clock;
 import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -347,16 +348,49 @@ public class DefaultDurableManager
   }
 
   /**
+   * The id-equality rule every create path's collision point must apply — factored into one helper
+   * because it used to be applied at only ONE of a create path's TWO collision points, and having
+   * two independent copies of "the rule" is exactly what let them drift (Finding 1, independent
+   * review, 2026-08-18). {@code AtomicOperationMetaStoreManager#persistNewEntity} has exactly ONE
+   * collision point — a caught {@code EntityAlreadyExistsException} — and applies this comparison
+   * there unconditionally, covering both what this class had split into a pre-check branch (which
+   * implemented it) and a lost-race branch discovered by a failed commit precondition (which did
+   * not, and returned {@code ENTITY_ALREADY_EXISTS} regardless of id). Every create path below now
+   * routes both branches through this one method.
+   *
+   * @param existing whatever is currently stored under the uniqueness key (or identity, for {@link
+   *     #createCatalog}/{@link #createPrincipal}) that collided
+   * @param creatingId the id of the entity THIS call attempted to create — for a batch, the id of
+   *     the specific entity whose OWN uniqueness key collided, never an arbitrary member of the
+   *     batch (see {@link #createEntitiesIfNotExist}, which tracks this per mutation for exactly
+   *     that reason)
+   * @return true means an idempotent retry: the caller returns bare success with the entity IT was
+   *     attempting to create, no subtype — matching {@code persistNewEntity}'s {@code new
+   *     EntityResult(entity)} verbatim. This is NOT the {@code ENTITY_ALREADY_EXISTS} shape a stale
+   *     comment on {@link #mapFailedCreate} once claimed the lost-race branch "mirrors"; the
+   *     pre-check branch it was supposedly mirroring returns bare success with no subtype in
+   *     exactly this case. False means a genuine conflict: the caller returns {@code
+   *     ENTITY_ALREADY_EXISTS} carrying {@code existing}'s subtype code.
+   */
+  // Package-private rather than private: DefaultDurableManagerEntityOpsTest asserts this rule
+  // directly (see its javadoc for why — the branch it gates cannot be driven deterministically
+  // through the public API without a test-only hook this class does not have).
+  static boolean isIdempotentRetry(@NonNull PolarisBaseEntity existing, long creatingId) {
+    return existing.getId() == creatingId;
+  }
+
+  /**
    * Maps an {@link OrchestrationResult} that did not apply to the caller-facing result for a single
-   * create, re-reading the uniqueness key on a lost race so the caller learns the winner's subtype
-   * the same way the pre-check path reports it. There is no old-model precedent for this mapping —
-   * the old primitives interface has no multi-outcome commit result to map from, it either
-   * succeeds, throws, or (for a batch) partially applies inside one DB transaction — so this is a
-   * new decision, not a ported one, and is named as such for review.
+   * create. There is no old-model precedent for this mapping — the old primitives interface has no
+   * multi-outcome commit result to map from, it either succeeds, throws, or (for a batch) partially
+   * applies inside one DB transaction — so this is a new decision, not a ported one. {@code
+   * creating} is the entity this call attempted to create, needed to apply {@link
+   * #isIdempotentRetry} on a lost race (Finding 1).
    */
   private EntityResult mapFailedCreate(
       @NonNull DurableRecordStore store,
       @NonNull RecordRef uniqueness,
+      @NonNull PolarisBaseEntity creating,
       @NonNull Set<RecordRef> pathRefs,
       @NonNull OrchestrationResult result) {
     if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
@@ -378,10 +412,13 @@ public class DefaultDurableManager
       // TransactionalMetaStoreManagerImpl's status for exactly this situation.
       return new EntityResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
     }
-    // Lost the race between our pre-check read and the commit: something else created the same
-    // (parent, type, name) in between. Re-read to report its subtype, mirroring the pre-check
-    // path's own EntityResult(ENTITY_ALREADY_EXISTS, subTypeCode) shape.
+    // Lost the race between our pre-check read and the commit: something else created a row at
+    // this uniqueness key in between. Apply the SAME id-equality rule the pre-check branch
+    // applies (see isIdempotentRetry) rather than assuming it is always a conflict.
     Optional<PolarisBaseEntity> winner = store.get(uniqueness, PolarisBaseEntity.class);
+    if (winner.isPresent() && isIdempotentRetry(winner.get(), creating.getId())) {
+      return new EntityResult(creating);
+    }
     return new EntityResult(
         BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
         winner.map(PolarisBaseEntity::getSubTypeCode).orElse(0));
@@ -544,19 +581,7 @@ public class DefaultDurableManager
       // Same-id idempotent-retry collisions are necessarily sequential (the id was already
       // reserved by generateNewEntityId before this call reached us), so this pre-check needs no
       // atomicity of its own — matches both old impls' own comment to this effect.
-      PrincipalEntity refreshPrincipal = PrincipalEntity.of(existing.get());
-      String clientId = refreshPrincipal.getClientId();
-      diagnostics.checkNotNull(clientId, "null_client_id", "principal={}", refreshPrincipal);
-      diagnostics.check(!clientId.isEmpty(), "empty_client_id", "principal={}", refreshPrincipal);
-      PolarisPrincipalSecrets secrets =
-          secretsStore().get(secretsIdentity(clientId), PolarisPrincipalSecrets.class).orElse(null);
-      diagnostics.checkNotNull(
-          secrets,
-          "missing_principal_secrets",
-          "clientId={} principal={}",
-          clientId,
-          refreshPrincipal);
-      return new CreatePrincipalResult(existing.get(), secrets);
+      return loadExistingPrincipal(existing.get());
     }
 
     boolean nameTaken =
@@ -602,7 +627,43 @@ public class DefaultDurableManager
     // compensation already rolls back a committed earlier group when a later one fails, which is
     // strictly better than Atomic's manual best-effort cleanup for the ordinary (non-crash)
     // failure case.
-    return new CreatePrincipalResult(classifyFailedCreate(result), failureDetail(result));
+    BaseResult.ReturnStatus failureStatus = classifyFailedCreate(result);
+    if (failureStatus == BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS) {
+      // Finding 1 (independent review, 2026-08-18): a lost race can mean someone else already
+      // committed THIS exact principal (the id this call reserved before it started) rather than
+      // a genuine name conflict. Re-reading by identity rather than by principalUniqueness is
+      // deliberate and simpler than createEntityIfNotExists's equivalent check: ids are reserved
+      // by the caller before this method runs, so a hit here is necessarily this exact id — no
+      // separate id-equality comparison is needed the way it is for a uniqueness-keyed read,
+      // which could belong to any id.
+      Optional<PolarisBaseEntity> winner =
+          entityStore().get(entityIdentity(prepared.getId()), PolarisBaseEntity.class);
+      if (winner.isPresent()) {
+        return loadExistingPrincipal(winner.get());
+      }
+    }
+    return new CreatePrincipalResult(failureStatus, failureDetail(result));
+  }
+
+  /**
+   * Loads the existing principal's canonical (entity, secrets) pair by id — shared by {@link
+   * #createPrincipal}'s identity pre-check (this id already exists) and its lost-race branch
+   * (Finding 1: the SAME rule now applies at both of a create path's collision points).
+   */
+  private CreatePrincipalResult loadExistingPrincipal(@NonNull PolarisBaseEntity existing) {
+    PrincipalEntity refreshPrincipal = PrincipalEntity.of(existing);
+    String clientId = refreshPrincipal.getClientId();
+    diagnostics.checkNotNull(clientId, "null_client_id", "principal={}", refreshPrincipal);
+    diagnostics.check(!clientId.isEmpty(), "empty_client_id", "principal={}", refreshPrincipal);
+    PolarisPrincipalSecrets secrets =
+        secretsStore().get(secretsIdentity(clientId), PolarisPrincipalSecrets.class).orElse(null);
+    diagnostics.checkNotNull(
+        secrets,
+        "missing_principal_secrets",
+        "clientId={} principal={}",
+        clientId,
+        refreshPrincipal);
+    return new CreatePrincipalResult(existing, secrets);
   }
 
   /**
@@ -642,23 +703,12 @@ public class DefaultDurableManager
     Optional<PolarisBaseEntity> existingCatalog =
         entityStore().get(entityIdentity(catalog.getId()), PolarisBaseEntity.class);
     if (existingCatalog.isPresent()) {
-      PolarisBaseEntity found = existingCatalog.get();
       diagnostics.check(
-          found.getTypeCode() == PolarisEntityType.CATALOG.getCode(),
+          existingCatalog.get().getTypeCode() == PolarisEntityType.CATALOG.getCode(),
           "not_a_catalog",
           "catalog={}",
           catalog);
-      PolarisBaseEntity adminRole =
-          entityStore()
-              .get(
-                  entityUniqueness(
-                      found.getId(),
-                      PolarisEntityType.CATALOG_ROLE.getCode(),
-                      PolarisEntityConstants.getNameOfCatalogAdminRole()),
-                  PolarisBaseEntity.class)
-              .orElse(null);
-      diagnostics.checkNotNull(adminRole, "catalog_admin_role_not_found", "catalog={}", found);
-      return new CreateCatalogResult(found, adminRole);
+      return loadExistingCatalog(existingCatalog.get());
     }
 
     PolarisBaseEntity preparedCatalog = prepareNewEntity(catalog);
@@ -758,7 +808,43 @@ public class DefaultDurableManager
       // the state after the grant-driven grantRecordsVersion bumps.
       return new CreateCatalogResult(preparedCatalog, adminRole);
     }
-    return new CreateCatalogResult(classifyFailedCreate(result), failureDetail(result));
+    BaseResult.ReturnStatus failureStatus = classifyFailedCreate(result);
+    if (failureStatus == BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS) {
+      // Finding 1 (independent review, 2026-08-18): a lost race can mean someone else already
+      // committed THIS exact catalog id (the caller's own reservation, not one this method
+      // generates) rather than a genuine name conflict. Reading by identity rather than
+      // catalogUniqueness is deliberate: the admin role's own id is generated fresh inside THIS
+      // call on every invocation (generateNewId() below, never caller-supplied), so it carries no
+      // cross-call identity to compare — only the catalog's caller-reserved id does, and finding
+      // a row there already proves the id matches (no separate id-equality comparison needed the
+      // way createEntityIfNotExists's uniqueness-keyed read requires one).
+      Optional<PolarisBaseEntity> winner =
+          entityStore().get(entityIdentity(preparedCatalog.getId()), PolarisBaseEntity.class);
+      if (winner.isPresent()) {
+        return loadExistingCatalog(winner.get());
+      }
+    }
+    return new CreateCatalogResult(failureStatus, failureDetail(result));
+  }
+
+  /**
+   * Loads the existing (catalog, admin role) pair by the catalog's id — shared by {@link
+   * #createCatalog}'s identity pre-check (this id already exists) and its lost-race branch (Finding
+   * 1: the SAME rule now applies at both of a create path's collision points).
+   */
+  private CreateCatalogResult loadExistingCatalog(@NonNull PolarisBaseEntity existingCatalog) {
+    PolarisBaseEntity adminRole =
+        entityStore()
+            .get(
+                entityUniqueness(
+                    existingCatalog.getId(),
+                    PolarisEntityType.CATALOG_ROLE.getCode(),
+                    PolarisEntityConstants.getNameOfCatalogAdminRole()),
+                PolarisBaseEntity.class)
+            .orElse(null);
+    diagnostics.checkNotNull(
+        adminRole, "catalog_admin_role_not_found", "catalog={}", existingCatalog);
+    return new CreateCatalogResult(existingCatalog, adminRole);
   }
 
   @Override
@@ -777,22 +863,20 @@ public class DefaultDurableManager
     RecordRef uniqueness =
         entityUniqueness(prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
 
+    // EXPLICIT, PROVISIONAL ASSUMPTION (EJ, 2026-08-17: not certain this is purely a business
+    // rule, revisit if it causes trouble): "same id means idempotent create-retry; a different
+    // id holding the name is a real conflict." In the old model this lives in the primitives
+    // layer, not the manager: AbstractTransactionalPersistence#
+    // checkConditionsForWriteEntityInCurrentTxn throws EntityAlreadyExistsException on any name
+    // collision, and AtomicOperationMetaStoreManager#persistNewEntity catches it and applies
+    // exactly this id-equality test — see isIdempotentRetry, which factors it out so this branch
+    // and mapFailedCreate's lost-race branch below cannot apply it differently (Finding 1).
     Optional<PolarisBaseEntity> existing = store.get(uniqueness, PolarisBaseEntity.class);
     if (existing.isPresent()) {
-      // EXPLICIT, PROVISIONAL ASSUMPTION (EJ, 2026-08-17: not certain this is purely a business
-      // rule, revisit if it causes trouble): "same id means idempotent create-retry; a different
-      // id holding the name is a real conflict." In the old model this lives in the primitives
-      // layer, not the manager:
-      // AbstractTransactionalPersistence#checkConditionsForWriteEntityInCurrentTxn
-      // throws EntityAlreadyExistsException on any name collision, and
-      // AtomicOperationMetaStoreManager#persistNewEntity catches it and applies exactly this
-      // id-equality test. We do the same test here, against a plain read instead of a caught
-      // exception, because the new store's Precondition#notExists is a flat exists/not-exists
-      // test with no id-aware exception to catch.
-      return existing.get().getId() == prepared.getId()
-          // Return the entity we were trying to create, not the stored one — matching
-          // persistNewEntity's own comment: the caller should see what it asked to create, even
-          // if a concurrent update landed on the stored row first.
+      // Return the entity we were trying to create, not the stored one — matching
+      // persistNewEntity's own comment: the caller should see what it asked to create, even
+      // if a concurrent update landed on the stored row first.
+      return isIdempotentRetry(existing.get(), prepared.getId())
           ? new EntityResult(prepared)
           : new EntityResult(
               BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, existing.get().getSubTypeCode());
@@ -811,9 +895,35 @@ public class DefaultDurableManager
                     preconditions)));
     return result.isApplied()
         ? new EntityResult(prepared)
-        : mapFailedCreate(store, uniqueness, pathRefs(catalogPath, null), result);
+        : mapFailedCreate(store, uniqueness, prepared, pathRefs(catalogPath, null), result);
   }
 
+  /**
+   * Batch form of {@link #createEntityIfNotExists}'s collision rule, applied per entity. In the old
+   * model the batch form of this rule lives one layer further down than the single-entity form:
+   * {@code AbstractTransactionalPersistence#writeEntities} (around lines 254-265) catches {@code
+   * EntityAlreadyExistsException} per entity inside its own transaction loop and swallows it when
+   * the existing entity's id matches, rethrowing (aborting the whole batch) otherwise. {@code
+   * TreeMapDurablePrimitivesImpl} extends {@code AbstractTransactionalPersistence} without
+   * overriding {@code writeEntities}, so both old managers get the rule "for free" from the
+   * primitives layer for the batch case. The new store's commit has no such per-mutation swallow —
+   * a failed precondition fails the WHOLE commit — so S3 puts the rule here, in the manager,
+   * explicitly and by hand.
+   *
+   * <p><b>Finding 1's batch shape (independent review, 2026-08-18):</b> a lost race discovered at
+   * commit time used to be treated as a genuine conflict unconditionally, the same defect {@link
+   * #mapFailedCreate} had. The fix here is a small retry loop rather than a single re-check,
+   * because the batch's commit is genuinely all-or-nothing: if entity B's uniqueness precondition
+   * fails because entity B was itself an idempotent retry (id matches what is already stored), the
+   * commit still rolled back EVERY OTHER mutation in the list, including entities that had no
+   * problem at all. Dropping B's now-redundant mutation and retrying the remaining list is how this
+   * reaches the same end state {@code writeEntities}' per-entity swallow-and-continue reaches in
+   * one DB transaction — one dropped mutation at a time, since this commit cannot swallow a single
+   * row's failure the way a loop over individual writes can. The winner MUST be compared against
+   * the specific entity whose uniqueness key collided, tracked in {@code byUniqueness} — never
+   * against the first entity in the batch, an easy mistake once several entities are in flight at
+   * once.
+   */
   @Override
   public @NonNull EntitiesResult createEntitiesIfNotExist(
       @NonNull PolarisCallContext callCtx,
@@ -822,22 +932,14 @@ public class DefaultDurableManager
     DurableRecordStore store = entityStore();
     List<PolarisBaseEntity> resolved = new ArrayList<>(entities.size());
     List<Mutation> mutations = new ArrayList<>();
+    Map<RecordRef, PolarisBaseEntity> byUniqueness = new HashMap<>();
 
-    // Same provisional assumption as createEntityIfNotExists, applied per entity. In the old
-    // model the batch form of this rule lives one layer further down than the single-entity form:
-    // AbstractTransactionalPersistence#writeEntities (around lines 254-265) catches
-    // EntityAlreadyExistsException per entity inside its own transaction loop and swallows it when
-    // the existing entity's id matches, rethrowing (aborting the whole batch) otherwise.
-    // TreeMapDurablePrimitivesImpl extends AbstractTransactionalPersistence without overriding
-    // writeEntities, so both old managers get the rule "for free" from the primitives layer for the
-    // batch case. The new store's commit has no such per-mutation swallow — a failed precondition
-    // fails the whole commit — so S3 puts the rule here, in the manager, explicitly and by hand.
     for (PolarisBaseEntity entity : entities) {
       PolarisBaseEntity prepared = prepareNewEntity(entity);
       RecordRef uniqueness =
           entityUniqueness(prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
       Optional<PolarisBaseEntity> existing = store.get(uniqueness, PolarisBaseEntity.class);
-      if (existing.isPresent() && existing.get().getId() != prepared.getId()) {
+      if (existing.isPresent() && !isIdempotentRetry(existing.get(), prepared.getId())) {
         // One real conflict fails the whole batch before anything is committed, matching
         // AtomicOperationMetaStoreManager#createEntitiesIfNotExist's own catch, which aborts
         // writeEntities() for the whole list regardless of how many other entities would have
@@ -862,38 +964,77 @@ public class DefaultDurableManager
                 entityIdentity(prepared.getId()),
                 prepared,
                 preconditions));
+        byUniqueness.put(uniqueness, prepared);
       }
       // else: idempotent retry, same id — no mutation needed, `resolved` already carries the
       // entity we were trying to create.
     }
 
-    if (mutations.isEmpty()) {
-      // Every entity in the batch was already there under a matching id.
-      return new EntitiesResult(Page.fromItems(resolved));
+    Set<RecordRef> pathRefs = pathRefs(catalogPath, null);
+    while (!mutations.isEmpty()) {
+      OrchestrationResult result = orchestrator.commit(mutations);
+      if (result.isApplied()) {
+        return new EntitiesResult(Page.fromItems(resolved));
+      }
+      if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+            "rollback incomplete: "
+                + result.uncompensated().size()
+                + " mutation(s) require admin reclamation");
+      }
+      CommitResult groupFailure = result.groupFailure().orElseThrow();
+      CommitResult.Failure failure = groupFailure.failure().orElseThrow();
+      if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+      }
+      if (failedOnPath(result, pathRefs)) {
+        return new EntitiesResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
+      }
+      // Which entity's uniqueness key collided — never assumed to be the first of the batch.
+      Optional<RecordRef> failedUniqueness =
+          groupFailure.failedPreconditions().stream()
+              .map(Precondition::ref)
+              .flatMap(Optional::stream)
+              .filter(byUniqueness::containsKey)
+              .findFirst();
+      if (failedUniqueness.isEmpty()) {
+        // A PRECONDITION_FAILED that is neither the path retrofit nor one of this batch's own
+        // uniqueness checks — should not happen given every precondition on these mutations is
+        // one of the two, but reported rather than guessed at if it does.
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+            "precondition failed on an unrecognized reference");
+      }
+      RecordRef ref = failedUniqueness.get();
+      PolarisBaseEntity creating = byUniqueness.remove(ref);
+      Optional<PolarisBaseEntity> winner = store.get(ref, PolarisBaseEntity.class);
+      if (winner.isEmpty() || !isIdempotentRetry(winner.get(), creating.getId())) {
+        return new EntitiesResult(
+            BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
+            winner
+                .map(
+                    w ->
+                        String.format(
+                            "Existing entity id: '%s', type %s subtype %s",
+                            w.getId(), w.getTypeCode(), w.getSubTypeCode()))
+                .orElse("entity vanished between the failed commit and the re-read"));
+      }
+      // Idempotent retry: someone else already committed this exact entity (matching id) between
+      // our pre-check and this commit. Its mutation is now redundant — drop it and retry the
+      // remaining list.
+      RecordRef resolvedTarget = entityIdentity(creating.getId());
+      List<Mutation> remaining = new ArrayList<>(mutations.size() - 1);
+      for (Mutation m : mutations) {
+        if (!m.target().equals(resolvedTarget)) {
+          remaining.add(m);
+        }
+      }
+      mutations = remaining;
     }
-
-    OrchestrationResult result = orchestrator.commit(mutations);
-    if (result.isApplied()) {
-      return new EntitiesResult(Page.fromItems(resolved));
-    }
-    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
-      return new EntitiesResult(
-          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
-          "rollback incomplete: "
-              + result.uncompensated().size()
-              + " mutation(s) require admin reclamation");
-    }
-    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
-      return new EntitiesResult(
-          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
-    }
-    if (failedOnPath(result, pathRefs(catalogPath, null))) {
-      return new EntitiesResult(BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
-    }
-    return new EntitiesResult(
-        BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS,
-        "lost the race against a concurrent create for one or more entities in this batch");
+    // Every remaining mutation resolved as an idempotent retry.
+    return new EntitiesResult(Page.fromItems(resolved));
   }
 
   /**
@@ -1238,13 +1379,27 @@ public class DefaultDurableManager
    *
    * <h2>What is NOT ported</h2>
    *
-   * <p>Best-effort policy-mapping cleanup is not implemented. Both old impls only consult it when
-   * the caller's OWN {@code cleanup} flag is {@code false} (see {@code dropEntityIfExists}'s {@code
-   * POLICY_HAS_MAPPINGS} branch); {@code PolarisTestMetaStoreManager#dropEntity} always calls with
-   * {@code cleanup=true}, so that branch is unreachable through the fixture regardless of what this
-   * method does. Left out for that reason — an unreachable path, not a deferred gap — not because
-   * ticket 92 owns policy mappings; if a future caller exercises {@code cleanup=false} with real
-   * policy mappings attached, THAT would be a real gap worth its own finding.
+   * <p>Best-effort policy-mapping cleanup is not implemented — the UNCONDITIONAL delete both old
+   * impls' private {@code dropEntity} helper runs on every drop of a {@code POLICY} or valid
+   * policy-target entity (Atomic ~212-235, Transactional ~219-242, identical shape, wrapped in a
+   * catch for {@code UnsupportedOperationException}), gated only by {@code entity.getType() ==
+   * POLICY || PolicyMappingUtil.isValidTargetEntityType(entity.getType(), entity.getSubType())}.
+   *
+   * <p><b>CORRECTION to this method's earlier text, which conflated two different pieces of old
+   * code:</b> {@code dropEntityIfExists}'s own {@code cleanup=false} gate governs only its {@code
+   * POLICY_HAS_MAPPINGS} PRE-check, a separate read that runs before the drop even starts. The
+   * unconditional cleanup call inside the private {@code dropEntity} helper above does not consult
+   * {@code cleanup} at all — that parameter is not even in scope inside that helper. The earlier
+   * claim that this cleanup is "unreachable because the fixture always passes {@code cleanup=true}"
+   * was therefore wrong; it described the pre-check, not this call.
+   *
+   * <p>The real reason skipping it is safe TODAY: {@link #attachPolicyToEntity} throws
+   * unconditionally (ticket 92 has not implemented it), so no {@code POLICY_MAPPING} record can
+   * exist in this store at all, for any entity, regardless of {@code cleanup} or entity type. There
+   * is nothing for this call to clean up because its target set is always empty, not because the
+   * call is unreachable. Whoever implements attach on ticket 92 MUST also add this unconditional
+   * cleanup call to the drop path here — leaving it out then would silently start leaking mapping
+   * records on every drop.
    *
    * <p>{@code PolarisBaseEntity} instances in {@code droppedEntities} beyond the first are the
    * catalog's own recursively-dropped admin {@code CATALOG_ROLE} (see the caller): a grant between
@@ -1303,6 +1458,19 @@ public class DefaultDurableManager
       }
     }
 
+    // Deduplicated by target ref, first-seen order preserved (Finding 3, independent review,
+    // 2026-08-18): dropping a catalog together with its sole remaining admin role collects the
+    // SAME catalog<->adminRole grant twice — once through the catalog's own
+    // GRANT_RECORD_BY_SECURABLE query, once through the admin role's own
+    // GRANT_RECORD_BY_GRANTEE query — since droppedEntities walks both entities' grants
+    // independently. Both stores treat a DELETE of an already-deleted record as a no-op (verified
+    // in TreeMapDurableRecordStore#applyMutation's DELETE case), so a duplicate here was never a
+    // correctness bug, only wasted headroom against maxItemsPerCommit.
+    Map<RecordRef, PolarisGrantRecord> distinctGrants = new LinkedHashMap<>();
+    for (PolarisGrantRecord g : allGrants) {
+      distinctGrants.putIfAbsent(grantIdentity(g), g);
+    }
+
     // One combined counterpart set across every dropped entity, not one per entity: a counterpart
     // reached from two different grants (e.g. the same principal role usage-granted on both the
     // catalog admin role AND some unrelated role) must be bumped exactly once. Two UPDATE
@@ -1310,7 +1478,7 @@ public class DefaultDurableManager
     // fail against the first's already-applied bump (mutations in one commit apply in list order
     // within the same transaction), spuriously failing the whole drop.
     Set<Long> counterpartIds = new HashSet<>();
-    for (PolarisGrantRecord g : allGrants) {
+    for (PolarisGrantRecord g : distinctGrants.values()) {
       mutations.add(
           Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantIdentity(g), null));
       if (!droppedIds.contains(g.getGranteeId())) {

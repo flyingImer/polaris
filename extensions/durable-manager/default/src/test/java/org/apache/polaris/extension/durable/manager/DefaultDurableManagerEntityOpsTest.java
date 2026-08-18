@@ -249,4 +249,44 @@ class DefaultDurableManagerEntityOpsTest {
     assertThat(tracking.get(0).entityVersion()).isEqualTo(1);
     assertThat(tracking.get(0).grantRecordsVersion()).isEqualTo(1);
   }
+
+  /**
+   * Finding 1 (independent review, 2026-08-18): {@code DefaultDurableManager}'s lost-race branch —
+   * reached when {@code createEntityIfNotExists}/{@code createEntitiesIfNotExist}'s pre-check read
+   * sees nothing but the commit's {@code notExists} precondition fails anyway — must apply the SAME
+   * id-equality rule the pre-check branch applies, not report {@code ENTITY_ALREADY_EXISTS}
+   * unconditionally. {@link DefaultDurableManager#isIdempotentRetry} is the single place that rule
+   * now lives.
+   *
+   * <p><b>Why this asserts the helper directly rather than driving the branch end to end:</b> the
+   * race window is entirely INSIDE one method call, between its own pre-check read and its own
+   * commit. Nothing outside that call can land a write into that exact window without either (a)
+   * real concurrent threads, whose OS-scheduled interleaving is not guaranteed to land the second
+   * thread's pre-check before the first thread's commit rather than after it — sometimes it will
+   * just see the first thread's already-committed row and take the (already-correct) pre-check
+   * branch instead, making the test flaky rather than deterministic — or (b) a test-only hook
+   * inside {@code createEntityIfNotExists} itself, which does not exist and would be a production
+   * change beyond this fix's scope. A same-batch construction (two entities sharing one uniqueness
+   * key, submitted together) does not reach it either: both mutations would be in the SAME commit,
+   * so the second one's failed precondition rolls back the WHOLE commit including the first —
+   * nothing survives to be "the winner," unlike a genuine lost race where the winner is a separate,
+   * already-committed transaction. Concluded there is no deterministic way to drive the actual
+   * control-flow branch from a test without one of those two changes; asserting the extracted rule
+   * directly is the honest alternative the brief allows, not a replacement for wanting the fuller
+   * coverage.
+   */
+  @Test
+  void idempotentRetryRuleMatchesIdEqualityNotUnconditionalConflict() {
+    PolarisBaseEntity catalog = newCatalog("c8");
+    manager.createEntityIfNotExists(callCtx, null, catalog);
+    PolarisBaseEntity existing = newNamespace(catalog, "n1");
+
+    // Same id as `existing`: the low-level retry AtomicOperationMetaStoreManager#persistNewEntity
+    // treats as idempotent success at its one collision point.
+    assertThat(DefaultDurableManager.isIdempotentRetry(existing, existing.getId())).isTrue();
+
+    // A different id squatting the same slot: a genuine conflict, not a retry.
+    long otherId = manager.generateNewEntityId(callCtx).getId();
+    assertThat(DefaultDurableManager.isIdempotentRetry(existing, otherId)).isFalse();
+  }
 }
