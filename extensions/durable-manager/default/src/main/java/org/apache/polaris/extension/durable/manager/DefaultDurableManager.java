@@ -1700,6 +1700,16 @@ public class DefaultDurableManager
    * behavior. {@code entityCatalogId} remains genuinely unused: the new model's ENTITY identity key
    * is {@code (realm, id)} alone, with no catalog component for identity lookups to filter on at
    * all.
+   *
+   * <p><b>SECOND CORRECTION (ticket 92, increment 4): the paragraph above's "entityCatalogId
+   * remains genuinely unused" was itself the same class of error it corrects.</b> It was written
+   * while {@code testEntityCache} was disabled; that case's negative lookup ({@code
+   * loadCacheEntryById(N1.getCatalogId() + 1000, ...)} expecting not-found) observes that the old
+   * {@code lookupEntity} filters on {@code catalog_id} as well — the shipped query's three filter
+   * columns, the same fact the {@code 92c82b995}/{@code e29358a37} row in the chain already
+   * recorded for the children query. The identity KEY carries no catalog component, so the store
+   * fetch stays by id; the catalog filter is applied here on the fetched row, the same treatment
+   * the type filter above already gets.
    */
   @Override
   public @NonNull EntityResult loadEntity(
@@ -1709,7 +1719,9 @@ public class DefaultDurableManager
       @NonNull PolarisEntityType entityType) {
     Optional<PolarisBaseEntity> found =
         entityStore().get(entityIdentity(entityId), PolarisBaseEntity.class);
-    if (found.isPresent() && found.get().getTypeCode() != entityType.getCode()) {
+    if (found.isPresent()
+        && (found.get().getTypeCode() != entityType.getCode()
+            || found.get().getCatalogId() != entityCatalogId)) {
       found = Optional.empty();
     }
     return found
@@ -1740,11 +1752,15 @@ public class DefaultDurableManager
    * their {@code toResolvedPolarisEntity} helper below.
    */
   private List<PolarisGrantRecord> grantsAsSecurable(@NonNull PolarisEntityCore entity) {
+    return grantsAsSecurable(entity.getCatalogId(), entity.getId());
+  }
+
+  private List<PolarisGrantRecord> grantsAsSecurable(long catalogId, long id) {
     return grantStore()
         .list(
             PolarisRecordKinds.GRANT_RECORD,
             PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
-            List.of(entity.getCatalogId(), entity.getId()),
+            List.of(catalogId, id),
             PageToken.readEverything(),
             PolarisGrantRecord.class)
         .items();
@@ -1752,11 +1768,15 @@ public class DefaultDurableManager
 
   /** The grant records where {@code entity} is the grantee — only meaningful when it is one. */
   private List<PolarisGrantRecord> grantsAsGrantee(@NonNull PolarisEntityCore entity) {
+    return grantsAsGrantee(entity.getCatalogId(), entity.getId());
+  }
+
+  private List<PolarisGrantRecord> grantsAsGrantee(long catalogId, long id) {
     return grantStore()
         .list(
             PolarisRecordKinds.GRANT_RECORD,
             PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
-            List.of(entity.getCatalogId(), entity.getId()),
+            List.of(catalogId, id),
             PageToken.readEverything(),
             PolarisGrantRecord.class)
         .items();
@@ -1925,6 +1945,17 @@ public class DefaultDurableManager
     return EntitiesResult.fromPage(Page.fromItems(loadedTasks));
   }
 
+  /**
+   * Ported from both old impls' {@code loadResolvedEntityByName}, including the root-container
+   * backfill special case both carry verbatim (a holdover from before bootstrap created the root
+   * container; the old code's own TODO doubts it is still reachable, and it is ported rather than
+   * judged). The name lookup goes through the same uniqueness key {@link #readEntityByName} uses —
+   * {@code entityCatalogId} does not participate, per {@link #entityUniqueness}'s disclosure. The
+   * grant loads anchor on the entity's own {@code (catalogId, id)} where the old code anchors on
+   * the {@code entityCatalogId} argument — the same value whenever the caller's catalog id is
+   * truthful, which the resolution layer's callers guarantee (they pass the id they resolved the
+   * entity under).
+   */
   @Override
   public @NonNull ResolvedEntityResult loadResolvedEntityByName(
       @NonNull PolarisCallContext callCtx,
@@ -1932,10 +1963,87 @@ public class DefaultDurableManager
       long parentId,
       @NonNull PolarisEntityType entityType,
       @NonNull String entityName) {
-    throw new UnsupportedOperationException(
-        "ticket 92: entity cache / resolver refresh (loadResolvedEntityByName)");
+    Optional<PolarisBaseEntity> found =
+        entityStore()
+            .get(
+                entityUniqueness(parentId, entityType.getCode(), entityName),
+                PolarisBaseEntity.class);
+
+    ResolvedEntityResult result;
+    if (found.isEmpty()) {
+      result = new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    } else {
+      PolarisBaseEntity entity = found.get();
+      List<PolarisGrantRecord> grantRecords;
+      if (entity.getType().isGrantee()) {
+        grantRecords = new ArrayList<>(grantsAsGrantee(entity));
+        grantRecords.addAll(grantsAsSecurable(entity));
+      } else {
+        grantRecords = grantsAsSecurable(entity);
+      }
+      result = new ResolvedEntityResult(entity, entity.getGrantRecordsVersion(), grantRecords);
+    }
+
+    if (PolarisEntityConstants.getRootContainerName().equals(entityName)
+        && entityType == PolarisEntityType.ROOT
+        && !result.isSuccess()) {
+      // Backfill rootContainer if needed, ported verbatim from both old impls (Atomic quoted):
+      // create the root container idempotently, grant SERVICE_MANAGE_ACCESS to the service admin
+      // role when it exists, then redo the lookup.
+      PolarisBaseEntity rootContainer =
+          new PolarisBaseEntity(
+              PolarisEntityConstants.getNullId(),
+              PolarisEntityConstants.getRootEntityId(),
+              PolarisEntityType.ROOT,
+              PolarisEntitySubType.NULL_SUBTYPE,
+              PolarisEntityConstants.getRootEntityId(),
+              PolarisEntityConstants.getRootContainerName());
+      EntityResult backfillResult = this.createEntityIfNotExists(callCtx, null, rootContainer);
+      if (backfillResult.isSuccess()) {
+        PolarisBaseEntity serviceAdminRole =
+            entityStore()
+                .get(
+                    entityUniqueness(
+                        PolarisEntityConstants.getRootEntityId(),
+                        PolarisEntityType.PRINCIPAL_ROLE.getCode(),
+                        PolarisEntityConstants.getNameOfPrincipalServiceAdminRole()),
+                    PolarisBaseEntity.class)
+                .orElse(null);
+        if (serviceAdminRole != null) {
+          this.persistNewGrantRecord(
+              rootContainer, serviceAdminRole, PolarisPrivilege.SERVICE_MANAGE_ACCESS);
+        }
+      }
+      result =
+          this.loadResolvedEntityByName(callCtx, entityCatalogId, parentId, entityType, entityName);
+    }
+    return result;
   }
 
+  /**
+   * Ported from {@code AtomicOperationMetaStoreManager#refreshResolvedEntity}, with the old shape's
+   * TWO reads collapsed into ONE full fetch, disclosed rather than silent:
+   *
+   * <p>The old shape probes {@code lookupEntityVersions} (a narrow, catalog-filtered projection)
+   * and reloads the full row only when the entity version moved. The new {@code versionsOf} keys on
+   * {@code (realm, id)} alone with no catalog dimension, so the old probe's catalog filter — which
+   * {@code testEntityCache}'s wrong-catalog refresh observes — cannot be expressed through the
+   * narrow read; a full identity fetch here carries the catalog column and IS filterable. The cost
+   * is a full row where the old no-change path shipped four version columns; the read-side record's
+   * follow-up owns whether versionsOf should carry the catalog dimension (kin of the by-parent
+   * type-code declaration gap).
+   *
+   * <p>The old filter split is preserved exactly: the probe filters by catalog only (a wrong-TYPE
+   * refresh whose versions are unchanged still reports success — the old versions lookup takes no
+   * type code), while the reload branch additionally filters by type, exactly as {@code
+   * lookupEntity} does. One read also supersedes the two-read race Atomic's own comment corrects
+   * for — the returned {@code (entity, grantRecordsVersion)} pair comes from one snapshot, the
+   * internally-consistent outcome that race-corrected form exists to approximate ({@code
+   * TransactionalMetaStoreManagerImpl} reports the earlier snapshot instead; Atomic's form is this
+   * class's disclosed convention for the resolved-entity reads). Version short-circuits are the
+   * contract the cache relies on: an unchanged half comes back {@code null} inside a SUCCESS
+   * result, meaning "keep your copy".
+   */
   @Override
   public @NonNull ResolvedEntityResult refreshResolvedEntity(
       @NonNull PolarisCallContext callCtx,
@@ -1944,8 +2052,41 @@ public class DefaultDurableManager
       @NonNull PolarisEntityType entityType,
       long entityCatalogId,
       long entityId) {
-    throw new UnsupportedOperationException(
-        "ticket 92: entity cache / resolver refresh (refreshResolvedEntity)");
+    Optional<PolarisBaseEntity> found =
+        entityStore().get(entityIdentity(entityId), PolarisBaseEntity.class);
+    if (found.isEmpty() || found.get().getCatalogId() != entityCatalogId) {
+      // purged, or the old probe's catalog filter says this is not the row the caller cached
+      return new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    PolarisBaseEntity current = found.get();
+
+    final PolarisBaseEntity entity;
+    if (entityVersion != current.getEntityVersion()) {
+      // the reload branch is where the old shape's TYPE filter lives
+      if (current.getTypeCode() != entityType.getCode()) {
+        return new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+      }
+      entity = current;
+    } else {
+      // entity has not changed, no need to reload it
+      entity = null;
+    }
+
+    int reportedGrantRecordsVersion = current.getGrantRecordsVersion();
+
+    final List<PolarisGrantRecord> grantRecords;
+    if (reportedGrantRecordsVersion != entityGrantRecordsVersion) {
+      if (entityType.isGrantee()) {
+        grantRecords = new ArrayList<>(grantsAsGrantee(entityCatalogId, entityId));
+        grantRecords.addAll(grantsAsSecurable(entityCatalogId, entityId));
+      } else {
+        grantRecords = grantsAsSecurable(entityCatalogId, entityId);
+      }
+    } else {
+      grantRecords = null;
+    }
+
+    return new ResolvedEntityResult(entity, reportedGrantRecordsVersion, grantRecords);
   }
 
   // ---------------------------------------------------------- GrantManager (ticket 91)

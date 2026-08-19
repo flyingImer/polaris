@@ -371,8 +371,4 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
   @Disabled("ticket 92 stop rule: fixture oracle reads the old primitives handle (reported)")
   protected void testPolicyMappingCleanup() {}
 
-  @Override
-  @Test
-  @Disabled("ticket 92: entity cache / resolver refresh")
-  protected void testEntityCache() {}
 }
