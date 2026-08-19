@@ -193,6 +193,38 @@ class RoutingDurableRecordStoreTest {
   }
 
   @Test
+  void aBatchAboveTheDeclaredMinimumButWithinTheHoldingBackendsCapSucceedsToday() {
+    // The declaration's meaning, pinned over an asymmetric assembly rather than resting on javadoc
+    // alone: maxItemsPerCommit declares "the one cap every routed commit can honor", and
+    // ENFORCEMENT stays with whichever single backend a commit routes to — the class javadoc's
+    // declared wart (ticket 111's recorded non-goal). A batch larger than the declared minimum but
+    // within the holding backend's own cap therefore SUCCEEDS today; any future decision to
+    // enforce the declared minimum at the routing layer turns this case red instead of changing
+    // the semantics silently.
+    TreeMapDurableRecordStore roomy = new TreeMapDurableRecordStore(DIAGNOSTICS, 5);
+    TreeMapDurableRecordStore tight = new TreeMapDurableRecordStore(DIAGNOSTICS, 3);
+    RoutingDurableRecordStore asymmetric =
+        new RoutingDurableRecordStore(
+            new MappedDurableRecordStoreLocator(
+                Map.of(PolarisRecordKinds.ENTITY, MAIN, PolarisRecordKinds.GRANT_RECORD, AUTHZ),
+                Map.of(MAIN, roomy, AUTHZ, tight)),
+            List.of(roomy, tight),
+            roomy);
+    assertThat(asymmetric.maxItemsPerCommit()).isEqualTo(3);
+
+    CommitResult result =
+        asymmetric.commit(
+            List.of(
+                createEntity(entity(1L, "n1")),
+                createEntity(entity(2L, "n2")),
+                createEntity(entity(3L, "n3")),
+                createEntity(entity(4L, "n4"))));
+
+    assertThat(result.isApplied()).isTrue();
+    assertThat(asymmetric.get(entityRef(4L), PolarisBaseEntity.class)).isPresent();
+  }
+
+  @Test
   void generateNewIdDelegatesToTheDesignatedOwner() {
     TreeMapDurableRecordStore marked =
         new TreeMapDurableRecordStore(DIAGNOSTICS) {
