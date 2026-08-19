@@ -19,7 +19,9 @@
 package org.apache.polaris.extension.durable.manager;
 
 import java.time.Clock;
+import java.util.ArrayDeque;
 import java.util.ArrayList;
+import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -94,6 +96,8 @@ import org.apache.polaris.spi.durable.RecordVersions;
 import org.apache.polaris.spi.durable.SecretsManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * The single new-model durable manager. At ticket 96 this class is a wholesale replacement for both
@@ -144,6 +148,8 @@ public class DefaultDurableManager
         SecretsManager,
         PolarisPolicyMappingManager,
         PolarisEventManager {
+
+  private static final Logger LOGGER = LoggerFactory.getLogger(DefaultDurableManager.class);
 
   private final Clock clock;
   private final PolarisDiagnostics diagnostics;
@@ -1861,9 +1867,141 @@ public class DefaultDurableManager
 
   // ------------------------------------------------------- DurableManager (ticket 92 surfaces)
 
+  /**
+   * Today's observable behaviour, ported per Issue 68's verified shape (byte-equivalent in both old
+   * impls): a WARN, a realm wipe, a WARN, an unconditional {@code SUCCESS} — no coded failure path;
+   * an underlying error propagates as an unchecked exception, exactly as the old impls let their
+   * store exceptions through. The log messages are the old impls' own, verbatim. Whether this
+   * manager-level method should exist at all stays Issue 68's ready-for-human question;
+   * implementing parity does not prejudge it.
+   *
+   * <p>The old wipe is ONE old-primitives call ({@code deleteAll}), a realm-scoped per-table bulk
+   * delete. The new SPI is deliberately closed at one write and four reads with no realm-wipe
+   * operation, so the wipe is COMPOSED: walk every entity from the root anchor through {@code
+   * by-parent}, collect each entity's grant records (both directions), policy mappings (both
+   * directions where they apply) and — for principals — the secrets row named by the principal's
+   * client id, then DELETE everything in chunked commits through the orchestrator. The scope
+   * matches the old wipe's actual table list, read from {@code JdbcDurablePrimitivesImpl#deleteAll}
+   * before building this: ENTITIES, GRANT_RECORDS, PRINCIPAL_AUTHENTICATION_DATA,
+   * POLICY_MAPPING_RECORD — and NOT the events table, whose rows carry no realm column, so the old
+   * realm-scoped wipe never touched them either (the proving case pins their survival).
+   *
+   * <p>Disclosed narrowings vs the old single-call wipe. <b>Crash window:</b> old JDBC wipes in one
+   * transaction; this walk is several commits, so a crash mid-purge leaves a partial wipe — every
+   * DELETE is unconditioned, so re-running purge completes it (purge is idempotent).
+   * <b>Reachability:</b> a crash-orphaned secrets row with no surviving principal entity is
+   * unreachable (the by-principal/enumeration path is the data model's own recorded gap, §4.4 /
+   * open question 2), and likewise a crash-orphaned mapping row both of whose endpoints are gone;
+   * the old whole-table deletes covered such orphans, a walk cannot.
+   */
   @Override
   public @NonNull BaseResult purge(@NonNull PolarisCallContext callCtx) {
-    throw new UnsupportedOperationException("ticket 92: purge");
+    LOGGER.warn("Deleting all metadata in the metastore...");
+
+    List<PolarisBaseEntity> entities = walkAllEntities();
+
+    Map<RecordRef, PolarisGrantRecord> grants = new LinkedHashMap<>();
+    Map<RecordRef, PolarisPolicyMappingRecord> mappings = new LinkedHashMap<>();
+    List<Mutation> mutations = new ArrayList<>();
+    for (PolarisBaseEntity entity : entities) {
+      mutations.add(
+          Mutation.of(
+              PolarisRecordKinds.ENTITY, Mutation.Op.DELETE, entityIdentity(entity.getId()), null));
+      for (PolarisGrantRecord g : grantsAsSecurable(entity)) {
+        grants.putIfAbsent(grantIdentity(g), g);
+      }
+      for (PolarisGrantRecord g : grantsAsGrantee(entity)) {
+        grants.putIfAbsent(grantIdentity(g), g);
+      }
+      for (PolarisPolicyMappingRecord m :
+          policyMappingsOn(
+              PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, entity.getCatalogId(), entity.getId())) {
+        mappings.putIfAbsent(policyMappingIdentity(m), m);
+      }
+      if (entity.getType() == PolarisEntityType.POLICY) {
+        for (PolarisPolicyMappingRecord m :
+            policyMappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
+                entity.getCatalogId(),
+                entity.getId())) {
+          mappings.putIfAbsent(policyMappingIdentity(m), m);
+        }
+      }
+    }
+    for (RecordRef grantRef : grants.keySet()) {
+      mutations.add(Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
+    }
+    for (RecordRef mappingRef : mappings.keySet()) {
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.POLICY_MAPPING, Mutation.Op.DELETE, mappingRef, null));
+    }
+    for (PolarisBaseEntity entity : entities) {
+      if (entity.getType() == PolarisEntityType.PRINCIPAL) {
+        String clientId = PrincipalEntity.of(entity).getClientId();
+        if (clientId != null && !clientId.isEmpty()) {
+          mutations.add(
+              Mutation.of(
+                  PolarisRecordKinds.PRINCIPAL_SECRETS,
+                  Mutation.Op.DELETE,
+                  secretsIdentity(clientId),
+                  null));
+        }
+      }
+    }
+
+    int cap = primitives.maxItemsPerCommit();
+    for (int from = 0; from < mutations.size(); from += cap) {
+      OrchestrationResult result =
+          orchestrator.commit(mutations.subList(from, Math.min(from + cap, mutations.size())));
+      if (!result.isApplied()) {
+        // No preconditions ride these deletes, so a non-applied outcome is a store/deployment
+        // problem, not a race; failure-is-loud matches the old impls' uncaught store exceptions.
+        throw new IllegalStateException(
+            "purge commit not applied: "
+                + result
+                    .groupFailure()
+                    .flatMap(CommitResult::failure)
+                    .map(Enum::toString)
+                    .orElse(result.outcome().toString()));
+      }
+    }
+
+    LOGGER.warn("Finished deleting all metadata in the metastore");
+    return new BaseResult(BaseResult.ReturnStatus.SUCCESS);
+  }
+
+  /**
+   * Every entity in the realm, breadth-first from the root anchor {@code (null-catalog, root)}. A
+   * CATALOG's children anchor on {@code (catalog, catalog)}; every other entity's children anchor
+   * on {@code (its catalog, its id)}. The root container is self-parented (id 0 under parent 0),
+   * which is why anchors and ids are both dedup-guarded.
+   */
+  private List<PolarisBaseEntity> walkAllEntities() {
+    List<PolarisBaseEntity> out = new ArrayList<>();
+    Set<Long> seenIds = new HashSet<>();
+    Set<List<Long>> seenAnchors = new HashSet<>();
+    Deque<long[]> anchors = new ArrayDeque<>();
+    anchors.add(
+        new long[] {PolarisEntityConstants.getNullId(), PolarisEntityConstants.getRootEntityId()});
+    seenAnchors.add(
+        List.of(PolarisEntityConstants.getNullId(), PolarisEntityConstants.getRootEntityId()));
+    while (!anchors.isEmpty()) {
+      long[] anchor = anchors.poll();
+      for (PolarisBaseEntity entity : rawChildEntities(anchor[0], anchor[1])) {
+        if (!seenIds.add(entity.getId())) {
+          continue;
+        }
+        out.add(entity);
+        long childCatalog =
+            entity.getTypeCode() == PolarisEntityType.CATALOG.getCode()
+                ? entity.getId()
+                : entity.getCatalogId();
+        if (seenAnchors.add(List.of(childCatalog, entity.getId()))) {
+          anchors.add(new long[] {childCatalog, entity.getId()});
+        }
+      }
+    }
+    return out;
   }
 
   /**

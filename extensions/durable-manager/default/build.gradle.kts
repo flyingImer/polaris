@@ -24,6 +24,9 @@ plugins { id("polaris-server") }
 
 dependencies {
   implementation(project(":polaris-core"))
+  // purge's ported observable behaviour IS two WARN log lines (Issue 68's verified shape), so the
+  // logging facade is load-bearing here, same dependency line as the sibling persistence modules
+  implementation(libs.slf4j.api)
   compileOnly(libs.jspecify)
 
   testImplementation(project(":polaris-extensions-orchestration-default"))

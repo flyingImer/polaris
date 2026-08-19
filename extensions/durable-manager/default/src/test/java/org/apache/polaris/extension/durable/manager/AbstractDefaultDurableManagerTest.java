@@ -29,6 +29,8 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.BaseDurableManagerTest;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PolarisTestMetaStoreManager;
@@ -279,6 +281,157 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     Assertions.assertThat(
             mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table2.getId()))
         .isEmpty();
+  }
+
+  /**
+   * The purge proving case the shared fixture family cannot provide: its 27 parent cases never
+   * call {@code purge} (every test gets a fresh store, so nothing needs wiping), verified at
+   * {@code eb37c4fc4}. Shape per the ticket's gate: write through the new manager — bootstrap
+   * state (root principal with secrets, the bootstrap grant) plus a catalog tree with an attached
+   * policy — call {@code purge}, observe emptiness through the NEW handle for every kind the old
+   * {@code deleteAll} wiped, and observe the EVENTS row's survival (the old realm-scoped wipe
+   * never touched the events table — its rows carry no realm column — so survival IS the parity,
+   * verified against {@code JdbcDurablePrimitivesImpl#deleteAll}'s table list).
+   */
+  @Test
+  protected void purgeEmptiesEveryOldWipeKindThroughTheNewHandleAndSparesEvents() {
+    PolarisBaseEntity catalog =
+        created(
+            null,
+            newEntity(
+                PolarisEntityConstants.getNullId(),
+                PolarisEntityConstants.getRootEntityId(),
+                PolarisEntityType.CATALOG,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                "C",
+                Map.of()));
+    PolarisBaseEntity namespace =
+        created(
+            List.of(catalog),
+            newEntity(
+                catalog.getId(),
+                catalog.getId(),
+                PolarisEntityType.NAMESPACE,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                "N",
+                Map.of()));
+    List<PolarisEntityCore> nsPath = List.of(catalog, namespace);
+    PolarisBaseEntity table =
+        created(
+            nsPath,
+            newEntity(
+                catalog.getId(),
+                namespace.getId(),
+                PolarisEntityType.TABLE_LIKE,
+                PolarisEntitySubType.ICEBERG_TABLE,
+                "T",
+                Map.of()));
+    PolicyEntity policy =
+        PolicyEntity.of(
+            created(
+                List.of(catalog),
+                newEntity(
+                    catalog.getId(),
+                    catalog.getId(),
+                    PolarisEntityType.POLICY,
+                    PolarisEntitySubType.NULL_SUBTYPE,
+                    "P",
+                    Map.of(
+                        PolicyEntity.POLICY_TYPE_CODE_KEY,
+                        Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))));
+    Assertions.assertThat(
+            managerUnderTest
+                .attachPolicyToEntity(newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
+                .isSuccess())
+        .isTrue();
+    EventEntity event =
+        new EventEntity(
+            "cat", "purge-event", null, "TEST_EVENT", 3L, null, EventEntity.ResourceType.CATALOG,
+            "r");
+    managerUnderTest.writeEvents(newModelCallCtx, List.of(event));
+
+    // Bootstrap state this proving case leans on: the root principal (and its secrets row).
+    PolarisBaseEntity rootPrincipal =
+        managerUnderTest
+            .readEntityByName(
+                newModelCallCtx,
+                null,
+                PolarisEntityType.PRINCIPAL,
+                PolarisEntitySubType.ANY_SUBTYPE,
+                PolarisEntityConstants.getRootPrincipalName())
+            .getEntity();
+    Assertions.assertThat(rootPrincipal).isNotNull();
+    String rootClientId = PrincipalEntity.of(rootPrincipal).getClientId();
+    Assertions.assertThat(
+            newHandle.get(
+                RecordRef.byIdentity(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
+                Object.class))
+        .isPresent();
+
+    Assertions.assertThat(managerUnderTest.purge(newModelCallCtx).getReturnStatus())
+        .isEqualTo(BaseResult.ReturnStatus.SUCCESS);
+
+    // ENTITIES: every anchor this test knows is empty, and every created id resolves to nothing.
+    for (long[] anchor :
+        new long[][] {
+          {PolarisEntityConstants.getNullId(), PolarisEntityConstants.getRootEntityId()},
+          {catalog.getId(), catalog.getId()},
+          {catalog.getId(), namespace.getId()}
+        }) {
+      Assertions.assertThat(
+              newHandle
+                  .list(
+                      PolarisRecordKinds.ENTITY,
+                      PolarisRecordKinds.ENTITY_BY_PARENT,
+                      List.of(anchor[0], anchor[1]),
+                      PageToken.readEverything(),
+                      PolarisBaseEntity.class)
+                  .items())
+          .isEmpty();
+    }
+    for (long id :
+        new long[] {catalog.getId(), namespace.getId(), table.getId(), policy.getId(),
+          rootPrincipal.getId()}) {
+      Assertions.assertThat(
+              newHandle.get(
+                  RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(id)),
+                  PolarisBaseEntity.class))
+          .isEmpty();
+    }
+    // GRANT_RECORDS: the bootstrap grant's securable anchor (the root container) is empty.
+    Assertions.assertThat(
+            newHandle
+                .list(
+                    PolarisRecordKinds.GRANT_RECORD,
+                    PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
+                    List.of(
+                        PolarisEntityConstants.getNullId(),
+                        PolarisEntityConstants.getRootEntityId()),
+                    PageToken.readEverything(),
+                    PolarisGrantRecord.class)
+                .items())
+        .isEmpty();
+    // POLICY_MAPPING: both directions empty.
+    Assertions.assertThat(
+            mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table.getId()))
+        .isEmpty();
+    Assertions.assertThat(
+            mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_POLICY, catalog.getId(), policy.getId()))
+        .isEmpty();
+    // PRINCIPAL_SECRETS: the root principal's row is gone.
+    Assertions.assertThat(
+            newHandle.get(
+                RecordRef.byIdentity(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
+                Object.class))
+        .isEmpty();
+    // EVENTS: excluded by parity — the row survives.
+    Assertions.assertThat(
+            newHandle.get(
+                RecordRef.byIdentity(PolarisRecordKinds.EVENT, List.of(event.getId())),
+                EventEntity.class))
+        .isPresent();
   }
 
   /**
