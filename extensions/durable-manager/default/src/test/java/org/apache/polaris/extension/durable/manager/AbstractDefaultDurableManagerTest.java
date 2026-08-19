@@ -373,16 +373,6 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
 
   @Override
   @Test
-  @Disabled("ticket 92: task leasing (loadTasks)")
-  protected void testLoadTasks() {}
-
-  @Override
-  @Test
-  @Disabled("ticket 92: task leasing (loadTasks)")
-  protected void testLoadTasksInParallel() {}
-
-  @Override
-  @Test
   @Disabled("ticket 92: entity cache / resolver refresh")
   protected void testEntityCache() {}
 }

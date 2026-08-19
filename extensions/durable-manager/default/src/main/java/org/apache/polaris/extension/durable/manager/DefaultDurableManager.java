@@ -53,6 +53,7 @@ import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
@@ -1845,10 +1846,83 @@ public class DefaultDurableManager
     throw new UnsupportedOperationException("ticket 92: purge");
   }
 
+  /**
+   * Ported from both old impls' {@code loadTasks}, whose availability predicate is verbatim
+   * identical in the two: a TASK under root is leasable when its parsed state is null (never
+   * attempted, or unparseable — {@code parseTaskState} logs and returns null on bad JSON), its
+   * executor is null, or its last attempt is older than {@code POLARIS_TASK_TIMEOUT_MILLIS} (realm
+   * config, default 300s) against the INJECTED clock. Taking a lease stamps {@code
+   * lastAttemptExecutorId}/{@code lastAttemptStartTime}/{@code attemptCount} and persists through
+   * {@link #updateEntityPropertiesIfNotChanged}'s version CAS, exactly as both old impls do.
+   *
+   * <p>The read is {@link #listChildEntities} over root (the same in-memory entity-type narrowing
+   * that method already discloses), with the availability predicate evaluated HERE and the page
+   * limit applied AFTER it — matching the old primitives' predicate-then-limit order (the
+   * fixture's second limit-5 call must return the NEXT five unleased tasks, not an empty page of
+   * already-leased ones). The old interface pushed this predicate INTO the store as a callback; the
+   * new SPI's own javadoc records task leasing as a missing operation rather than a filter to
+   * relocate, and reshaping it is the read-side record's noted follow-up, not this ticket's — so
+   * the whole candidate set crosses to the manager and is filtered in memory, the disclosed
+   * interim cost.
+   *
+   * <p><b>Disclosed old-impl divergence, Atomic's form matched:</b> individual failed leases are
+   * skipped, and only a batch where EVERY attempted lease failed throws {@link
+   * RetryOnConcurrencyException} ({@code AtomicOperationMetaStoreManager}'s partial-success form,
+   * which one-commit-per-lease natively is). {@code TransactionalMetaStoreManagerImpl} instead
+   * rolls its whole batch back and throws on the FIRST failed lease; that all-or-nothing form has
+   * no counterpart here because each lease is its own commit. The fixture accepts either (its
+   * parallel executors catch the exception and retry; exactly-once claiming rests on the CAS, not
+   * on the batch shape).
+   */
   @Override
   public @NonNull EntitiesResult loadTasks(
       @NonNull PolarisCallContext callCtx, String executorId, PageToken pageToken) {
-    throw new UnsupportedOperationException("ticket 92: task leasing (loadTasks)");
+    long taskAgeTimeout =
+        callCtx.getRealmConfig().getConfig(FeatureConfiguration.POLARIS_TASK_TIMEOUT_MILLIS);
+    List<PolarisBaseEntity> availableTasks =
+        listChildEntities(
+                null,
+                PolarisEntityType.TASK,
+                PolarisEntitySubType.ANY_SUBTYPE,
+                PageToken.readEverything())
+            .stream()
+            .filter(
+                entity -> {
+                  PolarisObjectMapperUtil.TaskExecutionState taskState =
+                      PolarisObjectMapperUtil.parseTaskState(entity);
+                  return taskState == null
+                      || taskState.executor == null
+                      || clock.millis() - taskState.lastAttemptStartTime > taskAgeTimeout;
+                })
+            .limit(pageToken.pageSize().isPresent() ? pageToken.pageSize().getAsInt() : Long.MAX_VALUE)
+            .toList();
+
+    int failedLeaseCount = 0;
+    List<PolarisBaseEntity> loadedTasks = new ArrayList<>(availableTasks.size());
+    for (PolarisBaseEntity task : availableTasks) {
+      PolarisBaseEntity.Builder updatedTaskBuilder = new PolarisBaseEntity.Builder(task);
+      Map<String, String> properties = task.getPropertiesAsMap();
+      properties.put(PolarisTaskConstants.LAST_ATTEMPT_EXECUTOR_ID, executorId);
+      properties.put(PolarisTaskConstants.LAST_ATTEMPT_START_TIME, String.valueOf(clock.millis()));
+      properties.put(
+          PolarisTaskConstants.ATTEMPT_COUNT,
+          String.valueOf(
+              Integer.parseInt(properties.getOrDefault(PolarisTaskConstants.ATTEMPT_COUNT, "0"))
+                  + 1));
+      updatedTaskBuilder.propertiesAsMap(properties);
+      EntityResult result =
+          updateEntityPropertiesIfNotChanged(callCtx, null, updatedTaskBuilder.build());
+      if (result.getReturnStatus() == BaseResult.ReturnStatus.SUCCESS) {
+        loadedTasks.add(result.getEntity());
+      } else {
+        failedLeaseCount++;
+      }
+    }
+    if (loadedTasks.isEmpty() && failedLeaseCount > 0) {
+      throw new RetryOnConcurrencyException(
+          "Failed to lease any of %s tasks due to concurrent leases", failedLeaseCount);
+    }
+    return EntitiesResult.fromPage(Page.fromItems(loadedTasks));
   }
 
   @Override
