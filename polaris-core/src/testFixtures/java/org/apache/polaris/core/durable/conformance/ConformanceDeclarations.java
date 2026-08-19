@@ -175,7 +175,23 @@ public final class ConformanceDeclarations {
                   Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, prefix + "/t" + ordinal))
               .build();
         },
-        record -> entityIdentityRef((PolarisBaseEntity) record));
+        record -> entityIdentityRef((PolarisBaseEntity) record),
+        // The ancestor direction the shipped overlap query also matches (ticket 87's fix): a
+        // record whose location IS a slash-terminated ancestor segment of the queried prefix.
+        // Derived from the anchor: the prefix truncated to its last slash, inclusive.
+        (anchors, ordinal, trailing) -> {
+          long catalogId = (Long) anchors.get(0);
+          String prefix = (String) anchors.get(1);
+          String ancestor = prefix.substring(0, prefix.lastIndexOf('/') + 1);
+          return entityBuilder(
+                  catalogId * 10_000_000 + 400_000L + ordinal,
+                  catalogId,
+                  1L,
+                  "loc-anc-" + catalogId + "-" + ordinal,
+                  null)
+              .propertiesAsMap(Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, ancestor))
+              .build();
+        });
   }
 
   private static PolarisBaseEntity.Builder entityBuilder(

@@ -588,6 +588,22 @@ public abstract class BaseDurableRecordStoreConformanceTest {
                 assertThat(refsListedUnder(s, pc, withTrailing)).containsExactly(ref(pc, selected));
               }));
     }
+    if (pc.ancestorMint() != null) {
+      cases.add(
+          DynamicTest.dynamicTest(
+              "aRecordAtAnAncestorOfTheAnchorIsAlsoServed",
+              () -> {
+                DurableRecordStore s = newStore();
+                List<Object> a = pc.anchors().apply(0);
+                Object shallow = pc.ancestorMint().mint(a, 0, null);
+                create(s, pc, shallow);
+                // The declared overlap runs in BOTH directions: records deeper than the anchor
+                // (every other case's mints) and a record AT one of the anchor's slash-terminated
+                // ancestor segments. Generation could never reach this direction before, because
+                // the standard minter only mints deeper.
+                assertThat(refsListedUnder(s, pc, a)).contains(ref(pc, shallow));
+              }));
+    }
     cases.add(
         DynamicTest.dynamicTest(
             "theKindLessUnionFormServesThePath",

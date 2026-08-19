@@ -49,6 +49,10 @@ import org.jspecify.annotations.Nullable;
  *     records under one anchor tuple, and the trailing value (when non-null) mints a record the
  *     trailing anchor selects
  * @param identityRef the minted record's identity reference, for creating it through {@code commit}
+ * @param ancestorMint mints a record the path serves through its declared ancestor direction — a
+ *     record whose own scope value is a slash-terminated ancestor segment of the queried anchor,
+ *     shallower than it — or null when the path declares no such direction. Modeled like {@code
+ *     trailingType}: a capability a declaration opts into, generating its case only where declared.
  */
 public record PathCase(
     RecordKind kind,
@@ -58,7 +62,21 @@ public record PathCase(
     IntFunction<List<Object>> anchors,
     @Nullable Object trailingValue,
     Minter mint,
-    Function<Object, RecordRef> identityRef) {
+    Function<Object, RecordRef> identityRef,
+    @Nullable Minter ancestorMint) {
+
+  /** The common form: a path declaring no ancestor direction. */
+  public PathCase(
+      RecordKind kind,
+      LookupPath path,
+      List<Class<?>> anchorTypes,
+      @Nullable Class<?> trailingType,
+      IntFunction<List<Object>> anchors,
+      @Nullable Object trailingValue,
+      Minter mint,
+      Function<Object, RecordRef> identityRef) {
+    this(kind, path, anchorTypes, trailingType, anchors, trailingValue, mint, identityRef, null);
+  }
 
   /** Mints one record resolvable under the given anchor tuple. */
   @FunctionalInterface
