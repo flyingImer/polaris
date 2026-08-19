@@ -606,6 +606,71 @@ public abstract class BaseDurableRecordStoreConformanceTest {
     return DynamicContainer.dynamicContainer(pc.kind().id() + " " + pc.path().name(), cases);
   }
 
+  /** The cross-path entries the generated cases run over. */
+  protected List<CrossPathCase> crossPathCases() {
+    return ConformanceDeclarations.crossPathCases();
+  }
+
+  @TestFactory
+  protected Stream<DynamicNode> crossPathCasesGeneratedFromTheDeclarations() {
+    return crossPathCases().stream().map(this::crossPathCaseFor);
+  }
+
+  private DynamicNode crossPathCaseFor(CrossPathCase cc) {
+    return DynamicTest.dynamicTest(
+        cc.kind().id() + " aSingleCommitIsServedByEveryDeclaredPathOfItsKind",
+        () -> {
+          DurableRecordStore s = newStore();
+          RecordRef committed = cc.identityRef().apply(cc.record());
+          CommitResult result =
+              s.commit(List.of(Mutation.of(cc.kind(), Mutation.Op.CREATE, committed, cc.record())));
+          assertThat(result.isApplied()).as("fixture create applies").isTrue();
+
+          cc.anchorsPerPath()
+              .forEach(
+                  (path, anchors) ->
+                      assertThat(crossRefsListedUnder(s, cc, path, anchors))
+                          .as("path %s serves the one committed record", path.name())
+                          .contains(committed));
+
+          // The negative direction: under ANOTHER path's anchors (where the tuple types are
+          // compatible and the values differ), the record must be absent — two paths accidentally
+          // wired to the same column would serve it symmetrically and pass the positive half.
+          cc.anchorsPerPath()
+              .forEach(
+                  (path, anchors) ->
+                      cc.anchorsPerPath()
+                          .forEach(
+                              (otherPath, otherAnchors) -> {
+                                if (path.equals(otherPath)
+                                    || anchors.equals(otherAnchors)
+                                    || !anchorClassesOf(anchors)
+                                        .equals(anchorClassesOf(otherAnchors))) {
+                                  return;
+                                }
+                                assertThat(crossRefsListedUnder(s, cc, path, otherAnchors))
+                                    .as(
+                                        "path %s must not serve the record under %s's anchors",
+                                        path.name(), otherPath.name())
+                                    .doesNotContain(committed);
+                              }));
+        });
+  }
+
+  private static List<Class<?>> anchorClassesOf(List<Object> anchors) {
+    return anchors.stream().<Class<?>>map(Object::getClass).toList();
+  }
+
+  private static List<RecordRef> crossRefsListedUnder(
+      DurableRecordStore s, CrossPathCase cc, LookupPath path, List<Object> anchors) {
+    return s
+        .list(cc.kind(), path, anchors, PageToken.readEverything(), Object.class)
+        .items()
+        .stream()
+        .map(r -> cc.identityRef().apply(r))
+        .toList();
+  }
+
   private static void create(DurableRecordStore s, PathCase pc, Object record) {
     CommitResult result =
         s.commit(List.of(Mutation.of(pc.kind(), Mutation.Op.CREATE, ref(pc, record), record)));

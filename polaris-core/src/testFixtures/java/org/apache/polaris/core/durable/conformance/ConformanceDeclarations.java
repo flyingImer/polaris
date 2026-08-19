@@ -20,6 +20,8 @@ package org.apache.polaris.core.durable.conformance;
 
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
+import java.util.stream.Collectors;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -27,6 +29,8 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
+import org.apache.polaris.spi.durable.LookupPath;
+import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.jspecify.annotations.Nullable;
 
@@ -50,6 +54,77 @@ public final class ConformanceDeclarations {
         entityByParent(), entityByLocationPrefix(),
         grantBySecurable(), grantByGrantee(),
         policyByTarget(), policyByPolicy());
+  }
+
+  /**
+   * One cross-path case per kind declaring more than one lookup path: a single record whose field
+   * values serve every declared path of its kind at once. The values are hand-authored (a canonical
+   * record's mutually-compatible fields cannot be derived mechanically), but the coverage is
+   * validated mechanically: the covered kind/path sets must exactly equal the multi-path kinds of
+   * {@link #polarisPathCases()}, so a kind gaining a second path without a cross-path row fails
+   * loudly here instead of silently losing coverage.
+   */
+  public static List<CrossPathCase> crossPathCases() {
+    List<CrossPathCase> cases = List.of(entityCrossPaths(), grantCrossPaths(), policyCrossPaths());
+
+    Map<RecordKind, Set<LookupPath>> multiPath =
+        polarisPathCases().stream()
+            .collect(
+                Collectors.groupingBy(
+                    PathCase::kind, Collectors.mapping(PathCase::path, Collectors.toSet())))
+            .entrySet()
+            .stream()
+            .filter(e -> e.getValue().size() > 1)
+            .collect(Collectors.toMap(Map.Entry::getKey, Map.Entry::getValue));
+    Map<RecordKind, Set<LookupPath>> covered =
+        cases.stream()
+            .collect(Collectors.toMap(CrossPathCase::kind, c -> c.anchorsPerPath().keySet()));
+    if (!multiPath.equals(covered)) {
+      throw new IllegalStateException(
+          "cross-path rows out of step with the path declarations: multi-path kinds declare "
+              + multiPath
+              + " but the cross-path rows cover "
+              + covered);
+    }
+    return cases;
+  }
+
+  private static CrossPathCase entityCrossPaths() {
+    PolarisBaseEntity entity =
+        entityBuilder(3_150_777L, 3L, 150L, "cross-path-entity", null)
+            .propertiesAsMap(
+                Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, "s3://bucket/cross-w/e1"))
+            .build();
+    return new CrossPathCase(
+        PolarisRecordKinds.ENTITY,
+        entity,
+        Map.of(
+            PolarisRecordKinds.ENTITY_BY_PARENT, List.of(3L, 150L),
+            PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX, List.of(3L, "s3://bucket/cross-w")),
+        record -> entityIdentityRef((PolarisBaseEntity) record));
+  }
+
+  private static CrossPathCase grantCrossPaths() {
+    PolarisGrantRecord grant = new PolarisGrantRecord(3L, 210L, 3L, 310L, 3);
+    return new CrossPathCase(
+        PolarisRecordKinds.GRANT_RECORD,
+        grant,
+        Map.of(
+            PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE, List.of(3L, 210L),
+            PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE, List.of(3L, 310L)),
+        record -> grantIdentityRef((PolarisGrantRecord) record));
+  }
+
+  private static CrossPathCase policyCrossPaths() {
+    PolarisPolicyMappingRecord mapping =
+        new PolarisPolicyMappingRecord(3L, 610L, 3L, 710L, 5, "{}");
+    return new CrossPathCase(
+        PolarisRecordKinds.POLICY_MAPPING,
+        mapping,
+        Map.of(
+            PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, List.of(3L, 610L),
+            PolarisRecordKinds.POLICY_MAPPING_BY_POLICY, List.of(3L, 710L)),
+        record -> policyIdentityRef((PolarisPolicyMappingRecord) record));
   }
 
   // ---------------------------------------------------------------- entity
