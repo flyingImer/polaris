@@ -64,10 +64,10 @@ import org.junit.jupiter.api.Test;
  * door.
  *
  * <p>Ticket 91 disabled the five fixture tests outside its scope here; ticket 92 removes those
- * overrides as it implements each surface. Any override still present below re-declares {@code
- * @Test} alongside {@code @Disabled}, because an override without {@code @Test} does not inherit
- * the annotation and simply vanishes from discovery with no skipped entry — verified against the
- * junit-platform-commons 1.11.3 source this module depends on transitively.
+ * overrides as it implements each surface. Any override still present below re-declares
+ * {@code @Test} alongside {@code @Disabled}, because an override without {@code @Test} does not
+ * inherit the annotation and simply vanishes from discovery with no skipped entry — verified
+ * against the junit-platform-commons 1.11.3 source this module depends on transitively.
  */
 public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManagerTest {
 
@@ -150,8 +150,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
         .build();
   }
 
-  private PolarisBaseEntity created(
-      List<PolarisEntityCore> catalogPath, PolarisBaseEntity entity) {
+  private PolarisBaseEntity created(List<PolarisEntityCore> catalogPath, PolarisBaseEntity entity) {
     EntityResult result =
         managerUnderTest.createEntityIfNotExists(newModelCallCtx, catalogPath, entity);
     Assertions.assertThat(result.isSuccess()).isTrue();
@@ -250,7 +249,8 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     // Target side: attach P1 -> T1, drop T1, the mapping goes with it.
     Assertions.assertThat(
             managerUnderTest
-                .attachPolicyToEntity(newModelCallCtx, nsPath, table1, List.of(catalog), policy1, null)
+                .attachPolicyToEntity(
+                    newModelCallCtx, nsPath, table1, List.of(catalog), policy1, null)
                 .isSuccess())
         .isTrue();
     Assertions.assertThat(
@@ -270,7 +270,8 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     // Policy side: attach P2 -> T2, drop P2 itself, the mapping goes with it.
     Assertions.assertThat(
             managerUnderTest
-                .attachPolicyToEntity(newModelCallCtx, nsPath, table2, List.of(catalog), policy2, null)
+                .attachPolicyToEntity(
+                    newModelCallCtx, nsPath, table2, List.of(catalog), policy2, null)
                 .isSuccess())
         .isTrue();
     Assertions.assertThat(
@@ -279,19 +280,20 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                 .isSuccess())
         .isTrue();
     Assertions.assertThat(
-            mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table2.getId()))
+            mappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table2.getId()))
         .isEmpty();
   }
 
   /**
-   * The purge proving case the shared fixture family cannot provide: its 27 parent cases never
-   * call {@code purge} (every test gets a fresh store, so nothing needs wiping), verified at
-   * {@code eb37c4fc4}. Shape per the ticket's gate: write through the new manager — bootstrap
-   * state (root principal with secrets, the bootstrap grant) plus a catalog tree with an attached
-   * policy — call {@code purge}, observe emptiness through the NEW handle for every kind the old
-   * {@code deleteAll} wiped, and observe the EVENTS row's survival (the old realm-scoped wipe
-   * never touched the events table — its rows carry no realm column — so survival IS the parity,
-   * verified against {@code JdbcDurablePrimitivesImpl#deleteAll}'s table list).
+   * The purge proving case the shared fixture family cannot provide: its 27 parent cases never call
+   * {@code purge} (every test gets a fresh store, so nothing needs wiping), verified at {@code
+   * eb37c4fc4}. Shape per the ticket's gate: write through the new manager — bootstrap state (root
+   * principal with secrets, the bootstrap grant) plus a catalog tree with an attached policy — call
+   * {@code purge}, observe emptiness through the NEW handle for every kind the old {@code
+   * deleteAll} wiped, and observe the EVENTS row's survival (the old realm-scoped wipe never
+   * touched the events table — its rows carry no realm column — so survival IS the parity, verified
+   * against {@code JdbcDurablePrimitivesImpl#deleteAll}'s table list).
    */
   @Test
   protected void purgeEmptiesEveryOldWipeKindThroughTheNewHandleAndSparesEvents() {
@@ -341,12 +343,19 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                         Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))));
     Assertions.assertThat(
             managerUnderTest
-                .attachPolicyToEntity(newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
+                .attachPolicyToEntity(
+                    newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
                 .isSuccess())
         .isTrue();
     EventEntity event =
         new EventEntity(
-            "cat", "purge-event", null, "TEST_EVENT", 3L, null, EventEntity.ResourceType.CATALOG,
+            "cat",
+            "purge-event",
+            null,
+            "TEST_EVENT",
+            3L,
+            null,
+            EventEntity.ResourceType.CATALOG,
             "r");
     managerUnderTest.writeEvents(newModelCallCtx, List.of(event));
 
@@ -364,8 +373,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     String rootClientId = PrincipalEntity.of(rootPrincipal).getClientId();
     Assertions.assertThat(
             newHandle.get(
-                RecordRef.byIdentity(
-                    PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
+                RecordRef.byIdentity(PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
                 Object.class))
         .isPresent();
 
@@ -391,8 +399,9 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
           .isEmpty();
     }
     for (long id :
-        new long[] {catalog.getId(), namespace.getId(), table.getId(), policy.getId(),
-          rootPrincipal.getId()}) {
+        new long[] {
+          catalog.getId(), namespace.getId(), table.getId(), policy.getId(), rootPrincipal.getId()
+        }) {
       Assertions.assertThat(
               newHandle.get(
                   RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(id)),
@@ -417,13 +426,13 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
             mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table.getId()))
         .isEmpty();
     Assertions.assertThat(
-            mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_POLICY, catalog.getId(), policy.getId()))
+            mappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY, catalog.getId(), policy.getId()))
         .isEmpty();
     // PRINCIPAL_SECRETS: the root principal's row is gone.
     Assertions.assertThat(
             newHandle.get(
-                RecordRef.byIdentity(
-                    PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
+                RecordRef.byIdentity(PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(rootClientId)),
                 Object.class))
         .isEmpty();
     // EVENTS: excluded by parity — the row survives.
@@ -437,20 +446,32 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
   /**
    * The events surface has NO case anywhere in the shared fixture family (none of the 27 parent
    * cases calls {@code writeEvents}), so its proving case rides here: write a batch through the
-   * manager, observe each event through the NEW handle by identity. Both old manager impls
-   * delegate to the store unfiltered; on the new stack both bindings' stores serve the kind, so
-   * this runs functional in both.
+   * manager, observe each event through the NEW handle by identity. Both old manager impls delegate
+   * to the store unfiltered; on the new stack both bindings' stores serve the kind, so this runs
+   * functional in both.
    */
   @Test
   protected void writeEventsPersistsEachEventObservedThroughTheNewHandle() {
     List<EventEntity> events =
         List.of(
             new EventEntity(
-                "cat", "event-1", null, "TEST_EVENT", 1L, null, EventEntity.ResourceType.CATALOG,
+                "cat",
+                "event-1",
+                null,
+                "TEST_EVENT",
+                1L,
+                null,
+                EventEntity.ResourceType.CATALOG,
                 "r1"),
             new EventEntity(
-                "cat", "event-2", "req", "TEST_EVENT", 2L, "someone",
-                EventEntity.ResourceType.TABLE, "r2"));
+                "cat",
+                "event-2",
+                "req",
+                "TEST_EVENT",
+                2L,
+                "someone",
+                EventEntity.ResourceType.TABLE,
+                "r2"));
     managerUnderTest.writeEvents(newModelCallCtx, events);
     for (EventEntity written : events) {
       EventEntity stored =
@@ -520,12 +541,14 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                         Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))));
     Assertions.assertThat(
             managerUnderTest
-                .attachPolicyToEntity(newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
+                .attachPolicyToEntity(
+                    newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
                 .isSuccess())
         .isTrue();
 
     DropEntityResult refused =
-        managerUnderTest.dropEntityIfExists(newModelCallCtx, List.of(catalog), policy, Map.of(), false);
+        managerUnderTest.dropEntityIfExists(
+            newModelCallCtx, List.of(catalog), policy, Map.of(), false);
     Assertions.assertThat(refused.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.POLICY_HAS_MAPPINGS);
 
@@ -558,5 +581,4 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
   @Test
   @Disabled("ticket 92 stop rule: fixture oracle reads the old primitives handle (reported)")
   protected void testPolicyMappingCleanup() {}
-
 }

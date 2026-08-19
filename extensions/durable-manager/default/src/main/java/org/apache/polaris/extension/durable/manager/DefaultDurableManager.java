@@ -55,8 +55,8 @@ import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
-import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
@@ -1929,7 +1929,8 @@ public class DefaultDurableManager
       }
     }
     for (RecordRef grantRef : grants.keySet()) {
-      mutations.add(Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
     }
     for (RecordRef mappingRef : mappings.keySet()) {
       mutations.add(
@@ -2015,13 +2016,13 @@ public class DefaultDurableManager
    *
    * <p>The read is {@link #listChildEntities} over root (the same in-memory entity-type narrowing
    * that method already discloses), with the availability predicate evaluated HERE and the page
-   * limit applied AFTER it — matching the old primitives' predicate-then-limit order (the
-   * fixture's second limit-5 call must return the NEXT five unleased tasks, not an empty page of
+   * limit applied AFTER it — matching the old primitives' predicate-then-limit order (the fixture's
+   * second limit-5 call must return the NEXT five unleased tasks, not an empty page of
    * already-leased ones). The old interface pushed this predicate INTO the store as a callback; the
    * new SPI's own javadoc records task leasing as a missing operation rather than a filter to
    * relocate, and reshaping it is the read-side record's noted follow-up, not this ticket's — so
-   * the whole candidate set crosses to the manager and is filtered in memory, the disclosed
-   * interim cost.
+   * the whole candidate set crosses to the manager and is filtered in memory, the disclosed interim
+   * cost.
    *
    * <p><b>Disclosed old-impl divergence, Atomic's form matched:</b> individual failed leases are
    * skipped, and only a batch where EVERY attempted lease failed throws {@link
@@ -2052,7 +2053,8 @@ public class DefaultDurableManager
                       || taskState.executor == null
                       || clock.millis() - taskState.lastAttemptStartTime > taskAgeTimeout;
                 })
-            .limit(pageToken.pageSize().isPresent() ? pageToken.pageSize().getAsInt() : Long.MAX_VALUE)
+            .limit(
+                pageToken.pageSize().isPresent() ? pageToken.pageSize().getAsInt() : Long.MAX_VALUE)
             .toList();
 
     int failedLeaseCount = 0;
@@ -2882,14 +2884,14 @@ public class DefaultDurableManager
   /**
    * The manager-owned attach rule (S3), ported from the check both old impls delegate to their
    * backends ({@code AbstractTransactionalPersistence
-   * #checkConditionsForWriteToPolicyMappingRecordsInCurrentTxn} and {@code JdbcDurablePrimitivesImpl
-   * #handleInheritablePolicy} implement the identical three-way branch): an invalid policy type
-   * code is {@code UNEXPECTED_ERROR_SIGNALED "Unknown policy type"}; for an INHERITABLE type,
-   * attaching a DIFFERENT policy of the same type as an existing mapping is {@code
-   * POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS}, while re-attaching the SAME policy updates only
-   * the mapping's {@code parameters} in place; a non-inheritable type skips the same-type check
-   * entirely (no shipped policy type is non-inheritable, so that branch has no old-behaviour oracle
-   * — data model 5.1's own note).
+   * #checkConditionsForWriteToPolicyMappingRecordsInCurrentTxn} and {@code
+   * JdbcDurablePrimitivesImpl #handleInheritablePolicy} implement the identical three-way branch):
+   * an invalid policy type code is {@code UNEXPECTED_ERROR_SIGNALED "Unknown policy type"}; for an
+   * INHERITABLE type, attaching a DIFFERENT policy of the same type as an existing mapping is
+   * {@code POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS}, while re-attaching the SAME policy updates
+   * only the mapping's {@code parameters} in place; a non-inheritable type skips the same-type
+   * check entirely (no shipped policy type is non-inheritable, so that branch has no old-behaviour
+   * oracle — data model 5.1's own note).
    *
    * <h2>Disclosed divergence choices (fixture-silent, per ticket 91's precedent)</h2>
    *
@@ -3102,8 +3104,7 @@ public class DefaultDurableManager
   @Override
   public @NonNull LoadPolicyMappingsResult loadPoliciesOnEntity(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore target) {
-    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType())
-        .isSuccess()) {
+    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType()).isSuccess()) {
       return new LoadPolicyMappingsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
     }
     List<PolarisPolicyMappingRecord> mappingRecords =
@@ -3118,16 +3119,15 @@ public class DefaultDurableManager
    * alone (data model 4.3), with no policy-type anchor — the same declaration gap as {@link
    * #listChildEntities}'s entity-type narrowing, and the same disclosure: the store evaluates
    * everything it CAN evaluate, only the undeclared dimension falls through to the manager (old
-   * JDBC pushes the type into its WHERE clause through the old interface's dedicated
-   * per-type method, which the new declared-path read side deliberately does not carry).
+   * JDBC pushes the type into its WHERE clause through the old interface's dedicated per-type
+   * method, which the new declared-path read side deliberately does not carry).
    */
   @Override
   public @NonNull LoadPolicyMappingsResult loadPoliciesOnEntityByType(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityCore target,
       @NonNull PolicyType policyType) {
-    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType())
-        .isSuccess()) {
+    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType()).isSuccess()) {
       return new LoadPolicyMappingsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
     }
     List<PolarisPolicyMappingRecord> mappingRecords =
@@ -3155,13 +3155,13 @@ public class DefaultDurableManager
    * the store decides: old JDBC batch-inserts, old TreeMap throws {@code
    * UnsupportedOperationException} (events are optional — data model 4.5; the one production
    * caller, the in-memory buffer listener, retries then logs and drops). Same contract here:
-   * append-only {@code CREATE} mutations through the orchestrator, no catch — a store that does
-   * not serve the events kind rejects loudly (the routing implementation names the kind), which IS
-   * the documented refusal; on this branch both new-model stores serve it, so both fixture
-   * bindings are functional where the old TreeMap pairing threw.
+   * append-only {@code CREATE} mutations through the orchestrator, no catch — a store that does not
+   * serve the events kind rejects loudly (the routing implementation names the kind), which IS the
+   * documented refusal; on this branch both new-model stores serve it, so both fixture bindings are
+   * functional where the old TreeMap pairing threw.
    *
-   * <p>Two disclosed shape notes with no old-status vocabulary to map onto (the method is void):
-   * a batch larger than {@link DurableRecordStore#maxItemsPerCommit} is CHUNKED into consecutive
+   * <p>Two disclosed shape notes with no old-status vocabulary to map onto (the method is void): a
+   * batch larger than {@link DurableRecordStore#maxItemsPerCommit} is CHUNKED into consecutive
    * commits — events are independent append-only rows with no cross-event atomicity promise, so
    * S12's no-silent-splitting rule for promised-atomic batches does not bite, and the only
    * difference from old JDBC's single INSERT transaction is the crash window between chunks; and a
