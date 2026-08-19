@@ -594,14 +594,20 @@ public abstract class BaseDurableRecordStoreConformanceTest {
             () -> {
               DurableRecordStore s = newStore();
               List<Object> a = pc.anchors().apply(0);
+              List<Object> b = pc.anchors().apply(1);
               Object a0 = pc.mint().mint(a, 0, null);
+              Object b0 = pc.mint().mint(b, 0, null);
               create(s, pc, a0);
+              create(s, pc, b0);
 
               List<RecordRef> union =
                   s.list(pc.path(), a, PageToken.readEverything(), Object.class).items().stream()
                       .map(r -> ref(pc, r))
                       .toList();
               assertThat(union).contains(ref(pc, a0));
+              // The union serves the path's SCOPE, not the kind's whole slice: a record under a
+              // different anchor tuple must be absent, or a union ignoring the anchors would pass.
+              assertThat(union).doesNotContain(ref(pc, b0));
             }));
     return DynamicContainer.dynamicContainer(pc.kind().id() + " " + pc.path().name(), cases);
   }
