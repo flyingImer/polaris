@@ -231,6 +231,37 @@ public abstract class BaseDurableRecordStoreConformanceTest {
   }
 
   @Test
+  protected void aCreateRacedByACompetingWriterLosesByPreconditionAtomically() {
+    // The suite's first concurrency case, deterministic instead of thread-timed: the competing
+    // writer's create lands in the real store on the FIRST commit call, strictly between this
+    // commit's construction and its precondition evaluation — the interleaving real threads
+    // cannot be relied on to produce, and which two same-key creates in ONE commit cannot model
+    // because they roll each other back leaving no winner.
+    DurableRecordStore raced =
+        new CommitPreemptingDurableRecordStore(
+            newStore(), racedMutations -> List.of(createEntity(entity(10L, 1L, "catalog", 1))));
+
+    CommitResult result =
+        raced.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.ENTITY,
+                    Mutation.Op.CREATE,
+                    entityRef(11L),
+                    entity(11L, 1L, "catalog", 1),
+                    List.of(Precondition.notExists(entityUniquenessRef(1L, "catalog")))),
+                createEntity(entity(12L, 1L, "bystander", 1))));
+
+    assertThat(result.isApplied()).isFalse();
+    assertThat(result.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    // The winner survives; NOTHING of the losing commit landed, its innocent second mutation
+    // included — losing a race must not shred the commit's atomicity.
+    assertThat(raced.get(entityRef(10L), PolarisBaseEntity.class)).isPresent();
+    assertThat(raced.get(entityRef(11L), PolarisBaseEntity.class)).isEmpty();
+    assertThat(raced.get(entityRef(12L), PolarisBaseEntity.class)).isEmpty();
+  }
+
+  @Test
   protected void aConditionedDeleteAppliesWhenItsConditionHolds() {
     PolarisBaseEntity e = entity(10L, 1L, "catalog", 1);
     assertThat(store.commit(List.of(createEntity(e))).isApplied()).isTrue();
