@@ -23,6 +23,7 @@ import java.util.Map;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
@@ -44,6 +45,7 @@ import org.apache.polaris.extension.primitives.routing.MappedDurableRecordStoreL
 import org.apache.polaris.extension.primitives.routing.RoutingDurableRecordStore;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
+import org.apache.polaris.spi.durable.RecordRef;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
@@ -277,6 +279,39 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     Assertions.assertThat(
             mappingsOn(PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, catalog.getId(), table2.getId()))
         .isEmpty();
+  }
+
+  /**
+   * The events surface has NO case anywhere in the shared fixture family (none of the 27 parent
+   * cases calls {@code writeEvents}), so its proving case rides here: write a batch through the
+   * manager, observe each event through the NEW handle by identity. Both old manager impls
+   * delegate to the store unfiltered; on the new stack both bindings' stores serve the kind, so
+   * this runs functional in both.
+   */
+  @Test
+  protected void writeEventsPersistsEachEventObservedThroughTheNewHandle() {
+    List<EventEntity> events =
+        List.of(
+            new EventEntity(
+                "cat", "event-1", null, "TEST_EVENT", 1L, null, EventEntity.ResourceType.CATALOG,
+                "r1"),
+            new EventEntity(
+                "cat", "event-2", "req", "TEST_EVENT", 2L, "someone",
+                EventEntity.ResourceType.TABLE, "r2"));
+    managerUnderTest.writeEvents(newModelCallCtx, events);
+    for (EventEntity written : events) {
+      EventEntity stored =
+          newHandle
+              .get(
+                  RecordRef.byIdentity(PolarisRecordKinds.EVENT, List.of(written.getId())),
+                  EventEntity.class)
+              .orElseThrow();
+      Assertions.assertThat(stored.getId()).isEqualTo(written.getId());
+      Assertions.assertThat(stored.getEventType()).isEqualTo(written.getEventType());
+      Assertions.assertThat(stored.getTimestampMs()).isEqualTo(written.getTimestampMs());
+      Assertions.assertThat(stored.getResourceIdentifier())
+          .isEqualTo(written.getResourceIdentifier());
+    }
   }
 
   /**
