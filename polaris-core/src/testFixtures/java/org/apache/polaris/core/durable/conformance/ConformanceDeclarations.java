@@ -60,11 +60,17 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.ENTITY_BY_PARENT,
         List.of(Long.class, Long.class),
         Integer.class,
-        seed -> List.of(1L, 100L + seed),
+        seed -> List.of(1L + seed, 100L + seed),
         PolarisEntitySubType.GENERIC_TABLE.getCode(),
         (anchors, ordinal, trailing) -> {
+          long catalogId = (Long) anchors.get(0);
           long parentId = (Long) anchors.get(1);
-          return entityBuilder(parentId * 1000 + ordinal, parentId, "child-" + ordinal, trailing)
+          return entityBuilder(
+                  catalogId * 1_000_000 + parentId * 1000 + ordinal,
+                  catalogId,
+                  parentId,
+                  "child-" + ordinal,
+                  trailing)
               .build();
         },
         record -> entityIdentityRef((PolarisBaseEntity) record));
@@ -76,14 +82,20 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.ENTITY_BY_LOCATION_PREFIX,
         List.of(Long.class, String.class),
         null,
-        seed -> List.of(1L, "s3://bucket/conformance-w" + seed),
+        seed -> List.of(1L + seed, "s3://bucket/conformance-w" + seed),
         null,
         (anchors, ordinal, trailing) -> {
+          long catalogId = (Long) anchors.get(0);
           String prefix = (String) anchors.get(1);
-          // ids and names must not collide across anchor tuples: fold the prefix's seed digitally
+          // ids and names must not collide across anchor tuples: fold the catalog anchor and the
+          // prefix's seed digitally
           long seedPart = prefix.chars().sum();
           return entityBuilder(
-                  500_000L + seedPart * 100 + ordinal, 1L, "loc-" + seedPart + "-" + ordinal, null)
+                  catalogId * 10_000_000 + 500_000L + seedPart * 100 + ordinal,
+                  catalogId,
+                  1L,
+                  "loc-" + catalogId + "-" + seedPart + "-" + ordinal,
+                  null)
               .propertiesAsMap(
                   Map.of(PolarisEntityConstants.ENTITY_BASE_LOCATION, prefix + "/t" + ordinal))
               .build();
@@ -92,7 +104,7 @@ public final class ConformanceDeclarations {
   }
 
   private static PolarisBaseEntity.Builder entityBuilder(
-      long id, long parentId, String name, @Nullable Object subTypeCode) {
+      long id, long catalogId, long parentId, String name, @Nullable Object subTypeCode) {
     // real type/subtype codes: a conforming store may validate codes when converting rows.
     // A trailing subtype value mints a TABLE_LIKE, matching how the vocabulary pairs subtypes.
     int typeCode =
@@ -102,7 +114,7 @@ public final class ConformanceDeclarations {
     int subtype =
         subTypeCode == null ? PolarisEntitySubType.NULL_SUBTYPE.getCode() : (Integer) subTypeCode;
     return new PolarisBaseEntity.Builder()
-        .catalogId(1L)
+        .catalogId(catalogId)
         .id(id)
         .typeCode(typeCode)
         .subTypeCode(subtype)
@@ -125,7 +137,7 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.GRANT_RECORD_BY_SECURABLE,
         List.of(Long.class, Long.class),
         null,
-        seed -> List.of(1L, 200L + seed),
+        seed -> List.of(1L + seed, 200L + seed),
         null,
         (anchors, ordinal, trailing) ->
             new PolarisGrantRecord(
@@ -139,7 +151,7 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.GRANT_RECORD_BY_GRANTEE,
         List.of(Long.class, Long.class),
         null,
-        seed -> List.of(1L, 400L + seed),
+        seed -> List.of(1L + seed, 400L + seed),
         null,
         (anchors, ordinal, trailing) ->
             new PolarisGrantRecord(
@@ -166,7 +178,7 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
         List.of(Long.class, Long.class),
         null,
-        seed -> List.of(1L, 600L + seed),
+        seed -> List.of(1L + seed, 600L + seed),
         null,
         (anchors, ordinal, trailing) ->
             new PolarisPolicyMappingRecord(
@@ -180,7 +192,7 @@ public final class ConformanceDeclarations {
         PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
         List.of(Long.class, Long.class),
         null,
-        seed -> List.of(1L, 800L + seed),
+        seed -> List.of(1L + seed, 800L + seed),
         null,
         (anchors, ordinal, trailing) ->
             new PolarisPolicyMappingRecord(

@@ -481,6 +481,28 @@ public abstract class BaseDurableRecordStoreConformanceTest {
                   .containsExactlyInAnyOrder(ref(pc, a0), ref(pc, a1));
               assertThat(refsListedUnder(s, pc, b)).containsExactly(ref(pc, b0));
             }));
+    // One case per anchor position: two tuples differing at EXACTLY that position must not see
+    // each other's records. The two-seed tuples above differ at every position at once, so a store
+    // ignoring one component entirely would still pass them; these variants isolate each component.
+    for (int p = 0; p < pc.anchorTypes().size(); p++) {
+      final int pos = p;
+      cases.add(
+          DynamicTest.dynamicTest(
+              "recordsDoNotLeakWhenOnlyAnchorPosition" + pos + "Differs",
+              () -> {
+                DurableRecordStore s = newStore();
+                List<Object> base = pc.anchors().apply(0);
+                List<Object> variant = new ArrayList<>(base);
+                variant.set(pos, pc.anchors().apply(1).get(pos));
+                Object under = pc.mint().mint(base, 0, null);
+                Object other = pc.mint().mint(variant, 1, null);
+                create(s, pc, under);
+                create(s, pc, other);
+
+                assertThat(refsListedUnder(s, pc, base)).containsExactly(ref(pc, under));
+                assertThat(refsListedUnder(s, pc, variant)).containsExactly(ref(pc, other));
+              }));
+    }
     cases.add(
         DynamicTest.dynamicTest(
             "anEmptyDeclaredScopeIsAnEmptyPageNotAnError",
