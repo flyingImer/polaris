@@ -689,6 +689,11 @@ public abstract class BaseDurableRecordStoreConformanceTest {
           // The negative direction: under ANOTHER path's anchors (where the tuple types are
           // compatible and the values differ), the record must be absent — two paths accidentally
           // wired to the same column would serve it symmetrically and pass the positive half.
+          // Scope, stated so the skip is visible: this direction runs only for path pairs sharing
+          // anchor types (GRANT_RECORD and POLICY_MAPPING today). A kind whose paths declare
+          // different types (ENTITY: by-parent [Long,Long] vs by-location-prefix [Long,String])
+          // gets zero negative assertions here; each such path's own anchor filtering is covered
+          // by the per-position isolation cases instead.
           cc.anchorsPerPath()
               .forEach(
                   (path, anchors) ->

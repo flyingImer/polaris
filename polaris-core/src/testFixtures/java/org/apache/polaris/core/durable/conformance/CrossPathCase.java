@@ -32,7 +32,9 @@ import org.apache.polaris.spi.durable.RecordRef;
  * path alone, so one record indexed under several paths is asserted by neither; this case commits
  * one record and reads it back through all of its kind's paths, and asserts it absent under another
  * path's anchors, so two paths accidentally wired to the same column cannot pass as distinct
- * directions.
+ * directions — asserted only where the two paths' anchor tuples share types; a differently-typed
+ * pair (ENTITY's two paths today) is skipped, since its anchors cannot be exchanged without a type
+ * mismatch.
  *
  * @param kind the record kind
  * @param record the one record, its field values chosen so every declared path of the kind serves
