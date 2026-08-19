@@ -73,7 +73,9 @@ import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
+import org.apache.polaris.core.policy.PolicyMappingUtil;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableManager;
@@ -1374,29 +1376,23 @@ public class DefaultDurableManager
    * unobservable — this method builds the mutations in whichever order is simplest, and the store
    * applies them as one unordered set. The divergence dissolves rather than being resolved.
    *
-   * <h2>What is NOT ported</h2>
+   * <h2>Policy-mapping cleanup (the obligation ticket 92 pays)</h2>
    *
-   * <p>Best-effort policy-mapping cleanup is not implemented — the UNCONDITIONAL delete both old
-   * impls' private {@code dropEntity} helper runs on every drop of a {@code POLICY} or valid
-   * policy-target entity (Atomic ~212-235, Transactional ~219-242, identical shape, wrapped in a
-   * catch for {@code UnsupportedOperationException}), gated only by {@code entity.getType() ==
-   * POLICY || PolicyMappingUtil.isValidTargetEntityType(entity.getType(), entity.getSubType())}.
-   *
-   * <p><b>CORRECTION to this method's earlier text, which conflated two different pieces of old
-   * code:</b> {@code dropEntityIfExists}'s own {@code cleanup=false} gate governs only its {@code
-   * POLICY_HAS_MAPPINGS} PRE-check, a separate read that runs before the drop even starts. The
-   * unconditional cleanup call inside the private {@code dropEntity} helper above does not consult
-   * {@code cleanup} at all — that parameter is not even in scope inside that helper. The earlier
-   * claim that this cleanup is "unreachable because the fixture always passes {@code cleanup=true}"
-   * was therefore wrong; it described the pre-check, not this call.
-   *
-   * <p>The real reason skipping it is safe TODAY: {@link #attachPolicyToEntity} throws
-   * unconditionally (ticket 92 has not implemented it), so no {@code POLICY_MAPPING} record can
-   * exist in this store at all, for any entity, regardless of {@code cleanup} or entity type. There
-   * is nothing for this call to clean up because its target set is always empty, not because the
-   * call is unreachable. Whoever implements attach on ticket 92 MUST also add this unconditional
-   * cleanup call to the drop path here — leaving it out then would silently start leaking mapping
-   * records on every drop.
+   * <p>Both old impls' private {@code dropEntity} helper runs an UNCONDITIONAL best-effort
+   * policy-mapping delete on every drop of a {@code POLICY} or valid policy-target entity (Atomic
+   * ~212-235, Transactional ~219-242, identical shape), gated only by {@code entity.getType() ==
+   * POLICY || PolicyMappingUtil.isValidTargetEntityType(entity.getType(), entity.getSubType())} —
+   * NOT by {@code dropEntityIfExists}'s {@code cleanup} flag, which governs only the {@code
+   * POLICY_HAS_MAPPINGS} pre-check (see the correction history in ticket 91's completion record).
+   * This method ports it as {@code DELETE} mutations folded into the same single commit: for a
+   * dropped {@code POLICY}, every mapping on its {@code by-policy} anchor; for a dropped valid
+   * target, every mapping on its {@code by-target} anchor. The old impls' {@code catch
+   * (UnsupportedOperationException)} best-effort wrapper dissolves rather than being ported: it
+   * existed for backends that never implemented policy-mapping persistence, and both new-model
+   * stores serve the kind — a store that does not would reject the whole commit loudly, which is
+   * the new model's documented refusal, not a case to swallow. Mapping deletes bump no entity
+   * version (neither old impl bumps any for policy mappings) and are deduplicated by identity for
+   * headroom, the same reason the grant deletes above are.
    *
    * <p>{@code PolarisBaseEntity} instances in {@code droppedEntities} beyond the first are the
    * catalog's own recursively-dropped admin {@code CATALOG_ROLE} (see the caller): a grant between
@@ -1414,6 +1410,7 @@ public class DefaultDurableManager
       @NonNull List<Precondition> topLevelPreconditions,
       @NonNull List<Mutation> mutations) {
     List<PolarisGrantRecord> allGrants = new ArrayList<>();
+    List<PolarisPolicyMappingRecord> allMappings = new ArrayList<>();
     boolean first = true;
     for (PolarisBaseEntity dropped : droppedEntities) {
       mutations.add(
@@ -1453,6 +1450,29 @@ public class DefaultDurableManager
                   null));
         }
       }
+      if (dropped.getType() == PolarisEntityType.POLICY) {
+        allMappings.addAll(
+            policyMappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
+                dropped.getCatalogId(),
+                dropped.getId()));
+      } else if (PolicyMappingUtil.isValidTargetEntityType(
+          dropped.getType(), dropped.getSubType())) {
+        allMappings.addAll(
+            policyMappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
+                dropped.getCatalogId(),
+                dropped.getId()));
+      }
+    }
+
+    Map<RecordRef, PolarisPolicyMappingRecord> distinctMappings = new LinkedHashMap<>();
+    for (PolarisPolicyMappingRecord m : allMappings) {
+      distinctMappings.putIfAbsent(policyMappingIdentity(m), m);
+    }
+    for (RecordRef mappingRef : distinctMappings.keySet()) {
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.POLICY_MAPPING, Mutation.Op.DELETE, mappingRef, null));
     }
 
     // Deduplicated by target ref, first-seen order preserved (Finding 3, independent review,
@@ -1564,9 +1584,20 @@ public class DefaultDurableManager
     } else if (current.getType() == PolarisEntityType.NAMESPACE
         && !rawChildEntities(current.getCatalogId(), current.getId()).isEmpty()) {
       return new DropEntityResult(BaseResult.ReturnStatus.NAMESPACE_NOT_EMPTY, null);
+    } else if (current.getType() == PolarisEntityType.POLICY
+        && !cleanup
+        && !policyMappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
+                current.getCatalogId(),
+                current.getId())
+            .isEmpty()) {
+      // Ported from both old impls: dropping a still-attached POLICY without cleanup is refused.
+      // Their catch(UnsupportedOperationException) wrapper dissolves for the same reason
+      // collectDropMutations's javadoc gives for the cleanup itself. Unexercised by the fixture
+      // (its policy drops pass cleanup=true), implemented for drop-surface parity now that
+      // attachPolicyToEntity makes the state reachable.
+      return new DropEntityResult(BaseResult.ReturnStatus.POLICY_HAS_MAPPINGS, null);
     }
-    // POLICY_HAS_MAPPINGS is not checked here: see collectDropMutations's javadoc for why it is
-    // unreachable through this fixture rather than a gap deferred to ticket 92.
 
     List<PolarisBaseEntity> droppedEntities = new ArrayList<>();
     droppedEntities.add(current);
@@ -2440,6 +2471,101 @@ public class DefaultDurableManager
 
   // ------------------------------------------------- PolarisPolicyMappingManager (ticket 92)
 
+  /**
+   * Policy-mapping identity ref: {@code (target-catalog, target, policy-type, policy-catalog,
+   * policy)} — the whole tuple is the key ({@code parameters} is not part of it), so identity and
+   * uniqueness coincide, verified against both shipped stores' bindings ({@code
+   * TreeMapDurableRecordStore#policyKey}, {@code JdbcDurableRecordStore}'s identity column list —
+   * both state exactly this order).
+   */
+  private static RecordRef policyMappingIdentity(@NonNull PolarisPolicyMappingRecord record) {
+    return RecordRef.byIdentity(
+        PolarisRecordKinds.POLICY_MAPPING,
+        List.of(
+            record.getTargetCatalogId(),
+            record.getTargetId(),
+            record.getPolicyTypeCode(),
+            record.getPolicyCatalogId(),
+            record.getPolicyId()));
+  }
+
+  private DurableRecordStore policyMappingStore() {
+    return primitives;
+  }
+
+  /** Every mapping record on one anchor of {@code path} — the policy-side twin of loadGrants. */
+  private List<PolarisPolicyMappingRecord> policyMappingsOn(
+      @NonNull LookupPath path, long anchorCatalogId, long anchorId) {
+    return policyMappingStore()
+        .list(
+            PolarisRecordKinds.POLICY_MAPPING,
+            path,
+            List.of(anchorCatalogId, anchorId),
+            PageToken.readEverything(),
+            PolarisPolicyMappingRecord.class)
+        .items();
+  }
+
+  /**
+   * Ported from {@code AtomicOperationMetaStoreManager#loadPoliciesFromMappingRecords}: resolve
+   * each mapping's policy entity by identity, distinct, in record order, dropping unresolvable ids
+   * the same way the old {@code lookupEntities} contract does ("entities not found are skipped" —
+   * its own javadoc). No type filter, matching the old id-only lookup.
+   */
+  private List<PolarisBaseEntity> policiesFromMappingRecords(
+      @NonNull List<PolarisPolicyMappingRecord> mappingRecords) {
+    List<RecordRef> refs =
+        mappingRecords.stream()
+            .mapToLong(PolarisPolicyMappingRecord::getPolicyId)
+            .distinct()
+            .mapToObj(DefaultDurableManager::entityIdentity)
+            .toList();
+    return entityStore().getMany(refs, PolarisBaseEntity.class).stream()
+        .filter(Optional::isPresent)
+        .map(Optional::get)
+        .toList();
+  }
+
+  /**
+   * The manager-owned attach rule (S3), ported from the check both old impls delegate to their
+   * backends ({@code AbstractTransactionalPersistence
+   * #checkConditionsForWriteToPolicyMappingRecordsInCurrentTxn} and {@code JdbcDurablePrimitivesImpl
+   * #handleInheritablePolicy} implement the identical three-way branch): an invalid policy type
+   * code is {@code UNEXPECTED_ERROR_SIGNALED "Unknown policy type"}; for an INHERITABLE type,
+   * attaching a DIFFERENT policy of the same type as an existing mapping is {@code
+   * POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS}, while re-attaching the SAME policy updates only
+   * the mapping's {@code parameters} in place; a non-inheritable type skips the same-type check
+   * entirely (no shipped policy type is non-inheritable, so that branch has no old-behaviour oracle
+   * — data model 5.1's own note).
+   *
+   * <h2>Disclosed divergence choices (fixture-silent, per ticket 91's precedent)</h2>
+   *
+   * <p><b>Path and endpoint validation.</b> {@code AtomicOperationMetaStoreManager} ignores both
+   * catalogPath arguments and never checks that target or policy exist; {@code
+   * TransactionalMetaStoreManagerImpl} re-resolves both paths (leaf entities included) inside its
+   * transaction and returns {@code ENTITY_CANNOT_BE_RESOLVED} on failure. This class follows the
+   * retrofit convention every OTHER write taking a catalogPath already uses (see {@link
+   * #catalogIdOf}): {@link #pathExistsPreconditions} over BOTH paths rides the commit, plus an
+   * {@code EXISTS} precondition on the target and the policy identities — the same happens-before
+   * guarantee, here closing the leak of a mapping row written under a concurrently-dropped target
+   * or policy (the unconditional drop-path cleanup in {@link #collectDropMutations} deletes
+   * mappings when an endpoint drops; a mapping committed AFTER that cleanup read would survive it).
+   * Failure mapping: a failed path precondition is {@code CATALOG_PATH_CANNOT_BE_RESOLVED}
+   * (matching the other retrofited writes), a failed endpoint precondition is {@code
+   * ENTITY_CANNOT_BE_RESOLVED} (Transactional's status for exactly this situation).
+   *
+   * <p><b>The same-type check is a manager-side pre-read, not a store condition.</b> "At most one
+   * inheritable policy of a type per target" is a set-shaped rule the precondition vocabulary
+   * deliberately cannot express (no set-emptiness conditions, ADR-0011), and the mapping key cannot
+   * enforce it either (data model 5.1). The pre-read-then-commit window this leaves is not new: the
+   * old JDBC path is an unguarded read-then-write over the same window, recorded as a live gap by
+   * data model 5.1. A lost race on the mapping's own identity (the {@code NOT_EXISTS} below) maps
+   * to {@code POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS} — type-true (the colliding record IS the
+   * same type) where old JDBC would propagate a raw uniqueness-violation exception and old TreeMap
+   * serializes the race away; a lost race on the UPDATE branch's {@code EXISTS} (mapping detached
+   * between pre-read and commit) maps to {@code UNEXPECTED_ERROR_SIGNALED}, since no old status
+   * exists for it.
+   */
   @Override
   public @NonNull PolicyAttachmentResult attachPolicyToEntity(
       @NonNull PolarisCallContext callCtx,
@@ -2448,9 +2574,97 @@ public class DefaultDurableManager
       @NonNull List<PolarisEntityCore> policyCatalogPath,
       @NonNull PolicyEntity policy,
       Map<String, String> parameters) {
-    throw new UnsupportedOperationException("ticket 92: policy mapping (attachPolicyToEntity)");
+    diagnostics.checkNotNull(target, "unexpected_null_target");
+    diagnostics.checkNotNull(policy, "unexpected_null_policy");
+
+    PolicyType policyType = PolicyType.fromCode(policy.getPolicyTypeCode());
+    if (policyType == null) {
+      return new PolicyAttachmentResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, "Unknown policy type");
+    }
+
+    PolarisPolicyMappingRecord mappingRecord =
+        new PolarisPolicyMappingRecord(
+            target.getCatalogId(),
+            target.getId(),
+            policy.getCatalogId(),
+            policy.getId(),
+            policy.getPolicyTypeCode(),
+            parameters);
+    RecordRef identity = policyMappingIdentity(mappingRecord);
+
+    boolean replaceExisting = false;
+    if (policyType.isInheritable()) {
+      List<PolarisPolicyMappingRecord> existingOfType =
+          policyMappingsOn(
+                  PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
+                  target.getCatalogId(),
+                  target.getId())
+              .stream()
+              .filter(r -> r.getPolicyTypeCode() == policy.getPolicyTypeCode())
+              .toList();
+      if (existingOfType.size() > 1) {
+        return new PolicyAttachmentResult(
+            BaseResult.ReturnStatus.POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS,
+            existingOfType.get(0).getPolicyTypeCode());
+      }
+      if (existingOfType.size() == 1) {
+        PolarisPolicyMappingRecord existing = existingOfType.get(0);
+        if (existing.getPolicyCatalogId() != policy.getCatalogId()
+            || existing.getPolicyId() != policy.getId()) {
+          return new PolicyAttachmentResult(
+              BaseResult.ReturnStatus.POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS,
+              existing.getPolicyTypeCode());
+        }
+        replaceExisting = true;
+      }
+    } else {
+      replaceExisting =
+          policyMappingStore().get(identity, PolarisPolicyMappingRecord.class).isPresent();
+    }
+
+    List<Precondition> preconditions =
+        new ArrayList<>(pathExistsPreconditions(targetCatalogPath, policyCatalogPath));
+    preconditions.add(Precondition.exists(entityIdentity(target.getId())));
+    preconditions.add(Precondition.exists(entityIdentity(policy.getId())));
+    preconditions.add(
+        replaceExisting ? Precondition.exists(identity) : Precondition.notExists(identity));
+
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.POLICY_MAPPING,
+                    replaceExisting ? Mutation.Op.UPDATE : Mutation.Op.CREATE,
+                    identity,
+                    mappingRecord,
+                    preconditions)));
+    if (!result.isApplied()) {
+      return mapFailedPolicyMappingWrite(
+          result,
+          pathRefs(targetCatalogPath, policyCatalogPath),
+          Set.of(entityIdentity(target.getId()), entityIdentity(policy.getId())),
+          replaceExisting
+              ? new PolicyAttachmentResult(
+                  BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+                  "concurrent policy-mapping change")
+              : new PolicyAttachmentResult(
+                  BaseResult.ReturnStatus.POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS,
+                  mappingRecord.getPolicyTypeCode()));
+    }
+    return new PolicyAttachmentResult(mappingRecord);
   }
 
+  /**
+   * Ported from both old impls' {@code detachPolicyFromEntity}: resolve the mapping first, {@code
+   * POLICY_MAPPING_NOT_FOUND} when absent (both agree), then delete it. Same disclosed
+   * path-hardening as {@link #attachPolicyToEntity} (both catalogPath arguments ride as {@code
+   * EXISTS} preconditions where Atomic ignores them and Transactional re-resolves), but no endpoint
+   * preconditions: a mapping whose endpoint vanished concurrently is exactly what the delete
+   * removes, and old Atomic happily detaches in that state. The {@code EXISTS} on the mapping's own
+   * identity turns a detach that lost a race against another detach into {@code
+   * POLICY_MAPPING_NOT_FOUND} — the same status the old, serialized second detach reports.
+   */
   @Override
   public @NonNull PolicyAttachmentResult detachPolicyFromEntity(
       @NonNull PolarisCallContext callCtx,
@@ -2458,22 +2672,118 @@ public class DefaultDurableManager
       @NonNull PolarisEntityCore target,
       @NonNull List<PolarisEntityCore> policyCatalogPath,
       @NonNull PolicyEntity policy) {
-    throw new UnsupportedOperationException("ticket 92: policy mapping (detachPolicyFromEntity)");
+    PolarisPolicyMappingRecord probe =
+        new PolarisPolicyMappingRecord(
+            target.getCatalogId(),
+            target.getId(),
+            policy.getCatalogId(),
+            policy.getId(),
+            policy.getPolicyTypeCode(),
+            (Map<String, String>) null);
+    RecordRef identity = policyMappingIdentity(probe);
+    PolarisPolicyMappingRecord mappingRecord =
+        policyMappingStore().get(identity, PolarisPolicyMappingRecord.class).orElse(null);
+    if (mappingRecord == null) {
+      return new PolicyAttachmentResult(BaseResult.ReturnStatus.POLICY_MAPPING_NOT_FOUND, null);
+    }
+
+    List<Precondition> preconditions =
+        new ArrayList<>(pathExistsPreconditions(catalogPath, policyCatalogPath));
+    preconditions.add(Precondition.exists(identity));
+    OrchestrationResult result =
+        orchestrator.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.POLICY_MAPPING,
+                    Mutation.Op.DELETE,
+                    identity,
+                    null,
+                    preconditions)));
+    if (!result.isApplied()) {
+      return mapFailedPolicyMappingWrite(
+          result,
+          pathRefs(catalogPath, policyCatalogPath),
+          Set.of(),
+          new PolicyAttachmentResult(BaseResult.ReturnStatus.POLICY_MAPPING_NOT_FOUND, null));
+    }
+    return new PolicyAttachmentResult(mappingRecord);
   }
 
+  /**
+   * Maps a non-applied policy-mapping {@link OrchestrationResult}. No old-model precedent for the
+   * same reason as {@link #mapFailedCreate}; the per-caller {@code onOwnIdentity} result carries
+   * the one mapping that differs between attach's two branches and detach.
+   */
+  private PolicyAttachmentResult mapFailedPolicyMappingWrite(
+      @NonNull OrchestrationResult result,
+      @NonNull Set<RecordRef> pathRefs,
+      @NonNull Set<RecordRef> endpointRefs,
+      @NonNull PolicyAttachmentResult onOwnIdentity) {
+    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
+      return new PolicyAttachmentResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
+          "rollback incomplete: "
+              + result.uncompensated().size()
+              + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      return new PolicyAttachmentResult(
+          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
+    }
+    if (failedOnPath(result, pathRefs)) {
+      return new PolicyAttachmentResult(
+          BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
+    }
+    if (!endpointRefs.isEmpty() && failedOnPath(result, endpointRefs)) {
+      return new PolicyAttachmentResult(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED, null);
+    }
+    return onOwnIdentity;
+  }
+
+  /**
+   * Ported from both old impls' {@code loadPoliciesOnEntity}: {@code ENTITY_NOT_FOUND} when the
+   * target does not resolve (by identity AND type, the same filtering {@link #loadEntity} ports),
+   * then every mapping on the target with the policy entities resolved.
+   */
   @Override
   public @NonNull LoadPolicyMappingsResult loadPoliciesOnEntity(
       @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore target) {
-    throw new UnsupportedOperationException("ticket 92: policy mapping (loadPoliciesOnEntity)");
+    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType())
+        .isSuccess()) {
+      return new LoadPolicyMappingsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    List<PolarisPolicyMappingRecord> mappingRecords =
+        policyMappingsOn(
+            PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, target.getCatalogId(), target.getId());
+    return new LoadPolicyMappingsResult(mappingRecords, policiesFromMappingRecords(mappingRecords));
   }
 
+  /**
+   * Ported from both old impls' {@code loadPoliciesOnEntityByType}. The type narrowing happens in
+   * this method, not at the store: {@code by-target}'s declared anchors are the target address
+   * alone (data model 4.3), with no policy-type anchor — the same declaration gap as {@link
+   * #listChildEntities}'s entity-type narrowing, and the same disclosure: the store evaluates
+   * everything it CAN evaluate, only the undeclared dimension falls through to the manager (old
+   * JDBC pushes the type into its WHERE clause through the old interface's dedicated
+   * per-type method, which the new declared-path read side deliberately does not carry).
+   */
   @Override
   public @NonNull LoadPolicyMappingsResult loadPoliciesOnEntityByType(
       @NonNull PolarisCallContext callCtx,
       @NonNull PolarisEntityCore target,
       @NonNull PolicyType policyType) {
-    throw new UnsupportedOperationException(
-        "ticket 92: policy mapping (loadPoliciesOnEntityByType)");
+    if (!loadEntity(callCtx, target.getCatalogId(), target.getId(), target.getType())
+        .isSuccess()) {
+      return new LoadPolicyMappingsResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
+    }
+    List<PolarisPolicyMappingRecord> mappingRecords =
+        policyMappingsOn(
+                PolarisRecordKinds.POLICY_MAPPING_BY_TARGET, target.getCatalogId(), target.getId())
+            .stream()
+            .filter(r -> r.getPolicyTypeCode() == policyType.getCode())
+            .toList();
+    return new LoadPolicyMappingsResult(mappingRecords, policiesFromMappingRecords(mappingRecords));
   }
 
   // ------------------------------------------------------- PolarisEventManager (ticket 92)
