@@ -1887,12 +1887,20 @@ public class DefaultDurableManager
    * realm-scoped wipe never touched them either (the proving case pins their survival).
    *
    * <p>Disclosed narrowings vs the old single-call wipe. <b>Crash window:</b> old JDBC wipes in one
-   * transaction; this walk is several commits, so a crash mid-purge leaves a partial wipe — every
-   * DELETE is unconditioned, so re-running purge completes it (purge is idempotent).
-   * <b>Reachability:</b> a crash-orphaned secrets row with no surviving principal entity is
-   * unreachable (the by-principal/enumeration path is the data model's own recorded gap, §4.4 /
-   * open question 2), and likewise a crash-orphaned mapping row both of whose endpoints are gone;
-   * the old whole-table deletes covered such orphans, a walk cannot.
+   * transaction; this walk is several commits, so a crash mid-purge leaves a partial wipe. What
+   * makes re-running purge actually complete it is the DELETE ORDER, not merely the deletes being
+   * unconditioned: mutations run leaf-ward — secrets, then mappings, then grants (each reachable
+   * only through an entity anchor, so their anchors must still exist when a re-run looks), then
+   * entities CHILDREN-BEFORE-PARENTS (reverse breadth-first order). Any crash prefix therefore
+   * leaves every surviving record still reachable by a fresh walk: no parent dies before its
+   * subtree, no anchor entity dies before the records anchored on it. (This ticket's refute pass
+   * caught the original entity-first order manufacturing permanently unreachable subtrees on a
+   * mid-purge crash while the javadoc claimed idempotency — the ordering above is the fix, not a
+   * restatement.) <b>Reachability:</b> a PRE-EXISTING crash-orphaned secrets row with no surviving
+   * principal entity is unreachable (the by-principal/enumeration path is the data model's own
+   * recorded gap, §4.4 / open question 2), likewise a pre-existing orphaned mapping row both of
+   * whose endpoints are gone, and likewise an entity subtree whose parent chain was already broken
+   * before purge began; the old whole-table deletes covered such orphans, a walk cannot.
    */
   @Override
   public @NonNull BaseResult purge(@NonNull PolarisCallContext callCtx) {
@@ -1902,11 +1910,7 @@ public class DefaultDurableManager
 
     Map<RecordRef, PolarisGrantRecord> grants = new LinkedHashMap<>();
     Map<RecordRef, PolarisPolicyMappingRecord> mappings = new LinkedHashMap<>();
-    List<Mutation> mutations = new ArrayList<>();
     for (PolarisBaseEntity entity : entities) {
-      mutations.add(
-          Mutation.of(
-              PolarisRecordKinds.ENTITY, Mutation.Op.DELETE, entityIdentity(entity.getId()), null));
       for (PolarisGrantRecord g : grantsAsSecurable(entity)) {
         grants.putIfAbsent(grantIdentity(g), g);
       }
@@ -1928,14 +1932,9 @@ public class DefaultDurableManager
         }
       }
     }
-    for (RecordRef grantRef : grants.keySet()) {
-      mutations.add(
-          Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
-    }
-    for (RecordRef mappingRef : mappings.keySet()) {
-      mutations.add(
-          Mutation.of(PolarisRecordKinds.POLICY_MAPPING, Mutation.Op.DELETE, mappingRef, null));
-    }
+
+    // Leaf-ward delete order — the invariant the crash-window disclosure above rests on.
+    List<Mutation> mutations = new ArrayList<>();
     for (PolarisBaseEntity entity : entities) {
       if (entity.getType() == PolarisEntityType.PRINCIPAL) {
         String clientId = PrincipalEntity.of(entity).getClientId();
@@ -1948,6 +1947,24 @@ public class DefaultDurableManager
                   null));
         }
       }
+    }
+    for (RecordRef mappingRef : mappings.keySet()) {
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.POLICY_MAPPING, Mutation.Op.DELETE, mappingRef, null));
+    }
+    for (RecordRef grantRef : grants.keySet()) {
+      mutations.add(
+          Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
+    }
+    for (int i = entities.size() - 1; i >= 0; i--) {
+      // Reverse breadth-first = children before parents: a parent's anchor survives until its
+      // whole subtree's deletes have committed.
+      mutations.add(
+          Mutation.of(
+              PolarisRecordKinds.ENTITY,
+              Mutation.Op.DELETE,
+              entityIdentity(entities.get(i).getId()),
+              null));
     }
 
     int cap = primitives.maxItemsPerCommit();
@@ -2022,7 +2039,12 @@ public class DefaultDurableManager
    * new SPI's own javadoc records task leasing as a missing operation rather than a filter to
    * relocate, and reshaping it is the read-side record's noted follow-up, not this ticket's — so
    * the whole candidate set crosses to the manager and is filtered in memory, the disclosed interim
-   * cost.
+   * cost. Part of the same interim shape: the caller's continuation CURSOR, if its page token ever
+   * carried one, is not honored — only the page SIZE is read (the old impls thread the whole token
+   * into the store scan). No caller in the tree passes a continuation-bearing token, and loadTasks
+   * never returns one to chain from (old and new both return a token-less {@code Page.fromItems}),
+   * so the gap has no live trigger; named by this ticket's refute pass, owned by the same read-side
+   * follow-up.
    *
    * <p><b>Disclosed old-impl divergence, Atomic's form matched:</b> individual failed leases are
    * skipped, and only a batch where EVERY attempted lease failed throws {@link
@@ -2089,12 +2111,15 @@ public class DefaultDurableManager
    * Ported from both old impls' {@code loadResolvedEntityByName}, including the root-container
    * backfill special case both carry verbatim (a holdover from before bootstrap created the root
    * container; the old code's own TODO doubts it is still reachable, and it is ported rather than
-   * judged). The name lookup goes through the same uniqueness key {@link #readEntityByName} uses —
-   * {@code entityCatalogId} does not participate, per {@link #entityUniqueness}'s disclosure. The
-   * grant loads anchor on the entity's own {@code (catalogId, id)} where the old code anchors on
-   * the {@code entityCatalogId} argument — the same value whenever the caller's catalog id is
-   * truthful, which the resolution layer's callers guarantee (they pass the id they resolved the
-   * entity under).
+   * judged). The name lookup goes through the same uniqueness key {@link #readEntityByName} uses;
+   * the STORE fetch carries no catalog component ({@link #entityUniqueness}'s disclosure), and the
+   * old lookup's {@code catalog_id} filter — both old stores apply it in the physical by-name
+   * lookup, so an untruthful {@code entityCatalogId} is {@code ENTITY_NOT_FOUND} there — is applied
+   * HERE on the fetched row, the same treatment {@link #loadEntity} gives its identity lookups.
+   * (This ticket's refute pass caught the first draft silently returning SUCCESS for that case and
+   * its javadoc understating the divergence as a grant-anchor nuance; the check below restores
+   * exact old behaviour, and makes the grant anchors — the entity's own {@code (catalogId, id)} —
+   * provably equal to the old code's argument-anchored loads.)
    */
   @Override
   public @NonNull ResolvedEntityResult loadResolvedEntityByName(
@@ -2108,6 +2133,9 @@ public class DefaultDurableManager
             .get(
                 entityUniqueness(parentId, entityType.getCode(), entityName),
                 PolarisBaseEntity.class);
+    if (found.isPresent() && found.get().getCatalogId() != entityCatalogId) {
+      found = Optional.empty();
+    }
 
     ResolvedEntityResult result;
     if (found.isEmpty()) {
@@ -2862,10 +2890,19 @@ public class DefaultDurableManager
   }
 
   /**
-   * Ported from {@code AtomicOperationMetaStoreManager#loadPoliciesFromMappingRecords}: resolve
-   * each mapping's policy entity by identity, distinct, in record order, dropping unresolvable ids
-   * the same way the old {@code lookupEntities} contract does ("entities not found are skipped" —
-   * its own javadoc). No type filter, matching the old id-only lookup.
+   * The policy-entity resolution behind both load methods: each mapping's policy by identity,
+   * distinct, in record order, no type filter (matching the old id-only lookup). One DELIBERATE,
+   * disclosed deviation from both old impls: their {@code loadPoliciesFromMappingRecords} hands the
+   * old {@code lookupEntities} result through UNFILTERED, and that primitive returns a list
+   * parallel to its input with {@code null} at unresolved positions (its javadoc and both shipped
+   * backends agree) — so an orphaned mapping row surfaces to the caller as a null element, on which
+   * the one production consumer ({@code PolicyCatalog#getPolicies}' inheritance walk) throws NPE.
+   * This method drops unresolvable ids instead: the orphan-only failure mode becomes "fewer
+   * policies returned" rather than a crash. Reachable only through a crash-orphaned mapping row —
+   * ordinary drops clean mappings unconditionally in the same commit. (CORRECTION, this ticket's
+   * refute pass: this javadoc's first draft claimed the old contract "skips" missing entities,
+   * misquoting a javadoc that states the opposite — the old behaviour is null-passthrough, and the
+   * skip here is a deviation to disclose, not parity to cite.)
    */
   private List<PolarisBaseEntity> policiesFromMappingRecords(
       @NonNull List<PolarisPolicyMappingRecord> mappingRecords) {
@@ -2891,7 +2928,10 @@ public class DefaultDurableManager
    * {@code POLICY_MAPPING_OF_SAME_TYPE_ALREADY_EXISTS}, while re-attaching the SAME policy updates
    * only the mapping's {@code parameters} in place; a non-inheritable type skips the same-type
    * check entirely (no shipped policy type is non-inheritable, so that branch has no old-behaviour
-   * oracle — data model 5.1's own note).
+   * oracle — data model 5.1's own note; where old JDBC's raw INSERT would surface a duplicate
+   * non-inheritable re-attach as an unchecked SQL-wrapping exception, this branch's
+   * get-then-CREATE/UPDATE upserts the parameters cleanly — a dormant, disclosed difference until a
+   * non-inheritable type exists).
    *
    * <h2>Disclosed divergence choices (fixture-silent, per ticket 91's precedent)</h2>
    *
