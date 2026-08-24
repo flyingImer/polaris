@@ -50,11 +50,13 @@ import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
+import org.apache.polaris.core.persistence.dao.entity.TagAssignmentResult;
 import org.apache.polaris.core.persistence.resolver.ResolutionManifestFactory;
 import org.apache.polaris.core.secrets.UserSecretsManager;
 import org.apache.polaris.core.storage.cache.StorageCredentialCache;
 import org.apache.polaris.core.tag.TagEntity;
 import org.apache.polaris.core.tag.exceptions.NoSuchTagException;
+import org.apache.polaris.core.tag.exceptions.NoSuchTargetException;
 import org.apache.polaris.service.Profiles;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.admin.PolarisAdminServiceTestSupport;
@@ -62,6 +64,7 @@ import org.apache.polaris.service.catalog.PolarisPassthroughResolutionView;
 import org.apache.polaris.service.config.ReservedProperties;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.storage.PolarisStorageIntegrationProviderImpl;
+import org.apache.polaris.service.types.TagAttachmentTarget;
 import org.apache.polaris.service.types.TargetType;
 import org.apache.polaris.service.types.UpdateTagRequest;
 import org.junit.jupiter.api.BeforeAll;
@@ -161,7 +164,10 @@ public class TagCatalogTest {
                     .build()
                     .asCatalog(serviceIdentityProvider)));
 
-    tagCatalog = new TagCatalog(metaStoreManager, polarisContext, newPassthroughView());
+    // The storage/file-io collaborators and realm config are only used by column field-id
+    // resolution, which these unit tests do not exercise.
+    tagCatalog =
+        new TagCatalog(metaStoreManager, polarisContext, newPassthroughView(), null, null, null);
   }
 
   private PolarisPassthroughResolutionView newPassthroughView() {
@@ -179,6 +185,19 @@ public class TagCatalogTest {
             tagName);
     assertThat(result.isSuccess()).isTrue();
     return TagEntity.of(result.getEntity());
+  }
+
+  @Test
+  public void testColumnSchemaFileIOGetsTableDefaultProperties() {
+    // The FileIO used for column field-id resolution must see the catalog's table-default.
+    // properties with the prefix stripped, the same map the table load and refresh paths pass,
+    // and none of the unrelated catalog properties.
+    assertThat(
+            TagCatalogUtils.tableDefaultProperties(
+                Map.of(
+                    "table-default.test-key", "x",
+                    "default-base-location", "s3://bucket/path")))
+        .isEqualTo(Map.of("test-key", "x"));
   }
 
   @Test
@@ -224,7 +243,9 @@ public class TagCatalogTest {
                 BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, "simulated"))
         .when(concurrentlyModified)
         .updateEntityPropertiesIfNotChanged(Mockito.any(), Mockito.any(), Mockito.any());
-    TagCatalog catalog = new TagCatalog(concurrentlyModified, polarisContext, newPassthroughView());
+    TagCatalog catalog =
+        new TagCatalog(
+            concurrentlyModified, polarisContext, newPassthroughView(), null, null, null);
 
     assertThatThrownBy(
             () ->
@@ -256,7 +277,9 @@ public class TagCatalogTest {
     Mockito.doReturn(new EntityResult(conflictStatus, "simulated"))
         .when(concurrentlyModified)
         .renameEntity(Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any());
-    TagCatalog catalog = new TagCatalog(concurrentlyModified, polarisContext, newPassthroughView());
+    TagCatalog catalog =
+        new TagCatalog(
+            concurrentlyModified, polarisContext, newPassthroughView(), null, null, null);
 
     assertThatThrownBy(
             () ->
@@ -280,8 +303,63 @@ public class TagCatalogTest {
         .when(concurrentlyRemoved)
         .dropEntityIfExists(
             Mockito.any(), Mockito.any(), Mockito.any(), Mockito.any(), Mockito.anyBoolean());
-    TagCatalog catalog = new TagCatalog(concurrentlyRemoved, polarisContext, newPassthroughView());
+    TagCatalog catalog =
+        new TagCatalog(concurrentlyRemoved, polarisContext, newPassthroughView(), null, null, null);
 
-    assertThatThrownBy(() -> catalog.dropTag(TAG1)).isInstanceOf(NoSuchTagException.class);
+    assertThatThrownBy(() -> catalog.dropTag(TAG1, false)).isInstanceOf(NoSuchTagException.class);
+  }
+
+  @Test
+  public void testAssignTagConcurrentTagMissIsTagNotFound() {
+    tagCatalog.createTag(TAG1, "comment", List.of("a"), List.of(TargetType.CATALOG));
+
+    // Simulate the tag definition vanishing between resolution and the manager write.
+    PolarisMetaStoreManager concurrentlyRemoved = Mockito.spy(metaStoreManager);
+    Mockito.doReturn(new TagAssignmentResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, "simulated"))
+        .when(concurrentlyRemoved)
+        .assignTagToEntity(
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyInt(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any());
+    TagCatalog catalog =
+        new TagCatalog(concurrentlyRemoved, polarisContext, newPassthroughView(), null, null, null);
+
+    assertThatThrownBy(
+            () ->
+                catalog.assignTag(
+                    TAG1, TagAttachmentTarget.builder(TargetType.CATALOG).build(), List.of("a")))
+        .isInstanceOf(NoSuchTagException.class);
+  }
+
+  @Test
+  public void testAssignTagConcurrentTargetMissIsTargetNotFound() {
+    tagCatalog.createTag(TAG1, "comment", List.of("a"), List.of(TargetType.CATALOG));
+
+    // Simulate the target vanishing between resolution and the manager write: the caller must
+    // see the target-side 404, not the tag-side one.
+    PolarisMetaStoreManager concurrentlyRemoved = Mockito.spy(metaStoreManager);
+    Mockito.doReturn(
+            new TagAssignmentResult(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED, "simulated"))
+        .when(concurrentlyRemoved)
+        .assignTagToEntity(
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.anyInt(),
+            Mockito.any(),
+            Mockito.any(),
+            Mockito.any());
+    TagCatalog catalog =
+        new TagCatalog(concurrentlyRemoved, polarisContext, newPassthroughView(), null, null, null);
+
+    assertThatThrownBy(
+            () ->
+                catalog.assignTag(
+                    TAG1, TagAttachmentTarget.builder(TargetType.CATALOG).build(), List.of("a")))
+        .isInstanceOf(NoSuchTargetException.class);
   }
 }
