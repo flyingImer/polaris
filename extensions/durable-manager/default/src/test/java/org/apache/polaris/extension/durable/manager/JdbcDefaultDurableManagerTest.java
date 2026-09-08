@@ -30,7 +30,7 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.h2.jdbcx.JdbcConnectionPool;
 
 /**
- * {@link DefaultDurableManager} over {@link JdbcDurableRecordStore} on a fresh H2 in-memory
+ * {@link DefaultCatalogDurableManager} over {@link JdbcDurableRecordStore} on a fresh H2 in-memory
  * database. Same recipe as {@code RoutingAssembledOrchestratorConformanceTest} (the routing
  * extensions module) and {@code JdbcDurableRecordStoreConformanceTest} (persistence/relational-
  * jdbc), copied rather than reinvented.

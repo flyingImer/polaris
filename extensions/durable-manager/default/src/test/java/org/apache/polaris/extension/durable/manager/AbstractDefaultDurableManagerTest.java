@@ -54,15 +54,15 @@ import org.junit.jupiter.api.Disabled;
 import org.junit.jupiter.api.Test;
 
 /**
- * Wires {@link DefaultDurableManager} into {@link BaseDurableManagerTest} against a fresh {@link
- * DurableRecordStore} per test, assembled through the same mapped locator, routing store, and
- * orchestrator every production deployment uses.
+ * Wires {@link DefaultCatalogDurableManager} into {@link BaseDurableManagerTest} against a fresh
+ * {@link DurableRecordStore} per test, assembled through the same mapped locator, routing store,
+ * and orchestrator every production deployment uses.
  *
  * <p>The {@link PolarisCallContext} handed to the manager under test carries a {@link
  * NeverCallOldPrimitives} stub whose every method throws. That stub is not filler: it is the test's
- * proof that {@link DefaultDurableManager} never reaches for the old primitives handle on the call
- * context. If it ever does, a test fails loudly here instead of silently reading through the old
- * door.
+ * proof that {@link DefaultCatalogDurableManager} never reaches for the old primitives handle on
+ * the call context. If it ever does, a test fails loudly here instead of silently reading through
+ * the old door.
  *
  * <p>Ticket 91 disabled the five fixture tests outside its scope here; ticket 92 removes those
  * overrides as it implements each surface. Any override still present below re-declares
@@ -82,7 +82,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
    * proving cases ride here, per EJ's ticket-85 ruling that proving tests belong to the ticket
    * whose claim they prove. Both bindings run them.
    */
-  protected DefaultDurableManager managerUnderTest;
+  protected DefaultCatalogDurableManager managerUnderTest;
 
   protected DefaultGrantDurableManager grantUnderTest;
   protected DefaultSecretsDurableManager secretsUnderTest;
@@ -115,7 +115,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
             store);
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     var diagnostics = new PolarisDefaultDiagServiceImpl();
-    var manager = new DefaultDurableManager(clock, diagnostics, orchestrator, primitives);
+    var manager = new DefaultCatalogDurableManager(clock, diagnostics, orchestrator, primitives);
     var grantManager = new DefaultGrantDurableManager(diagnostics, orchestrator, primitives);
     var secretsManager = new DefaultSecretsDurableManager(diagnostics, orchestrator, primitives);
     var policyManager = new DefaultPolicyDurableManager(diagnostics, orchestrator, primitives);
@@ -207,8 +207,8 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
    * The module-local twin of the blocked {@code testPolicyMappingCleanup} oracle, observed through
    * the NEW handle instead of the old one: dropping a policy-target entity deletes its mappings
    * unconditionally (target side), and dropping a policy deletes its mappings unconditionally
-   * (policy side) — the obligation recorded in {@code DefaultDurableManager#collectDropMutations}'s
-   * javadoc since ticket 91's refute pass.
+   * (policy side) — the obligation recorded in {@code
+   * DefaultCatalogDurableManager#collectDropMutations}'s javadoc since ticket 91's refute pass.
    */
   @Test
   protected void dropPathCleansPolicyMappingsObservedThroughTheNewHandle() {

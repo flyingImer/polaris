@@ -39,9 +39,10 @@ import org.jspecify.annotations.Nullable;
 
 /**
  * Every method throws. Passed to a {@link PolarisCallContext} solely because its constructor
- * requires a non-null old-model handle; proves by construction that {@link DefaultDurableManager}
- * never dereferences it. Shared by every test in this package that needs a {@link
- * PolarisCallContext} but must never let the manager under test reach the old primitives handle.
+ * requires a non-null old-model handle; proves by construction that {@link
+ * DefaultCatalogDurableManager} never dereferences it. Shared by every test in this package that
+ * needs a {@link PolarisCallContext} but must never let the manager under test reach the old
+ * primitives handle.
  *
  * <p>{@link org.apache.polaris.spi.durable.PolicyMappingPersistence}, which {@link
  * DurablePrimitives} extends, is untouched here because every one of its methods is already a

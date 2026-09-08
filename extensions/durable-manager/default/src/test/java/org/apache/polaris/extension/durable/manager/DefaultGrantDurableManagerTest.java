@@ -49,17 +49,18 @@ import org.junit.jupiter.api.Test;
  * Drives the six grant operations ticket 91 implements this increment — {@code
  * grantUsageOnRoleToGrantee}, {@code revokeUsageOnRoleFromGrantee}, {@code
  * grantPrivilegeOnSecurableToRole}, {@code revokePrivilegeOnSecurableFromRole}, {@code
- * loadGrantsOnSecurable}, {@code loadGrantsToGrantee} — against {@link DefaultDurableManager}
- * assembled the same way {@link AbstractDefaultDurableManagerTest} assembles it. Scaffolding, not
- * the ticket's parity evidence: {@code BaseDurableManagerTest} is the judge of that, and as of
- * increment 4 it runs (bootstrap works) and its grant-related tests — {@code testPrivileges},
- * {@code testGrantRecordWriteIsIdempotent}, {@code testLoadGrantsGranteeVsSecurableRecords} — pass.
- * These tests mirror that fixture's own assertions rather than inventing looser ones.
+ * loadGrantsOnSecurable}, {@code loadGrantsToGrantee} — against {@link
+ * DefaultCatalogDurableManager} assembled the same way {@link AbstractDefaultDurableManagerTest}
+ * assembles it. Scaffolding, not the ticket's parity evidence: {@code BaseDurableManagerTest} is
+ * the judge of that, and as of increment 4 it runs (bootstrap works) and its grant-related tests —
+ * {@code testPrivileges}, {@code testGrantRecordWriteIsIdempotent}, {@code
+ * testLoadGrantsGranteeVsSecurableRecords} — pass. These tests mirror that fixture's own assertions
+ * rather than inventing looser ones.
  */
 class DefaultGrantDurableManagerTest {
 
   private PolarisCallContext callCtx;
-  private DefaultDurableManager manager;
+  private DefaultCatalogDurableManager manager;
   private DefaultGrantDurableManager grants;
   private DefaultResolvedEntityReads reads;
 
@@ -80,7 +81,7 @@ class DefaultGrantDurableManagerTest {
             store);
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
-        new DefaultDurableManager(
+        new DefaultCatalogDurableManager(
             Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
     grants =
         new DefaultGrantDurableManager(

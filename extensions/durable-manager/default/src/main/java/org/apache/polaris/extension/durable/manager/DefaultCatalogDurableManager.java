@@ -46,7 +46,6 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
-import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
@@ -61,64 +60,34 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyMappingUtil;
 import org.apache.polaris.spi.durable.CatalogDurableManager;
 import org.apache.polaris.spi.durable.CommitResult;
-import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
-import org.apache.polaris.spi.durable.EventDurableManager;
-import org.apache.polaris.spi.durable.GrantDurableManager;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
-import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordRef;
-import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
- * The single new-model durable manager. At ticket 96 this class is a wholesale replacement for both
- * {@code AtomicOperationMetaStoreManager} and the transactional old-model manager it sits alongside
- * today; there is no per-method migration, the old implementations are deleted in one step once
- * this class covers their surface.
+ * Default catalog durable manager: the entity tree. Catalogs, namespaces, tables, views, roles,
+ * policies, tasks and every other entity kind share one record kind and are created, read, renamed
+ * and dropped here.
  *
- * <p>This manager owns every business rule and knows no storage topology. It implements {@link
- * DurableManager}, {@link GrantDurableManager}, {@link SecretsDurableManager}, {@link
- * PolicyDurableManager} and {@link EventDurableManager} on one object because {@code
- * PolarisTestMetaStoreManager} (and, at ticket 96, every other caller of the old managers) narrows
- * the concrete instance it is handed to each of those sibling interfaces with a runtime cast; a
- * class missing one of them fails that cast, not a later call.
+ * <p>This manager owns every business rule of those operations and knows no storage topology:
+ * existence checks, name-collision semantics, the id-before-write discipline, and the cleanup a
+ * drop composes over the dropped entity's grant records, policy mappings and principal secrets.
+ * Authorization and request validation live above this layer.
  *
- * <h2>Two handles, one floor</h2>
+ * <p>Two doors, strictly divided: every write goes through the orchestrator's commit as a mutation
+ * list; every read and every id generation goes to the primitives handle directly. This class never
+ * reads the previous persistence handle carried on the call context; reaching for it would silently
+ * reintroduce the coupling this class exists to remove.
  *
- * <p>This manager legitimately holds two handles into the new model, and the difference between
- * them is a write/read split, not a "manager never sees primitives" rule. {@link #orchestrator} is
- * the WRITE door: it alone knows how to group a mutation list by atomicity domain, commit each
- * group, and compensate across groups on failure, so every write goes through it. {@link
- * #primitives} is the READ door and the source of {@link DurableRecordStore#generateNewId} — a read
- * may legitimately be organized by orchestration too (the same-backend read/write optimization
- * allowance recorded 2026-08-10), but it is not required to be, and this class does not use that
- * option: every read here goes straight to the primitives handle. That handle IS the floor (EJ,
- * 2026-08-17/18): in a multi-store deployment it is the routing implementation, whose kind-to-store
- * mapping hides BEHIND the primitives SPI, so holding one handle carries no storage-topology
- * knowledge — this class cannot tell one backend from five, and the kind-keyed resolver it used to
- * hold (a reachable routing table) is dissolved (ticket 111, 2026-08-18).
- *
- * <p>This class never reads the OLD {@link org.apache.polaris.spi.durable.DurablePrimitives} handle
- * carried on {@link PolarisCallContext}. That handle is the old model's write/read door and
- * reaching for it here would silently reintroduce the coupling this class exists to remove.
- *
- * <h2>A third collaborator that is not a data-access door</h2>
- *
- * <p>{@link #secretsGenerator} produces a principal's client id and secret. In the old model this
- * lived one layer down: the old bindings hand {@code PrincipalSecretsGenerator.RANDOM_SECRETS} to
- * the primitives implementation itself (e.g. {@code new TreeMapDurablePrimitivesImpl(diag, store,
- * RANDOM_SECRETS)}), so the OLD primitives layer generates secrets. The new {@link
- * DurableRecordStore} carries no such parameter and must not gain one: generating a credential is a
- * business rule, not a storage concern, so S3 puts it here, one layer up from where it used to
- * live. {@link PrincipalSecretsGenerator} is an existing type — this coins no new term, it only
- * moves an existing collaborator to its correct layer.
+ * <p>Where a method's behaviour deliberately follows one of the previous managers rather than the
+ * other, the method's own javadoc says so.
  */
-public class DefaultDurableManager implements CatalogDurableManager {
+public class DefaultCatalogDurableManager implements CatalogDurableManager {
 
   private final Clock clock;
 
@@ -128,7 +97,7 @@ public class DefaultDurableManager implements CatalogDurableManager {
 
   private final DurableRecordStore primitives;
 
-  public DefaultDurableManager(
+  public DefaultCatalogDurableManager(
       @NonNull Clock clock,
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull DurableOrchestrator orchestrator,
@@ -201,7 +170,7 @@ public class DefaultDurableManager implements CatalogDurableManager {
    *     exactly this case. False means a genuine conflict: the caller returns {@code
    *     ENTITY_ALREADY_EXISTS} carrying {@code existing}'s subtype code.
    */
-  // Package-private rather than private: DefaultDurableManagerEntityOpsTest asserts this rule
+  // Package-private rather than private: DefaultCatalogDurableManagerTest asserts this rule
   // directly (see its javadoc for why — the branch it gates cannot be driven deterministically
   // through the public API without a test-only hook this class does not have).
   static boolean isIdempotentRetry(@NonNull PolarisBaseEntity existing, long creatingId) {

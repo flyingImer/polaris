@@ -48,7 +48,7 @@ import org.junit.jupiter.api.Test;
  * Drives only the eight operations ticket 91 implements — {@code generateNewEntityId}, {@code
  * loadEntity}, {@code readEntityByName}, {@code listEntities}, {@code listFullEntities}, {@code
  * loadEntitiesChangeTracking}, {@code createEntityIfNotExists}, {@code createEntitiesIfNotExist} —
- * against {@link DefaultDurableManager} assembled the same way {@link
+ * against {@link DefaultCatalogDurableManager} assembled the same way {@link
  * AbstractDefaultDurableManagerTest} assembles it: a fresh {@link TreeMapDurableRecordStore} behind
  * {@link RoutingDurableRecordStore} and {@link DefaultDurableOrchestrator}.
  *
@@ -61,10 +61,10 @@ import org.junit.jupiter.api.Test;
  * none of which increment 4 touches. These tests mirror the fixture's own assertions for the eight
  * operations in THIS class's scope, rather than inventing looser ones.
  */
-class DefaultDurableManagerEntityOpsTest {
+class DefaultCatalogDurableManagerTest {
 
   private PolarisCallContext callCtx;
-  private DefaultDurableManager manager;
+  private DefaultCatalogDurableManager manager;
   private DefaultResolvedEntityReads reads;
 
   @BeforeEach
@@ -84,7 +84,7 @@ class DefaultDurableManagerEntityOpsTest {
             store);
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
-        new DefaultDurableManager(
+        new DefaultCatalogDurableManager(
             Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
     reads =
         new DefaultResolvedEntityReads(
@@ -265,12 +265,12 @@ class DefaultDurableManagerEntityOpsTest {
   }
 
   /**
-   * Finding 1 (independent review, 2026-08-18): {@code DefaultDurableManager}'s lost-race branch —
-   * reached when {@code createEntityIfNotExists}/{@code createEntitiesIfNotExist}'s pre-check read
-   * sees nothing but the commit's {@code notExists} precondition fails anyway — must apply the SAME
-   * id-equality rule the pre-check branch applies, not report {@code ENTITY_ALREADY_EXISTS}
-   * unconditionally. {@link DefaultDurableManager#isIdempotentRetry} is the single place that rule
-   * now lives.
+   * Finding 1 (independent review, 2026-08-18): {@code DefaultCatalogDurableManager}'s lost-race
+   * branch — reached when {@code createEntityIfNotExists}/{@code createEntitiesIfNotExist}'s
+   * pre-check read sees nothing but the commit's {@code notExists} precondition fails anyway — must
+   * apply the SAME id-equality rule the pre-check branch applies, not report {@code
+   * ENTITY_ALREADY_EXISTS} unconditionally. {@link DefaultCatalogDurableManager#isIdempotentRetry}
+   * is the single place that rule now lives.
    *
    * <p><b>Why this asserts the helper directly rather than driving the branch end to end:</b> the
    * race window is entirely INSIDE one method call, between its own pre-check read and its own
@@ -297,10 +297,10 @@ class DefaultDurableManagerEntityOpsTest {
 
     // Same id as `existing`: the low-level retry AtomicOperationMetaStoreManager#persistNewEntity
     // treats as idempotent success at its one collision point.
-    assertThat(DefaultDurableManager.isIdempotentRetry(existing, existing.getId())).isTrue();
+    assertThat(DefaultCatalogDurableManager.isIdempotentRetry(existing, existing.getId())).isTrue();
 
     // A different id squatting the same slot: a genuine conflict, not a retry.
     long otherId = manager.generateNewEntityId(callCtx).getId();
-    assertThat(DefaultDurableManager.isIdempotentRetry(existing, otherId)).isFalse();
+    assertThat(DefaultCatalogDurableManager.isIdempotentRetry(existing, otherId)).isFalse();
   }
 }

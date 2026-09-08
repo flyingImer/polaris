@@ -23,7 +23,7 @@ import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.persistence.treemap.TreeMapDurableRecordStore;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 
-/** {@link DefaultDurableManager} over the in-memory {@link TreeMapDurableRecordStore}. */
+/** {@link DefaultCatalogDurableManager} over the in-memory {@link TreeMapDurableRecordStore}. */
 public class TreeMapDefaultDurableManagerTest extends AbstractDefaultDurableManagerTest {
 
   private static final PolarisDiagnostics DIAGNOSTICS = new PolarisDefaultDiagServiceImpl();
