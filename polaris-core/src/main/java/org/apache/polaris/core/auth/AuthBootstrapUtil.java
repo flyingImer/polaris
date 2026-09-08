@@ -53,16 +53,73 @@ public class AuthBootstrapUtil {
 
   private AuthBootstrapUtil() {}
 
+  /**
+   * Bootstrap for the previous model's single manager, which still declares the entity, principal
+   * and id operations itself and no longer declares the grant and secrets ones. It deliberately
+   * does NOT delegate to the per-domain overload below: that would narrow the argument to the
+   * catalog and principal contracts as well, widening what an implementer of the single manager has
+   * to also implement, on an interface whose signatures are stable for any implementer. Only the
+   * two siblings it no longer declares are narrowed here. This method, and the sequence it repeats
+   * from the overload below, go away with the previous model.
+   */
   public static PrincipalSecretsResult createPolarisPrincipalForRealm(
       DurableManager metaStoreManager, PolarisCallContext ctx) {
-    // The previous model's single manager implements every per-domain contract; narrow it once
-    // here.
-    return createPolarisPrincipalForRealm(
-        (CatalogDurableManager) metaStoreManager,
-        (PrincipalDurableManager) metaStoreManager,
-        (GrantDurableManager) metaStoreManager,
-        (SecretsDurableManager) metaStoreManager,
-        ctx);
+    GrantDurableManager grantManager = (GrantDurableManager) metaStoreManager;
+    SecretsDurableManager secretsManager = (SecretsDurableManager) metaStoreManager;
+
+    Optional<PrincipalEntity> preliminaryRootPrincipal = metaStoreManager.findRootPrincipal(ctx);
+    if (preliminaryRootPrincipal.isPresent()) {
+      String overrideMessage =
+          "It appears this metastore manager has already been bootstrapped. "
+              + "To continue bootstrapping, please first purge the metastore with the `purge` command.";
+      LOGGER.error("\n\n {} \n\n", overrideMessage);
+      throw new IllegalArgumentException(overrideMessage);
+    }
+
+    // Create a root container entity that can represent the securable for any top-level grants.
+    PolarisBaseEntity rootContainer =
+        new PolarisBaseEntity(
+            PolarisEntityConstants.getNullId(),
+            PolarisEntityConstants.getRootEntityId(),
+            PolarisEntityType.ROOT,
+            PolarisEntitySubType.NULL_SUBTYPE,
+            PolarisEntityConstants.getRootEntityId(),
+            PolarisEntityConstants.getRootContainerName());
+    metaStoreManager.createEntityIfNotExists(ctx, null, rootContainer);
+
+    CreatePrincipalResult principalResult =
+        metaStoreManager.createPrincipal(
+            ctx,
+            new PrincipalEntity.Builder()
+                .setId(generateId(metaStoreManager, ctx))
+                .setName(PolarisEntityConstants.getRootPrincipalName())
+                .setCreateTimestamp(System.currentTimeMillis())
+                .build());
+    checkState(principalResult.isSuccess(), "Unable to create root principal");
+    PrincipalEntity rootPrincipal = principalResult.getPrincipal();
+
+    // now create the account admin principal role
+    PrincipalRoleEntity serviceAdminPrincipalRole =
+        new PrincipalRoleEntity.Builder()
+            .setId(generateId(metaStoreManager, ctx))
+            .setName(PolarisEntityConstants.getNameOfPrincipalServiceAdminRole())
+            .setCreateTimestamp(System.currentTimeMillis())
+            .build();
+    metaStoreManager.createEntityIfNotExists(ctx, null, serviceAdminPrincipalRole);
+
+    // we also need to grant usage on the account-admin principal to the principal
+    grantManager.grantPrivilegeOnSecurableToRole(
+        ctx, rootPrincipal, null, serviceAdminPrincipalRole, PolarisPrivilege.PRINCIPAL_ROLE_USAGE);
+
+    // grant SERVICE_MANAGE_ACCESS on the rootContainer to the serviceAdminPrincipalRole
+    grantManager.grantPrivilegeOnSecurableToRole(
+        ctx,
+        serviceAdminPrincipalRole,
+        null,
+        rootContainer,
+        PolarisPrivilege.SERVICE_MANAGE_ACCESS);
+
+    return secretsManager.loadPrincipalSecrets(ctx, rootPrincipal.getClientId());
   }
 
   public static PrincipalSecretsResult createPolarisPrincipalForRealm(
@@ -129,6 +186,12 @@ public class AuthBootstrapUtil {
 
   private static long generateId(CatalogDurableManager catalogManager, PolarisCallContext ctx) {
     GenerateEntityIdResult res = catalogManager.generateNewEntityId(ctx);
+    Preconditions.checkState(res.isSuccess(), "Unable to generate id for polaris entity");
+    return res.getId();
+  }
+
+  private static long generateId(DurableManager metaStoreManager, PolarisCallContext ctx) {
+    GenerateEntityIdResult res = metaStoreManager.generateNewEntityId(ctx);
     Preconditions.checkState(res.isSuccess(), "Unable to generate id for polaris entity");
     return res.getId();
   }
