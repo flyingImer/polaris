@@ -157,7 +157,11 @@ public class PolarisTestMetaStoreManager {
     return polarisCallContext;
   }
 
-  public DurableManager polarisMetaStoreManager() {
+  /**
+   * The previous model's single manager; null when this holder was built over the per-domain
+   * managers.
+   */
+  public @Nullable DurableManager polarisMetaStoreManager() {
     return polarisMetaStoreManager;
   }
 

@@ -102,11 +102,13 @@ final class RecordMutations {
    * Having already pre-checked the relevant uniqueness before building the mutation list, a failure
    * here can only be a lost race on that same check — the identical collision the pre-check path
    * itself reports — or a genuine bug (TOO_MANY_ITEMS, DOMAIN_MISMATCH, ROLLBACK_INCOMPLETE). No
-   * old-model precedent for this mapping exists for the same reason {@link #mapFailedCreate} has
-   * none: the old primitives interface has no multi-outcome commit result, and for {@code
-   * createCatalog}/{@code createPrincipal} specifically, neither old impl wraps its several writes
-   * in one shared transaction at all (see {@link #createCatalog}'s and {@link #createPrincipal}'s
-   * own javadoc for what the one-commit shape closes as a side effect).
+   * old-model precedent for this mapping exists for the same reason {@code
+   * DefaultCatalogDurableManager#mapFailedCreate} has none: the old primitives interface has no
+   * multi-outcome commit result, and for {@code createCatalog}/{@code createPrincipal}
+   * specifically, neither old impl wraps its several writes in one shared transaction at all (see
+   * {@code DefaultCatalogDurableManager#createCatalog}'s and {@code
+   * DefaultPrincipalDurableManager#createPrincipal}'s own javadoc for what the one-commit shape
+   * closes as a side effect).
    */
   static BaseResult.ReturnStatus classifyFailedCreate(@NonNull OrchestrationResult result) {
     if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
@@ -157,8 +159,9 @@ final class RecordMutations {
   /**
    * A grant-record {@code CREATE} mutation, declaring {@link Precondition#none()} per {@link
    * Mutation.Op#CREATE}'s contract for a kind whose identity and uniqueness are the same tuple. See
-   * {@link #persistNewGrantRecord}'s javadoc for why that contract is not yet honored by either
-   * shipped store's actual {@code CREATE} handling, and why this method still declares it.
+   * {@code DefaultGrantDurableManager#persistNewGrantRecord}'s javadoc for why that contract is not
+   * yet honored by either shipped store's actual {@code CREATE} handling, and why this method still
+   * declares it.
    */
   static Mutation createGrantMutation(@NonNull PolarisGrantRecord grantRecord) {
     return Mutation.of(

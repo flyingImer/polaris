@@ -89,13 +89,14 @@ final class DefaultResolvedEntityReads implements ResolvedEntityReads {
   /**
    * Ported from both old impls' {@code loadResolvedEntityById}, identical apart from the {@code
    * InCurrentTxn} suffix and the read-transaction wrapper (confirmed by reading both). {@code
-   * entityType} filters the lookup the same way {@link #loadEntity} does — this reuses it rather
-   * than re-deriving the type check, since both old impls resolve through the SAME {@code
-   * lookupEntity}/{@code lookupEntityInCurrentTxn} call {@link #loadEntity} already ports. No
-   * counterpart-entity fetch here: both old impls return the raw {@link PolarisGrantRecord} list
-   * unenriched, which is why a grant referencing a dropped counterpart is already absent — the
-   * counterpart's own drop deleted the grant record itself (increment 5's {@code
-   * collectDropMutations}), not a filter this method applies.
+   * entityType} filters the lookup the same way {@code DefaultCatalogDurableManager#loadEntity}
+   * does — this reuses it rather than re-deriving the type check, since both old impls resolve
+   * through the SAME {@code lookupEntity}/{@code lookupEntityInCurrentTxn} call {@code
+   * DefaultCatalogDurableManager#loadEntity} already ports. No counterpart-entity fetch here: both
+   * old impls return the raw {@link PolarisGrantRecord} list unenriched, which is why a grant
+   * referencing a dropped counterpart is already absent — the counterpart's own drop deleted the
+   * grant record itself (increment 5's {@code collectDropMutations}), not a filter this method
+   * applies.
    */
   @Override
   public @NonNull ResolvedEntityResult loadResolvedEntityById(
@@ -168,11 +169,12 @@ final class DefaultResolvedEntityReads implements ResolvedEntityReads {
    * Ported from both old impls' {@code loadResolvedEntityByName}, including the root-container
    * backfill special case both carry verbatim (a holdover from before bootstrap created the root
    * container; the old code's own TODO doubts it is still reachable, and it is ported rather than
-   * judged). The name lookup goes through the same uniqueness key {@link #readEntityByName} uses;
-   * the STORE fetch carries no catalog component ({@link #entityUniqueness}'s disclosure), and the
-   * old lookup's {@code catalog_id} filter — both old stores apply it in the physical by-name
-   * lookup, so an untruthful {@code entityCatalogId} is {@code ENTITY_NOT_FOUND} there — is applied
-   * HERE on the fetched row, the same treatment {@link #loadEntity} gives its identity lookups.
+   * judged). The name lookup goes through the same uniqueness key {@code
+   * DefaultCatalogDurableManager#readEntityByName} uses; the STORE fetch carries no catalog
+   * component ({@code RecordRefs#entityUniqueness}'s disclosure), and the old lookup's {@code
+   * catalog_id} filter — both old stores apply it in the physical by-name lookup, so an untruthful
+   * {@code entityCatalogId} is {@code ENTITY_NOT_FOUND} there — is applied HERE on the fetched row,
+   * the same treatment {@code DefaultCatalogDurableManager#loadEntity} gives its identity lookups.
    * (This ticket's refute pass caught the first draft silently returning SUCCESS for that case and
    * its javadoc understating the divergence as a grant-anchor nuance; the check below restores
    * exact old behaviour, and makes the grant anchors — the entity's own {@code (catalogId, id)} —

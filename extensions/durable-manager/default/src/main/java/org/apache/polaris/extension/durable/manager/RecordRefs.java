@@ -71,20 +71,22 @@ final class RecordRefs {
    *
    * <p><b>CORRECTION to this method's increment-2 disclosure</b> (EJ's retrofit, 2026-08-17): that
    * text claimed this manager never returns {@code CATALOG_PATH_CANNOT_BE_RESOLVED}, matching only
-   * Atomic. It now does, for {@link #createEntityIfNotExists}, {@link #createEntitiesIfNotExist},
-   * {@link #renameEntity} and {@link #dropEntityIfExists}: each attaches an {@code EXISTS}
-   * precondition per {@code catalogPath} entity to its mutation (see {@link
-   * #pathExistsPreconditions}), so a path entity deleted between the read below and the commit
-   * fails the write instead of silently succeeding underneath it — the concrete failure mode this
-   * closes is a table left hanging under a concurrently-dropped namespace, which Atomic's own
-   * unconditional derivation cannot detect. This is a REAL happens-before guarantee neither old
-   * implementation has: Atomic never re-checks the path at all, and Transactional's re-check (via
-   * the package-private {@code PolarisEntityResolver}) is safe only because it runs inside the same
-   * DB transaction as the write — nothing states that as a condition, a wrapping transaction just
-   * happens to serialize against the concurrent delete. {@code updateEntityPropertiesIfNotChanged}
-   * and its batch form deliberately do NOT get this treatment: neither old implementation's update
-   * path uses {@code catalogPath} to reach the entity being updated (it is resolved directly by
-   * catalogId+id), so there is no "hanging under a deleted path" failure mode for update to close.
+   * Atomic. It now does, for {@code DefaultCatalogDurableManager#createEntityIfNotExists}, {@code
+   * DefaultCatalogDurableManager#createEntitiesIfNotExist}, {@code
+   * DefaultCatalogDurableManager#renameEntity} and {@code
+   * DefaultCatalogDurableManager#dropEntityIfExists}: each attaches an {@code EXISTS} precondition
+   * per {@code catalogPath} entity to its mutation (see {@link #pathExistsPreconditions}), so a
+   * path entity deleted between the read below and the commit fails the write instead of silently
+   * succeeding underneath it — the concrete failure mode this closes is a table left hanging under
+   * a concurrently-dropped namespace, which Atomic's own unconditional derivation cannot detect.
+   * This is a REAL happens-before guarantee neither old implementation has: Atomic never re-checks
+   * the path at all, and Transactional's re-check (via the package-private {@code
+   * PolarisEntityResolver}) is safe only because it runs inside the same DB transaction as the
+   * write — nothing states that as a condition, a wrapping transaction just happens to serialize
+   * against the concurrent delete. {@code updateEntityPropertiesIfNotChanged} and its batch form
+   * deliberately do NOT get this treatment: neither old implementation's update path uses {@code
+   * catalogPath} to reach the entity being updated (it is resolved directly by catalogId+id), so
+   * there is no "hanging under a deleted path" failure mode for update to close.
    */
   static long catalogIdOf(@Nullable List<PolarisEntityCore> catalogPath) {
     return catalogPath == null || catalogPath.isEmpty()
@@ -143,8 +145,9 @@ final class RecordRefs {
 
   /**
    * The grant records on which {@code entity} is the securable — the anchor every entity gets,
-   * grantee or not. Shared by {@link #loadResolvedEntityById}, {@link #loadResolvedEntities} and
-   * their {@code toResolvedPolarisEntity} helper below.
+   * grantee or not. Shared by {@code DefaultResolvedEntityReads#loadResolvedEntityById}, {@code
+   * DefaultResolvedEntityReads#loadResolvedEntities} and their {@code toResolvedPolarisEntity}
+   * helper below.
    */
   static List<PolarisGrantRecord> grantsAsSecurable(
       @NonNull DurableRecordStore store, @NonNull PolarisEntityCore entity) {

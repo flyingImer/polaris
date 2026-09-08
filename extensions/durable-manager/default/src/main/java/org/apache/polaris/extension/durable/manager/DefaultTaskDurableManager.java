@@ -83,10 +83,10 @@ public class DefaultTaskDurableManager implements TaskDurableManager {
    * lastAttemptExecutorId}/{@code lastAttemptStartTime}/{@code attemptCount} and persists through
    * {@link #updateEntityPropertiesIfNotChanged}'s version CAS, exactly as both old impls do.
    *
-   * <p>The read is {@link #listChildEntities} over root (the same in-memory entity-type narrowing
-   * that method already discloses), with the availability predicate evaluated HERE and the page
-   * limit applied AFTER it — matching the old primitives' predicate-then-limit order (the fixture's
-   * second limit-5 call must return the NEXT five unleased tasks, not an empty page of
+   * <p>The read is {@code RecordRefs#listChildEntities} over root (the same in-memory entity-type
+   * narrowing that method already discloses), with the availability predicate evaluated HERE and
+   * the page limit applied AFTER it — matching the old primitives' predicate-then-limit order (the
+   * fixture's second limit-5 call must return the NEXT five unleased tasks, not an empty page of
    * already-leased ones). The old interface pushed this predicate INTO the store as a callback; the
    * new SPI's own javadoc records task leasing as a missing operation rather than a filter to
    * relocate, and reshaping it is the read-side record's noted follow-up, not this ticket's — so
@@ -161,46 +161,8 @@ public class DefaultTaskDurableManager implements TaskDurableManager {
   }
 
   /**
-   * Rebuilds from a fresh read, overlaying ONLY {@code properties}/{@code internalProperties} —
-   * {@code TransactionalMetaStoreManagerImpl}'s shape (its {@code
-   * updateEntityPropertiesIfNotChanged} re-reads and copies across just those two fields), not
-   * {@code AtomicOperationMetaStoreManager}'s, which persists the caller's {@code entity} argument
-   * verbatim and so silently writes back whatever stale {@code parentId}/{@code name}/timestamps
-   * the caller's copy happened to carry. The brief calls for Transactional's shape here; this
-   * follows it.
-   *
-   * <p>{@code catalogPath} is accepted but not consulted, same parity choice {@link #catalogIdOf}
-   * documents elsewhere — but for a different reason than usual: it is not merely unconsulted by
-   * the old impl this follows for parity, it is genuinely irrelevant to the write. Neither old
-   * implementation resolves the entity being updated THROUGH its path; both go straight to it by
-   * {@code catalogId}+{@code id}. {@code TransactionalMetaStoreManagerImpl} DOES additionally
-   * re-resolve {@code catalogPath} via the package-private {@code PolarisEntityResolver} and can
-   * return {@code CATALOG_PATH_CANNOT_BE_RESOLVED} for a stale one — found while reading it for
-   * this increment, and NOT reproduced here: the retrofit's target failure mode is a write that
-   * SUCCEEDS underneath a deleted path (see {@link #catalogIdOf}'s javadoc), and an update's own
-   * version precondition below already fails a concurrently-changed entity regardless of what
-   * happened to its ancestors, so there is no equivalent hole for the retrofit to close. Flagging
-   * this rather than silently applying the retrofit here anyway, since the brief's own retrofit
-   * list names only the create paths plus this increment's rename/drop.
-   *
-   * <p>Not-found and stale-version COLLAPSE into the same {@code
-   * TARGET_ENTITY_CONCURRENTLY_MODIFIED} signal, matching {@code AtomicOperationMetaStoreManager}'s
-   * actually observed behavior rather than the weaker two-branch reading its own javadoc comment
-   * suggests: its write goes through {@code
-   * AbstractTransactionalPersistence#checkConditionsForWriteEntityInCurrentTxn}, whose update-path
-   * check is {@code if (refreshedEntity == null || refreshedEntity.getEntityVersion() !=
-   * originalEntity.getEntityVersion() || refreshedEntity.getGrantRecordsVersion() !=
-   * originalEntity.getGrantRecordsVersion()) throw RetryOnConcurrencyException} — absence and a
-   * stale version throw the identical exception, caught by {@code
-   * AtomicOperationMetaStoreManager#updateEntityPropertiesIfNotChanged} into one status. {@code
-   * TransactionalMetaStoreManagerImpl} diverges here too (its own not-found path is an uncaught
-   * {@code checkNotNull}, a crash rather than a status) but is not one of the fixture's five tested
-   * bindings, and the fixture's own {@code testUpdateEntities} — "update an entity which does not
-   * exist" — exercises exactly this and expects a graceful null, which only Atomic's shape
-   * delivers. Realized here as two {@code VERSION_EQUALS} preconditions mirroring {@link
-   * #bumpGrantRecordsVersion}'s own two-column CAS, since a {@code VERSION_EQUALS} precondition
-   * against an absent record already evaluates false (see {@code Precondition}'s {@code holds()}),
-   * so absence and staleness fail the same way without a separate branch.
+   * The version-checked entity update the catalog manager offers publicly, kept as a private copy
+   * so leasing a task depends on no other manager.
    */
   private @NonNull EntityResult updateEntityPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx,
@@ -226,7 +188,7 @@ public class DefaultTaskDurableManager implements TaskDurableManager {
             // own createTimestamp default is real wall-clock time, decoupled from any injected
             // clock, and the fixture's testStartTime is captured the same way. This class's clock
             // field is real in production; the fixture's own MutableClock is fixed at construction
-            // and only advances via explicit clock.add(...) (for ticket 92's task-leasing tests) —
+            // and only advances via explicit clock.add(...) (for the task-leasing tests) —
             // using it here made every update's timestamp read as BEFORE the entity's own
             // real-time createTimestamp. Found by testUpdateEntities/testRename failing on exactly
             // that ordering.

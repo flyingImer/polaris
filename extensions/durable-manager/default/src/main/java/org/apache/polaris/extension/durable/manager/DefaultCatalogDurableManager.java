@@ -157,7 +157,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
    * routes both branches through this one method.
    *
    * @param existing whatever is currently stored under the uniqueness key (or identity, for {@link
-   *     #createCatalog}/{@link #createPrincipal}) that collided
+   *     #createCatalog}/{@code DefaultPrincipalDurableManager#createPrincipal}) that collided
    * @param creatingId the id of the entity THIS call attempted to create — for a batch, the id of
    *     the specific entity whose OWN uniqueness key collided, never an arbitrary member of the
    *     batch (see {@link #createEntitiesIfNotExist}, which tracks this per mutation for exactly
@@ -678,19 +678,20 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
    * the caller's copy happened to carry. The brief calls for Transactional's shape here; this
    * follows it.
    *
-   * <p>{@code catalogPath} is accepted but not consulted, same parity choice {@link #catalogIdOf}
-   * documents elsewhere — but for a different reason than usual: it is not merely unconsulted by
-   * the old impl this follows for parity, it is genuinely irrelevant to the write. Neither old
-   * implementation resolves the entity being updated THROUGH its path; both go straight to it by
-   * {@code catalogId}+{@code id}. {@code TransactionalMetaStoreManagerImpl} DOES additionally
-   * re-resolve {@code catalogPath} via the package-private {@code PolarisEntityResolver} and can
-   * return {@code CATALOG_PATH_CANNOT_BE_RESOLVED} for a stale one — found while reading it for
-   * this increment, and NOT reproduced here: the retrofit's target failure mode is a write that
-   * SUCCEEDS underneath a deleted path (see {@link #catalogIdOf}'s javadoc), and an update's own
-   * version precondition below already fails a concurrently-changed entity regardless of what
-   * happened to its ancestors, so there is no equivalent hole for the retrofit to close. Flagging
-   * this rather than silently applying the retrofit here anyway, since the brief's own retrofit
-   * list names only the create paths plus this increment's rename/drop.
+   * <p>{@code catalogPath} is accepted but not consulted, same parity choice {@code
+   * RecordRefs#catalogIdOf} documents elsewhere — but for a different reason than usual: it is not
+   * merely unconsulted by the old impl this follows for parity, it is genuinely irrelevant to the
+   * write. Neither old implementation resolves the entity being updated THROUGH its path; both go
+   * straight to it by {@code catalogId}+{@code id}. {@code TransactionalMetaStoreManagerImpl} DOES
+   * additionally re-resolve {@code catalogPath} via the package-private {@code
+   * PolarisEntityResolver} and can return {@code CATALOG_PATH_CANNOT_BE_RESOLVED} for a stale one —
+   * found while reading it for this increment, and NOT reproduced here: the retrofit's target
+   * failure mode is a write that SUCCEEDS underneath a deleted path (see {@code
+   * RecordRefs#catalogIdOf}'s javadoc), and an update's own version precondition below already
+   * fails a concurrently-changed entity regardless of what happened to its ancestors, so there is
+   * no equivalent hole for the retrofit to close. Flagging this rather than silently applying the
+   * retrofit here anyway, since the brief's own retrofit list names only the create paths plus this
+   * increment's rename/drop.
    *
    * <p>Not-found and stale-version COLLAPSE into the same {@code
    * TARGET_ENTITY_CONCURRENTLY_MODIFIED} signal, matching {@code AtomicOperationMetaStoreManager}'s
@@ -736,7 +737,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
             // own createTimestamp default is real wall-clock time, decoupled from any injected
             // clock, and the fixture's testStartTime is captured the same way. This class's clock
             // field is real in production; the fixture's own MutableClock is fixed at construction
-            // and only advances via explicit clock.add(...) (for ticket 92's task-leasing tests) —
+            // and only advances via explicit clock.add(...) (for the task-leasing tests) —
             // using it here made every update's timestamp read as BEFORE the entity's own
             // real-time createTimestamp. Found by testUpdateEntities/testRename failing on exactly
             // that ordering.
@@ -818,7 +819,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
    * which are identical here except for {@code TransactionalMetaStoreManagerImpl}'s additional
    * {@code PolarisEntityResolver} path re-check — which the retrofit's {@code EXISTS} preconditions
    * now subsume with a real happens-before guarantee instead of a same-transaction coincidence (see
-   * {@link #catalogIdOf}'s javadoc).
+   * {@code RecordRefs#catalogIdOf}'s javadoc).
    *
    * <p>{@code cannotBeDroppedOrRenamed()} → {@code ENTITY_CANNOT_BE_RENAMED}; a taken destination
    * name → {@code ENTITY_ALREADY_EXISTS} carrying the existing entity's subtype code; a missing

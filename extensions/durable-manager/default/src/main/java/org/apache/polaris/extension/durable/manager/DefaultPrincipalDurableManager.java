@@ -278,27 +278,8 @@ public class DefaultPrincipalDurableManager implements PrincipalDurableManager {
   }
 
   /**
-   * CORRECTION to increment 2's version of this method (found by {@code testLookup}, which asserts
-   * that looking up a real id under the wrong {@code entityType} — a namespace's id looked up as a
-   * {@code TABLE_LIKE} — returns not-found): {@code entityType} DOES filter, verified in {@code
-   * TreeMapDurablePrimitivesImpl#lookupEntityInCurrentTxn}'s actual body — {@code if (entity !=
-   * null && entity.getTypeCode() != typeCode) return null;} — not merely "MAY" as the abstract
-   * {@code DurablePrimitives#lookupEntity} javadoc alone would suggest ("The type code parameter is
-   * redundant..."). Increment 2 read only the javadoc and picked the weaker of the two documented
-   * options; this reads the concrete backend the fixture actually exercises and matches its real
-   * behavior. {@code entityCatalogId} remains genuinely unused: the new model's ENTITY identity key
-   * is {@code (realm, id)} alone, with no catalog component for identity lookups to filter on at
-   * all.
-   *
-   * <p><b>SECOND CORRECTION (ticket 92, increment 4): the paragraph above's "entityCatalogId
-   * remains genuinely unused" was itself the same class of error it corrects.</b> It was written
-   * while {@code testEntityCache} was disabled; that case's negative lookup ({@code
-   * loadCacheEntryById(N1.getCatalogId() + 1000, ...)} expecting not-found) observes that the old
-   * {@code lookupEntity} filters on {@code catalog_id} as well — the shipped query's three filter
-   * columns, the same fact the {@code 92c82b995}/{@code e29358a37} row in the chain already
-   * recorded for the children query. The identity KEY carries no catalog component, so the store
-   * fetch stays by id; the catalog filter is applied here on the fetched row, the same treatment
-   * the type filter above already gets.
+   * Entity read by identity with the type and catalog filters of the catalog manager's public read;
+   * a private copy so this manager depends on no other manager.
    */
   private @NonNull EntityResult loadEntity(
       @NonNull PolarisCallContext callCtx,
