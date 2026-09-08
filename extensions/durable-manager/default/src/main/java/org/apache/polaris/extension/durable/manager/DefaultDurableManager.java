@@ -19,9 +19,7 @@
 package org.apache.polaris.extension.durable.manager;
 
 import java.time.Clock;
-import java.util.ArrayDeque;
 import java.util.ArrayList;
-import java.util.Deque;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedHashMap;
@@ -35,17 +33,13 @@ import org.apache.polaris.core.config.FeatureConfiguration;
 import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.EntityNameLookupRecord;
-import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
-import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
-import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
-import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
@@ -53,24 +47,16 @@ import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
-import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
-import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
-import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
-import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
-import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
-import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.core.persistence.resolver.ResolvedEntityReads;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyMappingUtil;
 import org.apache.polaris.spi.durable.CatalogDurableManager;
@@ -84,15 +70,10 @@ import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.Precondition;
-import org.apache.polaris.spi.durable.PrincipalDurableManager;
 import org.apache.polaris.spi.durable.RecordRef;
-import org.apache.polaris.spi.durable.RecordVersions;
 import org.apache.polaris.spi.durable.SecretsDurableManager;
-import org.apache.polaris.spi.durable.TaskDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
 
 /**
  * The single new-model durable manager. At ticket 96 this class is a wholesale replacement for both
@@ -137,14 +118,7 @@ import org.slf4j.LoggerFactory;
  * live. {@link PrincipalSecretsGenerator} is an existing type — this coins no new term, it only
  * moves an existing collaborator to its correct layer.
  */
-public class DefaultDurableManager
-    implements DurableManager,
-        CatalogDurableManager,
-        PrincipalDurableManager,
-        TaskDurableManager,
-        ResolvedEntityReads {
-
-  private static final Logger LOGGER = LoggerFactory.getLogger(DefaultDurableManager.class);
+public class DefaultDurableManager implements CatalogDurableManager {
 
   private final Clock clock;
 
@@ -154,19 +128,15 @@ public class DefaultDurableManager
 
   private final DurableRecordStore primitives;
 
-  private final PrincipalSecretsGenerator secretsGenerator;
-
   public DefaultDurableManager(
       @NonNull Clock clock,
       @NonNull PolarisDiagnostics diagnostics,
       @NonNull DurableOrchestrator orchestrator,
-      @NonNull DurableRecordStore primitives,
-      @NonNull PrincipalSecretsGenerator secretsGenerator) {
+      @NonNull DurableRecordStore primitives) {
     this.clock = clock;
     this.diagnostics = diagnostics;
     this.orchestrator = orchestrator;
     this.primitives = primitives;
-    this.secretsGenerator = secretsGenerator;
   }
 
   /**
@@ -348,147 +318,6 @@ public class DefaultDurableManager
   @Override
   public @NonNull GenerateEntityIdResult generateNewEntityId(@NonNull PolarisCallContext callCtx) {
     return new GenerateEntityIdResult(primitives.generateNewId());
-  }
-
-  /**
-   * Ported from {@code TreeMapDurablePrimitivesImpl#generateNewPrincipalSecretsInCurrentTxn}'s
-   * collision-avoidance loop: {@link #secretsGenerator} produces a client id that is expected to be
-   * unique but not reserved the way {@link DurableRecordStore#generateNewId} reserves an entity id,
-   * so this re-checks and retries rather than trusting the generator outright.
-   */
-  private PolarisPrincipalSecrets generateUniqueSecrets(
-      @NonNull String principalName, long principalId) {
-    DurableRecordStore store = primitives;
-    PolarisPrincipalSecrets candidate;
-    do {
-      candidate = secretsGenerator.produceSecrets(principalName, principalId);
-    } while (store
-        .get(
-            RecordRefs.secretsIdentity(candidate.getPrincipalClientId()),
-            PolarisPrincipalSecrets.class)
-        .isPresent());
-    return candidate;
-  }
-
-  /**
-   * Ported from {@code AtomicOperationMetaStoreManager#createPrincipal} / {@code
-   * TransactionalMetaStoreManagerImpl#createPrincipal}, which diverge and this picks one, disclosed
-   * rather than silently: Atomic generates secrets unconditionally, writes the principal, and on an
-   * {@code ENTITY_ALREADY_EXISTS} collision compensates with a call to {@code
-   * deletePrincipalSecrets} — its own TODO concedes a crash between that write and the compensating
-   * delete leaks the secrets row. Transactional checks the name first and only then generates
-   * secrets, needing no compensation at all. This matches Transactional's shape: C7 prescribes
-   * resolving reads before writes, and it wastes no generated secret on a name that was already
-   * taken.
-   *
-   * <p>The WRITE ORDER inside the one commit still matches BOTH old impls: secrets before the
-   * principal. The reason survives the move from two independent primitive writes to one
-   * orchestrated commit: in a multi-store deployment where {@code PRINCIPAL_SECRETS} and {@code
-   * ENTITY} resolve to different stores, this becomes two orchestrated groups rather than one, and
-   * {@link DurableOrchestrator}'s own disclosed, un-closed crash window — the process dying between
-   * committing group 1 and compensating a group-2 failure — can leave the first group's effect
-   * stranded. Secrets first means that stranded state is an orphan {@code PRINCIPAL_SECRETS} row:
-   * inert, nothing references it. Principal first would instead strand an orphan {@code PRINCIPAL}
-   * entity whose {@code clientId} resolves to nothing — unusable. Same rationale ADR-0002 records
-   * for the "never a principal without secrets" invariant itself.
-   */
-  @Override
-  public @NonNull CreatePrincipalResult createPrincipal(
-      @NonNull PolarisCallContext callCtx, @NonNull PrincipalEntity principal) {
-    diagnostics.checkNotNull(principal, "unexpected_null_principal");
-
-    Optional<PolarisBaseEntity> existing =
-        primitives.get(RecordRefs.entityIdentity(principal.getId()), PolarisBaseEntity.class);
-    if (existing.isPresent()) {
-      // Same-id idempotent-retry collisions are necessarily sequential (the id was already
-      // reserved by generateNewEntityId before this call reached us), so this pre-check needs no
-      // atomicity of its own — matches both old impls' own comment to this effect.
-      return loadExistingPrincipal(existing.get());
-    }
-
-    boolean nameTaken =
-        primitives
-            .get(
-                RecordRefs.entityUniqueness(
-                    PolarisEntityConstants.getRootEntityId(),
-                    PolarisEntityType.PRINCIPAL.getCode(),
-                    principal.getName()),
-                PolarisBaseEntity.class)
-            .isPresent();
-    if (nameTaken) {
-      return new CreatePrincipalResult(BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, null);
-    }
-
-    PolarisPrincipalSecrets secrets = generateUniqueSecrets(principal.getName(), principal.getId());
-    PrincipalEntity updatedPrincipal =
-        new PrincipalEntity.Builder(principal).setClientId(secrets.getPrincipalClientId()).build();
-    PolarisBaseEntity prepared = prepareNewEntity(updatedPrincipal);
-    RecordRef principalUniqueness =
-        RecordRefs.entityUniqueness(
-            prepared.getParentId(), prepared.getTypeCode(), prepared.getName());
-
-    List<Mutation> mutations =
-        List.of(
-            Mutation.of(
-                PolarisRecordKinds.PRINCIPAL_SECRETS,
-                Mutation.Op.CREATE,
-                RecordRefs.secretsIdentity(secrets.getPrincipalClientId()),
-                secrets,
-                List.of(Precondition.none())),
-            Mutation.of(
-                PolarisRecordKinds.ENTITY,
-                Mutation.Op.CREATE,
-                RecordRefs.entityIdentity(prepared.getId()),
-                prepared,
-                List.of(Precondition.notExists(principalUniqueness))));
-
-    OrchestrationResult result = orchestrator.commit(mutations);
-    if (result.isApplied()) {
-      return new CreatePrincipalResult(prepared, secrets);
-    }
-    // No compensating delete of the secrets on failure: the orchestrator's own cross-group
-    // compensation already rolls back a committed earlier group when a later one fails, which is
-    // strictly better than Atomic's manual best-effort cleanup for the ordinary (non-crash)
-    // failure case.
-    BaseResult.ReturnStatus failureStatus = RecordMutations.classifyFailedCreate(result);
-    if (failureStatus == BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS) {
-      // Finding 1 (independent review, 2026-08-18): a lost race can mean someone else already
-      // committed THIS exact principal (the id this call reserved before it started) rather than
-      // a genuine name conflict. Re-reading by identity rather than by principalUniqueness is
-      // deliberate and simpler than createEntityIfNotExists's equivalent check: ids are reserved
-      // by the caller before this method runs, so a hit here is necessarily this exact id — no
-      // separate id-equality comparison is needed the way it is for a uniqueness-keyed read,
-      // which could belong to any id.
-      Optional<PolarisBaseEntity> winner =
-          primitives.get(RecordRefs.entityIdentity(prepared.getId()), PolarisBaseEntity.class);
-      if (winner.isPresent()) {
-        return loadExistingPrincipal(winner.get());
-      }
-    }
-    return new CreatePrincipalResult(failureStatus, RecordMutations.failureDetail(result));
-  }
-
-  /**
-   * Loads the existing principal's canonical (entity, secrets) pair by id — shared by {@link
-   * #createPrincipal}'s identity pre-check (this id already exists) and its lost-race branch
-   * (Finding 1: the SAME rule now applies at both of a create path's collision points).
-   */
-  private CreatePrincipalResult loadExistingPrincipal(@NonNull PolarisBaseEntity existing) {
-    PrincipalEntity refreshPrincipal = PrincipalEntity.of(existing);
-    String clientId = refreshPrincipal.getClientId();
-    diagnostics.checkNotNull(clientId, "null_client_id", "principal={}", refreshPrincipal);
-    diagnostics.check(!clientId.isEmpty(), "empty_client_id", "principal={}", refreshPrincipal);
-    PolarisPrincipalSecrets secrets =
-        primitives
-            .get(RecordRefs.secretsIdentity(clientId), PolarisPrincipalSecrets.class)
-            .orElse(null);
-    diagnostics.checkNotNull(
-        secrets,
-        "missing_principal_secrets",
-        "clientId={} principal={}",
-        clientId,
-        refreshPrincipal);
-    return new CreatePrincipalResult(existing, secrets);
   }
 
   /**
@@ -1157,25 +986,6 @@ public class DefaultDurableManager
   }
 
   /**
-   * All children checks below are READS, not preconditions: {@code Precondition} declares no
-   * set-emptiness operator (see its own "Deliberately absent" section), so "no children under this
-   * parent" cannot ride into the commit the way the retrofit's path checks do. This leaves the
-   * identical TOCTOU window both old impls already carry between this read and the write — {@code
-   * AtomicOperationMetaStoreManager}'s own five TODOs concede the same gap for the same reason, so
-   * this is parity, not a regression introduced here.
-   */
-  private List<PolarisBaseEntity> rawChildEntities(long catalogId, long parentId) {
-    return primitives
-        .list(
-            PolarisRecordKinds.ENTITY,
-            PolarisRecordKinds.ENTITY_BY_PARENT,
-            List.of(catalogId, parentId),
-            PageToken.readEverything(),
-            PolarisBaseEntity.class)
-        .items();
-  }
-
-  /**
    * The full removal of one entity: an atomic mutation list combining the entity {@code DELETE},
    * both old impls' private {@code dropEntity} helper (grant-record cleanup, counterpart {@code
    * grantRecordsVersion} bumps, principal-secrets delete), and — when requested — a cleanup {@code
@@ -1373,7 +1183,8 @@ public class DefaultDurableManager
     if (current.getType() == PolarisEntityType.CATALOG) {
       long catalogId = current.getId();
       CatalogEntity catalogEntity = CatalogEntity.of(current);
-      List<PolarisBaseEntity> children = rawChildEntities(catalogId, catalogId);
+      List<PolarisBaseEntity> children =
+          RecordRefs.rawChildEntities(primitives, catalogId, catalogId);
       // Passthrough-facade catalogs may carry passthrough entities that are not source-of-truth;
       // both old impls temporarily allow dropping over them when the feature config says so.
       boolean allowNonEmptyPassthrough =
@@ -1405,7 +1216,8 @@ public class DefaultDurableManager
       // impls) — drop it too, in the SAME commit as the catalog.
       recurseCatalogRoles = catalogRoles;
     } else if (current.getType() == PolarisEntityType.NAMESPACE
-        && !rawChildEntities(current.getCatalogId(), current.getId()).isEmpty()) {
+        && !RecordRefs.rawChildEntities(primitives, current.getCatalogId(), current.getId())
+            .isEmpty()) {
       return new DropEntityResult(BaseResult.ReturnStatus.NAMESPACE_NOT_EMPTY, null);
     } else if (current.getType() == PolarisEntityType.POLICY
         && !cleanup
@@ -1555,635 +1367,19 @@ public class DefaultDurableManager
         .orElseGet(() -> new EntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null));
   }
 
-  @Override
-  public @NonNull ChangeTrackingResult loadEntitiesChangeTracking(
-      @NonNull PolarisCallContext callCtx, @NonNull List<PolarisEntityId> entityIds) {
-    List<RecordRef> refs =
-        entityIds.stream().map(id -> RecordRefs.entityIdentity(id.id())).toList();
-    List<Optional<RecordVersions>> versions = primitives.versionsOf(refs);
-    List<PolarisChangeTrackingVersions> result = new ArrayList<>(versions.size());
-    for (Optional<RecordVersions> v : versions) {
-      result.add(
-          v.map(
-                  rv ->
-                      new PolarisChangeTrackingVersions(
-                          (int) rv.recordVersion(), (int) rv.grantRecordsVersion()))
-              .orElse(null));
-    }
-    return new ChangeTrackingResult(result);
-  }
-
-  /**
-   * Ported from both old impls' {@code loadResolvedEntityById}, identical apart from the {@code
-   * InCurrentTxn} suffix and the read-transaction wrapper (confirmed by reading both). {@code
-   * entityType} filters the lookup the same way {@link #loadEntity} does — this reuses it rather
-   * than re-deriving the type check, since both old impls resolve through the SAME {@code
-   * lookupEntity}/{@code lookupEntityInCurrentTxn} call {@link #loadEntity} already ports. No
-   * counterpart-entity fetch here: both old impls return the raw {@link PolarisGrantRecord} list
-   * unenriched, which is why a grant referencing a dropped counterpart is already absent — the
-   * counterpart's own drop deleted the grant record itself (increment 5's {@code
-   * collectDropMutations}), not a filter this method applies.
-   */
-  @Override
-  public @NonNull ResolvedEntityResult loadResolvedEntityById(
-      @NonNull PolarisCallContext callCtx,
-      long entityCatalogId,
-      long entityId,
-      PolarisEntityType entityType) {
-    EntityResult found = loadEntity(callCtx, entityCatalogId, entityId, entityType);
-    if (!found.isSuccess()) {
-      return new ResolvedEntityResult(found.getReturnStatus(), found.getExtraInformation());
-    }
-    PolarisBaseEntity entity = found.getEntity();
-
-    List<PolarisGrantRecord> grantRecords;
-    if (entity.getType().isGrantee()) {
-      grantRecords = new ArrayList<>(RecordRefs.grantsAsGrantee(primitives, entity));
-      grantRecords.addAll(RecordRefs.grantsAsSecurable(primitives, entity));
-    } else {
-      grantRecords = RecordRefs.grantsAsSecurable(primitives, entity);
-    }
-    return new ResolvedEntityResult(entity, entity.getGrantRecordsVersion(), grantRecords);
-  }
-
-  /**
-   * A single position's resolved view, or {@code null} when the entity is absent or the wrong type
-   * — ported from both old impls' shared {@code toResolvedPolarisEntity}/{@code
-   * getResolvedEntitiesResult}. Unlike {@link #loadResolvedEntityById}'s combined list, {@code
-   * ResolvedPolarisEntity}'s constructor here takes the grantee/securable lists pre-split (the
-   * OTHER constructor, the one with a {@code PolarisDiagnostics} parameter, is what does the
-   * splitting from a combined list — neither old impl uses that one here).
-   */
-  private @Nullable ResolvedPolarisEntity toResolvedPolarisEntity(
-      @Nullable PolarisBaseEntity entity) {
-    if (entity == null) {
-      return null;
-    }
-    List<PolarisGrantRecord> asSecurable = RecordRefs.grantsAsSecurable(primitives, entity);
-    List<PolarisGrantRecord> asGrantee =
-        entity.getType().isGrantee() ? RecordRefs.grantsAsGrantee(primitives, entity) : List.of();
-    return new ResolvedPolarisEntity(PolarisEntity.of(entity), asGrantee, asSecurable);
-  }
-
-  /**
-   * Ported from both old impls' shared {@code getResolvedEntitiesResult}: batch-fetch by identity
-   * (positional, per {@link DurableRecordStore#getMany}'s own contract), filter each position by
-   * {@code entityType}, and resolve grants for whichever positions survive. A missing or wrong-type
-   * position becomes a {@code null} entry in the returned list — the call itself still succeeds,
-   * matching {@code testLoadResolvedEntitiesById}'s own assertion that a batch mixing real, absent
-   * and wrong-type ids returns {@code SUCCESS} with nulls at the losing positions.
-   */
-  @Override
-  public @NonNull ResolvedEntitiesResult loadResolvedEntities(
-      @NonNull PolarisCallContext callCtx,
-      @NonNull PolarisEntityType entityType,
-      @NonNull List<PolarisEntityId> entityIds) {
-    List<RecordRef> refs =
-        entityIds.stream().map(id -> RecordRefs.entityIdentity(id.id())).toList();
-    List<Optional<PolarisBaseEntity>> found = primitives.getMany(refs, PolarisBaseEntity.class);
-
-    List<ResolvedPolarisEntity> resolved = new ArrayList<>(entityIds.size());
-    for (Optional<PolarisBaseEntity> maybeEntity : found) {
-      PolarisBaseEntity entity =
-          maybeEntity.filter(e -> e.getTypeCode() == entityType.getCode()).orElse(null);
-      resolved.add(toResolvedPolarisEntity(entity));
-    }
-    return new ResolvedEntitiesResult(resolved);
-  }
-
-  // ------------------------------------------------------- DurableManager (ticket 92 surfaces)
-
-  /**
-   * Today's observable behaviour, ported per Issue 68's verified shape (byte-equivalent in both old
-   * impls): a WARN, a realm wipe, a WARN, an unconditional {@code SUCCESS} — no coded failure path;
-   * an underlying error propagates as an unchecked exception, exactly as the old impls let their
-   * store exceptions through. The log messages are the old impls' own, verbatim. Whether this
-   * manager-level method should exist at all stays Issue 68's ready-for-human question;
-   * implementing parity does not prejudge it.
-   *
-   * <p>The old wipe is ONE old-primitives call ({@code deleteAll}), a realm-scoped per-table bulk
-   * delete. The new SPI is deliberately closed at one write and four reads with no realm-wipe
-   * operation, so the wipe is COMPOSED: walk every entity from the root anchor through {@code
-   * by-parent}, collect each entity's grant records (both directions), policy mappings (both
-   * directions where they apply) and — for principals — the secrets row named by the principal's
-   * client id, then DELETE everything in chunked commits through the orchestrator. The scope
-   * matches the old wipe's actual table list, read from {@code JdbcDurablePrimitivesImpl#deleteAll}
-   * before building this: ENTITIES, GRANT_RECORDS, PRINCIPAL_AUTHENTICATION_DATA,
-   * POLICY_MAPPING_RECORD — and NOT the events table, whose rows carry no realm column, so the old
-   * realm-scoped wipe never touched them either (the proving case pins their survival).
-   *
-   * <p>Disclosed narrowings vs the old single-call wipe. <b>Crash window:</b> old JDBC wipes in one
-   * transaction; this walk is several commits, so a crash mid-purge leaves a partial wipe. What
-   * makes re-running purge actually complete it is the DELETE ORDER, not merely the deletes being
-   * unconditioned: mutations run leaf-ward — secrets, then mappings, then grants (each reachable
-   * only through an entity anchor, so their anchors must still exist when a re-run looks), then
-   * entities CHILDREN-BEFORE-PARENTS (reverse breadth-first order). Any crash prefix therefore
-   * leaves every surviving record still reachable by a fresh walk: no parent dies before its
-   * subtree, no anchor entity dies before the records anchored on it. (This ticket's refute pass
-   * caught the original entity-first order manufacturing permanently unreachable subtrees on a
-   * mid-purge crash while the javadoc claimed idempotency — the ordering above is the fix, not a
-   * restatement.) <b>Reachability:</b> a PRE-EXISTING crash-orphaned secrets row with no surviving
-   * principal entity is unreachable (the by-principal/enumeration path is the data model's own
-   * recorded gap, §4.4 / open question 2), likewise a pre-existing orphaned mapping row both of
-   * whose endpoints are gone, and likewise an entity subtree whose parent chain was already broken
-   * before purge began; the old whole-table deletes covered such orphans, a walk cannot.
-   */
-  @Override
-  public @NonNull BaseResult purge(@NonNull PolarisCallContext callCtx) {
-    LOGGER.warn("Deleting all metadata in the metastore...");
-
-    List<PolarisBaseEntity> entities = walkAllEntities();
-
-    Map<RecordRef, PolarisGrantRecord> grants = new LinkedHashMap<>();
-    Map<RecordRef, PolarisPolicyMappingRecord> mappings = new LinkedHashMap<>();
-    for (PolarisBaseEntity entity : entities) {
-      for (PolarisGrantRecord g : RecordRefs.grantsAsSecurable(primitives, entity)) {
-        grants.putIfAbsent(RecordRefs.grantIdentity(g), g);
-      }
-      for (PolarisGrantRecord g : RecordRefs.grantsAsGrantee(primitives, entity)) {
-        grants.putIfAbsent(RecordRefs.grantIdentity(g), g);
-      }
-      for (PolarisPolicyMappingRecord m :
-          RecordRefs.policyMappingsOn(
-              primitives,
-              PolarisRecordKinds.POLICY_MAPPING_BY_TARGET,
-              entity.getCatalogId(),
-              entity.getId())) {
-        mappings.putIfAbsent(RecordRefs.policyMappingIdentity(m), m);
-      }
-      if (entity.getType() == PolarisEntityType.POLICY) {
-        for (PolarisPolicyMappingRecord m :
-            RecordRefs.policyMappingsOn(
-                primitives,
-                PolarisRecordKinds.POLICY_MAPPING_BY_POLICY,
-                entity.getCatalogId(),
-                entity.getId())) {
-          mappings.putIfAbsent(RecordRefs.policyMappingIdentity(m), m);
-        }
-      }
-    }
-
-    // Leaf-ward delete order — the invariant the crash-window disclosure above rests on.
-    List<Mutation> mutations = new ArrayList<>();
-    for (PolarisBaseEntity entity : entities) {
-      if (entity.getType() == PolarisEntityType.PRINCIPAL) {
-        String clientId = PrincipalEntity.of(entity).getClientId();
-        if (clientId != null && !clientId.isEmpty()) {
-          mutations.add(
-              Mutation.of(
-                  PolarisRecordKinds.PRINCIPAL_SECRETS,
-                  Mutation.Op.DELETE,
-                  RecordRefs.secretsIdentity(clientId),
-                  null));
-        }
-      }
-    }
-    for (RecordRef mappingRef : mappings.keySet()) {
-      mutations.add(
-          Mutation.of(PolarisRecordKinds.POLICY_MAPPING, Mutation.Op.DELETE, mappingRef, null));
-    }
-    for (RecordRef grantRef : grants.keySet()) {
-      mutations.add(
-          Mutation.of(PolarisRecordKinds.GRANT_RECORD, Mutation.Op.DELETE, grantRef, null));
-    }
-    for (int i = entities.size() - 1; i >= 0; i--) {
-      // Reverse breadth-first = children before parents: a parent's anchor survives until its
-      // whole subtree's deletes have committed.
-      mutations.add(
-          Mutation.of(
-              PolarisRecordKinds.ENTITY,
-              Mutation.Op.DELETE,
-              RecordRefs.entityIdentity(entities.get(i).getId()),
-              null));
-    }
-
-    int cap = primitives.maxItemsPerCommit();
-    for (int from = 0; from < mutations.size(); from += cap) {
-      OrchestrationResult result =
-          orchestrator.commit(mutations.subList(from, Math.min(from + cap, mutations.size())));
-      if (!result.isApplied()) {
-        // No preconditions ride these deletes, so a non-applied outcome is a store/deployment
-        // problem, not a race; failure-is-loud matches the old impls' uncaught store exceptions.
-        throw new IllegalStateException(
-            "purge commit not applied: "
-                + result
-                    .groupFailure()
-                    .flatMap(CommitResult::failure)
-                    .map(Enum::toString)
-                    .orElse(result.outcome().toString()));
-      }
-    }
-
-    LOGGER.warn("Finished deleting all metadata in the metastore");
-    return new BaseResult(BaseResult.ReturnStatus.SUCCESS);
-  }
-
-  /**
-   * Every entity in the realm, breadth-first from the root anchor {@code (null-catalog, root)}. A
-   * CATALOG's children anchor on {@code (catalog, catalog)}; every other entity's children anchor
-   * on {@code (its catalog, its id)}. The root container is self-parented (id 0 under parent 0),
-   * which is why anchors and ids are both dedup-guarded.
-   */
-  private List<PolarisBaseEntity> walkAllEntities() {
-    List<PolarisBaseEntity> out = new ArrayList<>();
-    Set<Long> seenIds = new HashSet<>();
-    Set<List<Long>> seenAnchors = new HashSet<>();
-    Deque<long[]> anchors = new ArrayDeque<>();
-    anchors.add(
-        new long[] {PolarisEntityConstants.getNullId(), PolarisEntityConstants.getRootEntityId()});
-    seenAnchors.add(
-        List.of(PolarisEntityConstants.getNullId(), PolarisEntityConstants.getRootEntityId()));
-    while (!anchors.isEmpty()) {
-      long[] anchor = anchors.poll();
-      for (PolarisBaseEntity entity : rawChildEntities(anchor[0], anchor[1])) {
-        if (!seenIds.add(entity.getId())) {
-          continue;
-        }
-        out.add(entity);
-        long childCatalog =
-            entity.getTypeCode() == PolarisEntityType.CATALOG.getCode()
-                ? entity.getId()
-                : entity.getCatalogId();
-        if (seenAnchors.add(List.of(childCatalog, entity.getId()))) {
-          anchors.add(new long[] {childCatalog, entity.getId()});
-        }
-      }
-    }
-    return out;
-  }
-
-  /**
-   * Ported from both old impls' {@code loadTasks}, whose availability predicate is verbatim
-   * identical in the two: a TASK under root is leasable when its parsed state is null (never
-   * attempted, or unparseable — {@code parseTaskState} logs and returns null on bad JSON), its
-   * executor is null, or its last attempt is older than {@code POLARIS_TASK_TIMEOUT_MILLIS} (realm
-   * config, default 300s) against the INJECTED clock. Taking a lease stamps {@code
-   * lastAttemptExecutorId}/{@code lastAttemptStartTime}/{@code attemptCount} and persists through
-   * {@link #updateEntityPropertiesIfNotChanged}'s version CAS, exactly as both old impls do.
-   *
-   * <p>The read is {@link #listChildEntities} over root (the same in-memory entity-type narrowing
-   * that method already discloses), with the availability predicate evaluated HERE and the page
-   * limit applied AFTER it — matching the old primitives' predicate-then-limit order (the fixture's
-   * second limit-5 call must return the NEXT five unleased tasks, not an empty page of
-   * already-leased ones). The old interface pushed this predicate INTO the store as a callback; the
-   * new SPI's own javadoc records task leasing as a missing operation rather than a filter to
-   * relocate, and reshaping it is the read-side record's noted follow-up, not this ticket's — so
-   * the whole candidate set crosses to the manager and is filtered in memory, the disclosed interim
-   * cost. Part of the same interim shape: the caller's continuation CURSOR, if its page token ever
-   * carried one, is not honored — only the page SIZE is read (the old impls thread the whole token
-   * into the store scan). No caller in the tree passes a continuation-bearing token, and loadTasks
-   * never returns one to chain from (old and new both return a token-less {@code Page.fromItems}),
-   * so the gap has no live trigger; named by this ticket's refute pass, owned by the same read-side
-   * follow-up.
-   *
-   * <p><b>Disclosed old-impl divergence, Atomic's form matched:</b> individual failed leases are
-   * skipped, and only a batch where EVERY attempted lease failed throws {@link
-   * RetryOnConcurrencyException} ({@code AtomicOperationMetaStoreManager}'s partial-success form,
-   * which one-commit-per-lease natively is). {@code TransactionalMetaStoreManagerImpl} instead
-   * rolls its whole batch back and throws on the FIRST failed lease; that all-or-nothing form has
-   * no counterpart here because each lease is its own commit. The fixture accepts either (its
-   * parallel executors catch the exception and retry; exactly-once claiming rests on the CAS, not
-   * on the batch shape).
-   */
-  @Override
-  public @NonNull EntitiesResult loadTasks(
-      @NonNull PolarisCallContext callCtx, String executorId, PageToken pageToken) {
-    long taskAgeTimeout =
-        callCtx.getRealmConfig().getConfig(FeatureConfiguration.POLARIS_TASK_TIMEOUT_MILLIS);
-    List<PolarisBaseEntity> availableTasks =
-        RecordRefs.listChildEntities(
-                primitives,
-                null,
-                PolarisEntityType.TASK,
-                PolarisEntitySubType.ANY_SUBTYPE,
-                PageToken.readEverything())
-            .stream()
-            .filter(
-                entity -> {
-                  PolarisObjectMapperUtil.TaskExecutionState taskState =
-                      PolarisObjectMapperUtil.parseTaskState(entity);
-                  return taskState == null
-                      || taskState.executor == null
-                      || clock.millis() - taskState.lastAttemptStartTime > taskAgeTimeout;
-                })
-            .limit(
-                pageToken.pageSize().isPresent() ? pageToken.pageSize().getAsInt() : Long.MAX_VALUE)
-            .toList();
-
-    int failedLeaseCount = 0;
-    List<PolarisBaseEntity> loadedTasks = new ArrayList<>(availableTasks.size());
-    for (PolarisBaseEntity task : availableTasks) {
-      PolarisBaseEntity.Builder updatedTaskBuilder = new PolarisBaseEntity.Builder(task);
-      Map<String, String> properties = task.getPropertiesAsMap();
-      properties.put(PolarisTaskConstants.LAST_ATTEMPT_EXECUTOR_ID, executorId);
-      properties.put(PolarisTaskConstants.LAST_ATTEMPT_START_TIME, String.valueOf(clock.millis()));
-      properties.put(
-          PolarisTaskConstants.ATTEMPT_COUNT,
-          String.valueOf(
-              Integer.parseInt(properties.getOrDefault(PolarisTaskConstants.ATTEMPT_COUNT, "0"))
-                  + 1));
-      updatedTaskBuilder.propertiesAsMap(properties);
-      EntityResult result =
-          updateEntityPropertiesIfNotChanged(callCtx, null, updatedTaskBuilder.build());
-      if (result.getReturnStatus() == BaseResult.ReturnStatus.SUCCESS) {
-        loadedTasks.add(result.getEntity());
-      } else {
-        failedLeaseCount++;
-      }
-    }
-    if (loadedTasks.isEmpty() && failedLeaseCount > 0) {
-      throw new RetryOnConcurrencyException(
-          "Failed to lease any of %s tasks due to concurrent leases", failedLeaseCount);
-    }
-    return EntitiesResult.fromPage(Page.fromItems(loadedTasks));
-  }
-
-  /**
-   * Ported from both old impls' {@code loadResolvedEntityByName}, including the root-container
-   * backfill special case both carry verbatim (a holdover from before bootstrap created the root
-   * container; the old code's own TODO doubts it is still reachable, and it is ported rather than
-   * judged). The name lookup goes through the same uniqueness key {@link #readEntityByName} uses;
-   * the STORE fetch carries no catalog component ({@link #entityUniqueness}'s disclosure), and the
-   * old lookup's {@code catalog_id} filter — both old stores apply it in the physical by-name
-   * lookup, so an untruthful {@code entityCatalogId} is {@code ENTITY_NOT_FOUND} there — is applied
-   * HERE on the fetched row, the same treatment {@link #loadEntity} gives its identity lookups.
-   * (This ticket's refute pass caught the first draft silently returning SUCCESS for that case and
-   * its javadoc understating the divergence as a grant-anchor nuance; the check below restores
-   * exact old behaviour, and makes the grant anchors — the entity's own {@code (catalogId, id)} —
-   * provably equal to the old code's argument-anchored loads.)
-   */
-  @Override
-  public @NonNull ResolvedEntityResult loadResolvedEntityByName(
-      @NonNull PolarisCallContext callCtx,
-      long entityCatalogId,
-      long parentId,
-      @NonNull PolarisEntityType entityType,
-      @NonNull String entityName) {
-    Optional<PolarisBaseEntity> found =
-        primitives.get(
-            RecordRefs.entityUniqueness(parentId, entityType.getCode(), entityName),
-            PolarisBaseEntity.class);
-    if (found.isPresent() && found.get().getCatalogId() != entityCatalogId) {
-      found = Optional.empty();
-    }
-
-    ResolvedEntityResult result;
-    if (found.isEmpty()) {
-      result = new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
-    } else {
-      PolarisBaseEntity entity = found.get();
-      List<PolarisGrantRecord> grantRecords;
-      if (entity.getType().isGrantee()) {
-        grantRecords = new ArrayList<>(RecordRefs.grantsAsGrantee(primitives, entity));
-        grantRecords.addAll(RecordRefs.grantsAsSecurable(primitives, entity));
-      } else {
-        grantRecords = RecordRefs.grantsAsSecurable(primitives, entity);
-      }
-      result = new ResolvedEntityResult(entity, entity.getGrantRecordsVersion(), grantRecords);
-    }
-
-    if (PolarisEntityConstants.getRootContainerName().equals(entityName)
-        && entityType == PolarisEntityType.ROOT
-        && !result.isSuccess()) {
-      // Backfill rootContainer if needed, ported verbatim from both old impls (Atomic quoted):
-      // create the root container idempotently, grant SERVICE_MANAGE_ACCESS to the service admin
-      // role when it exists, then redo the lookup.
-      PolarisBaseEntity rootContainer =
-          new PolarisBaseEntity(
-              PolarisEntityConstants.getNullId(),
-              PolarisEntityConstants.getRootEntityId(),
-              PolarisEntityType.ROOT,
-              PolarisEntitySubType.NULL_SUBTYPE,
-              PolarisEntityConstants.getRootEntityId(),
-              PolarisEntityConstants.getRootContainerName());
-      EntityResult backfillResult = this.createEntityIfNotExists(callCtx, null, rootContainer);
-      if (backfillResult.isSuccess()) {
-        PolarisBaseEntity serviceAdminRole =
-            primitives
-                .get(
-                    RecordRefs.entityUniqueness(
-                        PolarisEntityConstants.getRootEntityId(),
-                        PolarisEntityType.PRINCIPAL_ROLE.getCode(),
-                        PolarisEntityConstants.getNameOfPrincipalServiceAdminRole()),
-                    PolarisBaseEntity.class)
-                .orElse(null);
-        if (serviceAdminRole != null) {
-          this.persistNewGrantRecord(
-              rootContainer, serviceAdminRole, PolarisPrivilege.SERVICE_MANAGE_ACCESS);
-        }
-      }
-      result =
-          this.loadResolvedEntityByName(callCtx, entityCatalogId, parentId, entityType, entityName);
-    }
-    return result;
-  }
-
-  /**
-   * Ported from {@code AtomicOperationMetaStoreManager#refreshResolvedEntity}, with the old shape's
-   * TWO reads collapsed into ONE full fetch, disclosed rather than silent:
-   *
-   * <p>The old shape probes {@code lookupEntityVersions} (a narrow, catalog-filtered projection)
-   * and reloads the full row only when the entity version moved. The new {@code versionsOf} keys on
-   * {@code (realm, id)} alone with no catalog dimension, so the old probe's catalog filter — which
-   * {@code testEntityCache}'s wrong-catalog refresh observes — cannot be expressed through the
-   * narrow read; a full identity fetch here carries the catalog column and IS filterable. The cost
-   * is a full row where the old no-change path shipped four version columns; the read-side record's
-   * follow-up owns whether versionsOf should carry the catalog dimension (kin of the by-parent
-   * type-code declaration gap).
-   *
-   * <p>The old filter split is preserved exactly: the probe filters by catalog only (a wrong-TYPE
-   * refresh whose versions are unchanged still reports success — the old versions lookup takes no
-   * type code), while the reload branch additionally filters by type, exactly as {@code
-   * lookupEntity} does. One read also supersedes the two-read race Atomic's own comment corrects
-   * for — the returned {@code (entity, grantRecordsVersion)} pair comes from one snapshot, the
-   * internally-consistent outcome that race-corrected form exists to approximate ({@code
-   * TransactionalMetaStoreManagerImpl} reports the earlier snapshot instead; Atomic's form is this
-   * class's disclosed convention for the resolved-entity reads). Version short-circuits are the
-   * contract the cache relies on: an unchanged half comes back {@code null} inside a SUCCESS
-   * result, meaning "keep your copy".
-   */
-  @Override
-  public @NonNull ResolvedEntityResult refreshResolvedEntity(
-      @NonNull PolarisCallContext callCtx,
-      int entityVersion,
-      int entityGrantRecordsVersion,
-      @NonNull PolarisEntityType entityType,
-      long entityCatalogId,
-      long entityId) {
-    Optional<PolarisBaseEntity> found =
-        primitives.get(RecordRefs.entityIdentity(entityId), PolarisBaseEntity.class);
-    if (found.isEmpty() || found.get().getCatalogId() != entityCatalogId) {
-      // purged, or the old probe's catalog filter says this is not the row the caller cached
-      return new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
-    }
-    PolarisBaseEntity current = found.get();
-
-    final PolarisBaseEntity entity;
-    if (entityVersion != current.getEntityVersion()) {
-      // the reload branch is where the old shape's TYPE filter lives
-      if (current.getTypeCode() != entityType.getCode()) {
-        return new ResolvedEntityResult(BaseResult.ReturnStatus.ENTITY_NOT_FOUND, null);
-      }
-      entity = current;
-    } else {
-      // entity has not changed, no need to reload it
-      entity = null;
-    }
-
-    int reportedGrantRecordsVersion = current.getGrantRecordsVersion();
-
-    final List<PolarisGrantRecord> grantRecords;
-    if (reportedGrantRecordsVersion != entityGrantRecordsVersion) {
-      if (entityType.isGrantee()) {
-        grantRecords =
-            new ArrayList<>(RecordRefs.grantsAsGrantee(primitives, entityCatalogId, entityId));
-        grantRecords.addAll(RecordRefs.grantsAsSecurable(primitives, entityCatalogId, entityId));
-      } else {
-        grantRecords = RecordRefs.grantsAsSecurable(primitives, entityCatalogId, entityId);
-      }
-    } else {
-      grantRecords = null;
-    }
-
-    return new ResolvedEntityResult(entity, reportedGrantRecordsVersion, grantRecords);
-  }
-
-  /**
-   * Ported from both old impls' {@code persistNewGrantRecord} (structurally identical in {@code
-   * AtomicOperationMetaStoreManager} and {@code TransactionalMetaStoreManagerImpl}): write the
-   * grant, then bump the grantee's and the securable's {@code grantRecordsVersion}, in that order.
-   * Resolved as one atomic orchestrated commit instead of three independent primitive writes, which
-   * as a side effect closes the partial-failure gap both old impls' own {@code TODO: Reorder and/or
-   * expose bulk update...} comments name — a version-bump failing after the grant write already
-   * landed used to leave the two inconsistent; here the whole group applies or none of it does.
-   *
-   * <p><b>{@link Precondition#none()} is used per {@link Mutation.Op#CREATE}'s documented contract
-   * for a kind whose identity and uniqueness are the same tuple — but empirically, NEITHER shipped
-   * store's CREATE handling honors that contract yet.</b> Verified with a throwaway commit-twice
-   * test against {@code TreeMapDurableRecordStore}: {@code applyMutation}'s CREATE case checks
-   * {@code slice.read(identityKey) != null} and throws unconditionally on any hit, regardless of
-   * the mutation's declared preconditions; the second of two identical commits reports {@code
-   * PRECONDITION_FAILED} even with {@code Precondition.none()}. No conformance test exercises this
-   * combination today ({@code grep Precondition.none()} across every test module returns nothing).
-   * {@code Precondition.none()} is kept anyway because it is still the contractually correct
-   * declaration for this kind, for whenever that gap closes — but it is NOT what makes this method
-   * idempotent today. The pre-read below is: on a repeat grant with identical arguments, this
-   * returns the existing record without touching the orchestrator at all, rather than reproducing
-   * the old models' "always bump both versions, even on a no-op write" side effect (itself a
-   * consequence of {@code DurablePrimitives#writeToGrantRecords} being documented as a silent no-op
-   * on a duplicate PK, not a decision either old manager makes). No fixture assertion pins the
-   * exact version-bump count on a duplicate grant, so skipping the commit entirely on a confirmed
-   * repeat is simpler and strictly less wasteful — a disclosed, new choice, not a ported one.
-   */
-  private PrivilegeResult persistNewGrantRecord(
-      @NonNull PolarisEntityCore securable,
-      @NonNull PolarisEntityCore grantee,
-      @NonNull PolarisPrivilege priv) {
-    diagnostics.checkNotNull(securable, "unexpected_null_securable");
-    diagnostics.checkNotNull(grantee, "unexpected_null_grantee");
-    diagnostics.checkNotNull(priv, "unexpected_null_priv");
-    diagnostics.check(
-        grantee.getType().isGrantee(), "entity_must_be_grantee", "entity={}", grantee);
-
-    PolarisGrantRecord grantRecord =
-        new PolarisGrantRecord(
-            securable.getCatalogId(),
-            securable.getId(),
-            grantee.getCatalogId(),
-            grantee.getId(),
-            priv.getCode());
-    RecordRef ref = RecordRefs.grantIdentity(grantRecord);
-
-    Optional<PolarisGrantRecord> existing = primitives.get(ref, PolarisGrantRecord.class);
-    if (existing.isPresent()) {
-      return new PrivilegeResult(existing.get());
-    }
-
-    PolarisBaseEntity granteeEntity =
-        RecordRefs.mustLoadEntity(primitives, diagnostics, grantee, "grantee_not_found");
-    PolarisBaseEntity securableEntity =
-        RecordRefs.mustLoadEntity(primitives, diagnostics, securable, "securable_not_found");
-
-    List<Mutation> mutations =
-        List.of(
-            RecordMutations.createGrantMutation(grantRecord),
-            RecordMutations.bumpGrantRecordsVersion(granteeEntity).mutation(),
-            RecordMutations.bumpGrantRecordsVersion(securableEntity).mutation());
-
-    OrchestrationResult result = orchestrator.commit(mutations);
-    return result.isApplied() ? new PrivilegeResult(grantRecord) : mapFailedGrantMutation(result);
-  }
-
-  /**
-   * Maps a non-applied grant/revoke {@link OrchestrationResult} to a {@link PrivilegeResult}. New
-   * mapping, not ported: the old model never fails atomically here at all (each of its three writes
-   * is an independent primitive call with no shared transaction across all three), so there is no
-   * old-model precedent for what an orchestrated failure means. {@code
-   * TARGET_ENTITY_CONCURRENTLY_MODIFIED} is reused from {@code
-   * updateEntityPropertiesIfNotChanged}'s existing {@code RetryOnConcurrencyException} mapping as
-   * the closest established meaning for "the grantee or securable changed between the read and the
-   * commit" — this call path never returned that status before.
-   */
-  private PrivilegeResult mapFailedGrantMutation(@NonNull OrchestrationResult result) {
-    if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
-      return new PrivilegeResult(
-          BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED,
-          "rollback incomplete: "
-              + result.uncompensated().size()
-              + " mutation(s) require admin reclamation");
-    }
-    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    return failure == CommitResult.Failure.PRECONDITION_FAILED
-        ? new PrivilegeResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null)
-        : new PrivilegeResult(
-            BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
-  }
-
-  // The previous model's manager also satisfies the per-domain contracts. Java requires an explicit
-  // choice where a default method is inherited from two unrelated interfaces; keep the existing
-  // one.
-  @Override
-  public @NonNull List<PolarisBaseEntity> listFullEntitiesAll(
-      @NonNull PolarisCallContext callCtx,
-      @Nullable List<PolarisEntityCore> catalogPath,
-      @NonNull PolarisEntityType entityType,
-      @NonNull PolarisEntitySubType entitySubType) {
-    return DurableManager.super.listFullEntitiesAll(
-        callCtx, catalogPath, entityType, entitySubType);
-  }
-
-  @Override
-  public <T extends PolarisEntity & LocationBasedEntity>
-      Optional<Optional<String>> hasOverlappingSiblings(
-          @NonNull PolarisCallContext callContext, T entity) {
-    return DurableManager.super.hasOverlappingSiblings(callContext, entity);
-  }
-
-  @Override
-  public boolean requiresEntityReload() {
-    return DurableManager.super.requiresEntityReload();
-  }
-
-  @Override
-  public Optional<PrincipalEntity> findRootPrincipal(PolarisCallContext polarisCallContext) {
-    return DurableManager.super.findRootPrincipal(polarisCallContext);
-  }
-
-  @Override
-  public Optional<PrincipalEntity> findPrincipalByName(
-      PolarisCallContext polarisCallContext, String principalName) {
-    return DurableManager.super.findPrincipalByName(polarisCallContext, principalName);
-  }
-
-  @Override
-  public Optional<PrincipalEntity> findPrincipalById(
-      PolarisCallContext polarisCallContext, long principalId) {
-    return DurableManager.super.findPrincipalById(polarisCallContext, principalId);
-  }
-
-  @Override
-  public Optional<PrincipalRoleEntity> findPrincipalRoleByName(
+  /** The principal-role lookup the previous single manager offered as a default; body unchanged. */
+  private Optional<PrincipalRoleEntity> findPrincipalRoleByName(
       PolarisCallContext polarisCallContext, String principalRoleName) {
-    return DurableManager.super.findPrincipalRoleByName(polarisCallContext, principalRoleName);
+    EntityResult entityResult =
+        readEntityByName(
+            polarisCallContext,
+            null,
+            PolarisEntityType.PRINCIPAL_ROLE,
+            PolarisEntitySubType.NULL_SUBTYPE,
+            principalRoleName);
+    if (!entityResult.isSuccess()) {
+      return Optional.empty();
+    }
+    return Optional.of(entityResult.getEntity()).map(PrincipalRoleEntity::of);
   }
 }

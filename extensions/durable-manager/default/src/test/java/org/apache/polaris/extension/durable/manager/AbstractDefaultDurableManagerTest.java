@@ -88,6 +88,10 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
   protected DefaultSecretsDurableManager secretsUnderTest;
   protected DefaultPolicyDurableManager policyUnderTest;
   protected DefaultEventDurableManager eventUnderTest;
+  protected DefaultPrincipalDurableManager principalUnderTest;
+  protected DefaultTaskDurableManager taskUnderTest;
+  protected DefaultResolvedEntityReads readsUnderTest;
+  protected RealmPurge purgeUnderTest;
 
   protected DurableRecordStore newHandle;
   protected PolarisCallContext newModelCallCtx;
@@ -111,13 +115,17 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
             store);
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     var diagnostics = new PolarisDefaultDiagServiceImpl();
-    var manager =
-        new DefaultDurableManager(
-            clock, diagnostics, orchestrator, primitives, PrincipalSecretsGenerator.RANDOM_SECRETS);
+    var manager = new DefaultDurableManager(clock, diagnostics, orchestrator, primitives);
     var grantManager = new DefaultGrantDurableManager(diagnostics, orchestrator, primitives);
     var secretsManager = new DefaultSecretsDurableManager(diagnostics, orchestrator, primitives);
     var policyManager = new DefaultPolicyDurableManager(diagnostics, orchestrator, primitives);
     var eventManager = new DefaultEventDurableManager(orchestrator, primitives);
+    var principalManager =
+        new DefaultPrincipalDurableManager(
+            diagnostics, orchestrator, primitives, PrincipalSecretsGenerator.RANDOM_SECRETS);
+    var taskManager = new DefaultTaskDurableManager(clock, diagnostics, orchestrator, primitives);
+    var reads = new DefaultResolvedEntityReads(primitives, manager, grantManager);
+    var purge = new RealmPurge(orchestrator, primitives);
 
     RealmContext realmContext = () -> "testRealm";
     PolarisCallContext callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
@@ -130,22 +138,26 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     // by validateBootstrap/testLookup/etc.) fail for the bootstrapped root principal and role.
     long testStartTime = System.currentTimeMillis();
     AuthBootstrapUtil.createPolarisPrincipalForRealm(
-        manager, manager, grantManager, secretsManager, callCtx);
+        manager, principalManager, grantManager, secretsManager, callCtx);
     this.managerUnderTest = manager;
     this.grantUnderTest = grantManager;
     this.secretsUnderTest = secretsManager;
     this.policyUnderTest = policyManager;
     this.eventUnderTest = eventManager;
+    this.principalUnderTest = principalManager;
+    this.taskUnderTest = taskManager;
+    this.readsUnderTest = reads;
+    this.purgeUnderTest = purge;
     this.newHandle = primitives;
     this.newModelCallCtx = callCtx;
     return new PolarisTestMetaStoreManager(
         manager,
-        manager,
-        manager,
+        principalManager,
+        taskManager,
         grantManager,
         secretsManager,
         policyManager,
-        manager,
+        reads,
         callCtx,
         testStartTime,
         true);
@@ -399,7 +411,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                 Object.class))
         .isPresent();
 
-    Assertions.assertThat(managerUnderTest.purge(newModelCallCtx).getReturnStatus())
+    Assertions.assertThat(purgeUnderTest.purge(newModelCallCtx).getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.SUCCESS);
 
     // ENTITIES: every anchor this test knows is empty, and every created id resolves to nothing.

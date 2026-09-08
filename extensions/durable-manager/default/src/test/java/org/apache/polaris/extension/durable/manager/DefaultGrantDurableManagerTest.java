@@ -34,7 +34,6 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
-import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.LoadGrantsResult;
 import org.apache.polaris.core.persistence.dao.entity.PrivilegeResult;
@@ -62,6 +61,7 @@ class DefaultGrantDurableManagerTest {
   private PolarisCallContext callCtx;
   private DefaultDurableManager manager;
   private DefaultGrantDurableManager grants;
+  private DefaultResolvedEntityReads reads;
 
   @BeforeEach
   void setup() {
@@ -81,14 +81,11 @@ class DefaultGrantDurableManagerTest {
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
         new DefaultDurableManager(
-            Clock.systemUTC(),
-            new PolarisDefaultDiagServiceImpl(),
-            orchestrator,
-            primitives,
-            PrincipalSecretsGenerator.RANDOM_SECRETS);
+            Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
     grants =
         new DefaultGrantDurableManager(
             new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
+    reads = new DefaultResolvedEntityReads(primitives, manager, grants);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
   }
@@ -114,7 +111,7 @@ class DefaultGrantDurableManagerTest {
 
   private int grantRecordsVersionOf(PolarisBaseEntity entity) {
     var tracking =
-        manager
+        reads
             .loadEntitiesChangeTracking(
                 callCtx, List.of(new PolarisEntityId(entity.getCatalogId(), entity.getId())))
             .getChangeTrackingVersions();

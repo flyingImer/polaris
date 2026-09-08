@@ -265,4 +265,24 @@ final class RecordRefs {
   static RecordRef eventIdentity(@NonNull EventEntity event) {
     return RecordRef.byIdentity(PolarisRecordKinds.EVENT, List.of(event.getId()));
   }
+
+  /**
+   * All children checks below are READS, not preconditions: {@code Precondition} declares no
+   * set-emptiness operator (see its own "Deliberately absent" section), so "no children under this
+   * parent" cannot ride into the commit the way the retrofit's path checks do. This leaves the
+   * identical TOCTOU window both old impls already carry between this read and the write — {@code
+   * AtomicOperationMetaStoreManager}'s own five TODOs concede the same gap for the same reason, so
+   * this is parity, not a regression introduced here.
+   */
+  static List<PolarisBaseEntity> rawChildEntities(
+      @NonNull DurableRecordStore store, long catalogId, long parentId) {
+    return store
+        .list(
+            PolarisRecordKinds.ENTITY,
+            PolarisRecordKinds.ENTITY_BY_PARENT,
+            List.of(catalogId, parentId),
+            PageToken.readEverything(),
+            PolarisBaseEntity.class)
+        .items();
+  }
 }

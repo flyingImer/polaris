@@ -33,7 +33,6 @@ import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
-import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -66,6 +65,7 @@ class DefaultDurableManagerEntityOpsTest {
 
   private PolarisCallContext callCtx;
   private DefaultDurableManager manager;
+  private DefaultResolvedEntityReads reads;
 
   @BeforeEach
   void setup() {
@@ -85,11 +85,13 @@ class DefaultDurableManagerEntityOpsTest {
     var orchestrator = new DefaultDurableOrchestrator(primitives);
     manager =
         new DefaultDurableManager(
-            Clock.systemUTC(),
-            new PolarisDefaultDiagServiceImpl(),
-            orchestrator,
+            Clock.systemUTC(), new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
+    reads =
+        new DefaultResolvedEntityReads(
             primitives,
-            PrincipalSecretsGenerator.RANDOM_SECRETS);
+            manager,
+            new DefaultGrantDurableManager(
+                new PolarisDefaultDiagServiceImpl(), orchestrator, primitives));
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
   }
@@ -253,7 +255,7 @@ class DefaultDurableManagerEntityOpsTest {
     manager.createEntityIfNotExists(callCtx, null, catalog);
 
     var tracking =
-        manager
+        reads
             .loadEntitiesChangeTracking(
                 callCtx, List.of(new PolarisEntityId(catalog.getCatalogId(), catalog.getId())))
             .getChangeTrackingVersions();
