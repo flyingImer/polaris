@@ -120,10 +120,10 @@ public class DefaultPolicyDurableManager implements PolicyDurableManager {
    * catalogPath arguments and never checks that target or policy exist; {@code
    * TransactionalMetaStoreManagerImpl} re-resolves both paths (leaf entities included) inside its
    * transaction and returns {@code ENTITY_CANNOT_BE_RESOLVED} on failure. This class follows the
-   * retrofit convention every OTHER write taking a catalogPath already uses (see {@link
-   * #catalogIdOf}): {@code RecordMutations#pathExistsPreconditions} over BOTH paths rides the
-   * commit, plus an {@code EXISTS} precondition on the target and the policy identities — the same
-   * happens-before guarantee, here closing the leak of a mapping row written under a
+   * retrofit convention every OTHER write taking a catalogPath already uses (see {@code
+   * RecordRefs#catalogIdOf}): {@code RecordMutations#pathExistsPreconditions} over BOTH paths rides
+   * the commit, plus an {@code EXISTS} precondition on the target and the policy identities — the
+   * same happens-before guarantee, here closing the leak of a mapping row written under a
    * concurrently-dropped target or policy (the unconditional drop-path cleanup in {@code
    * DefaultCatalogDurableManager#collectDropMutations} deletes mappings when an endpoint drops; a
    * mapping committed AFTER that cleanup read would survive it). Failure mapping: a failed path
@@ -344,11 +344,11 @@ public class DefaultPolicyDurableManager implements PolicyDurableManager {
   /**
    * Ported from both old impls' {@code loadPoliciesOnEntityByType}. The type narrowing happens in
    * this method, not at the store: {@code by-target}'s declared anchors are the target address
-   * alone (data model 4.3), with no policy-type anchor — the same declaration gap as {@link
-   * #listChildEntities}'s entity-type narrowing, and the same disclosure: the store evaluates
-   * everything it CAN evaluate, only the undeclared dimension falls through to the manager (old
-   * JDBC pushes the type into its WHERE clause through the old interface's dedicated per-type
-   * method, which the new declared-path read side deliberately does not carry).
+   * alone (data model 4.3), with no policy-type anchor — the same declaration gap as {@code
+   * RecordRefs#listChildEntities}'s entity-type narrowing, and the same disclosure: the store
+   * evaluates everything it CAN evaluate, only the undeclared dimension falls through to the
+   * manager (old JDBC pushes the type into its WHERE clause through the old interface's dedicated
+   * per-type method, which the new declared-path read side deliberately does not carry).
    */
   @Override
   public @NonNull LoadPolicyMappingsResult loadPoliciesOnEntityByType(

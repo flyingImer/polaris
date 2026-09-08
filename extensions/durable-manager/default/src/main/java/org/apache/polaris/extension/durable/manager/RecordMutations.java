@@ -50,9 +50,10 @@ final class RecordMutations {
    * write against is still there. Path entities are {@code ENTITY} records like the write target
    * they gate, so they share the atomicity domain and add no extra round trip.
    *
-   * @param extraPath a second path to fold in, deduplicated against {@code path} by id — {@link
-   *     #renameEntity} is the only caller that passes one, for the destination path alongside the
-   *     source path
+   * @param extraPath a second path to fold in, deduplicated against {@code path} by id — {@code
+   *     DefaultCatalogDurableManager#renameEntity} passes the destination path alongside the source
+   *     path, and {@code DefaultPolicyDurableManager}'s attach and detach pass the policy's catalog
+   *     path alongside the target's
    */
   static List<Precondition> pathExistsPreconditions(
       @Nullable List<PolarisEntityCore> path, @Nullable List<PolarisEntityCore> extraPath) {
@@ -132,11 +133,11 @@ final class RecordMutations {
   }
 
   /**
-   * The two-precondition {@code ENTITY} UPDATE shared by {@link
-   * #updateEntityPropertiesIfNotChanged} and its batch form: both halves of the CAS {@code
-   * checkConditionsForWriteEntityInCurrentTxn} performs (record version AND grant-records version,
-   * both asserted unchanged), gating the write that carries the new {@code properties}/{@code
-   * internalProperties} state.
+   * The two-precondition {@code ENTITY} UPDATE shared by {@code
+   * DefaultCatalogDurableManager#updateEntityPropertiesIfNotChanged} and its batch form: both
+   * halves of the CAS {@code checkConditionsForWriteEntityInCurrentTxn} performs (record version
+   * AND grant-records version, both asserted unchanged), gating the write that carries the new
+   * {@code properties}/{@code internalProperties} state.
    */
   static Mutation entityPropertiesUpdateMutation(
       @NonNull RecordRef ref,
@@ -175,9 +176,10 @@ final class RecordMutations {
   /**
    * One entity's {@code grantRecordsVersion} bump: the mutation to commit, and the resulting entity
    * state. Returning the updated state (rather than just the {@link Mutation}) lets a caller
-   * building several grants against the SAME entity within one mutation list — {@link
-   * #createCatalog}'s catalog and admin role, each touched by more than one grant — thread the
-   * running version forward between them instead of re-reading the store in between.
+   * building several grants against the SAME entity within one mutation list — {@code
+   * DefaultCatalogDurableManager#createCatalog}'s catalog and admin role, each touched by more than
+   * one grant — thread the running version forward between them instead of re-reading the store in
+   * between.
    */
   record VersionBump(Mutation mutation, PolarisBaseEntity updated) {}
 

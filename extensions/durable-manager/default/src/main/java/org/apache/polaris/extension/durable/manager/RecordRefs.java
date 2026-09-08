@@ -64,10 +64,10 @@ final class RecordRefs {
 
   /**
    * Deliberate parity choice, matching {@code AtomicOperationMetaStoreManager} and diverging from
-   * {@code TransactionalMetaStoreManagerImpl}: for plain reads and for {@link
-   * #createEntityIfNotExists}'s id/name derivation, {@code catalogPath} is never re-resolved
-   * against the store — it derives catalogId/parentId directly from the path the same way Atomic
-   * does (raw {@code 0L} there; the named constants here are the same value).
+   * {@code TransactionalMetaStoreManagerImpl}: for plain reads and for {@code
+   * DefaultCatalogDurableManager#createEntityIfNotExists}'s id/name derivation, {@code catalogPath}
+   * is never re-resolved against the store — it derives catalogId/parentId directly from the path
+   * the same way Atomic does (raw {@code 0L} there; the named constants here are the same value).
    *
    * <p><b>CORRECTION to this method's increment-2 disclosure</b> (EJ's retrofit, 2026-08-17): that
    * text claimed this manager never returns {@code CATALOG_PATH_CANNOT_BE_RESOLVED}, matching only
@@ -75,18 +75,18 @@ final class RecordRefs {
    * DefaultCatalogDurableManager#createEntitiesIfNotExist}, {@code
    * DefaultCatalogDurableManager#renameEntity} and {@code
    * DefaultCatalogDurableManager#dropEntityIfExists}: each attaches an {@code EXISTS} precondition
-   * per {@code catalogPath} entity to its mutation (see {@link #pathExistsPreconditions}), so a
-   * path entity deleted between the read below and the commit fails the write instead of silently
-   * succeeding underneath it — the concrete failure mode this closes is a table left hanging under
-   * a concurrently-dropped namespace, which Atomic's own unconditional derivation cannot detect.
-   * This is a REAL happens-before guarantee neither old implementation has: Atomic never re-checks
-   * the path at all, and Transactional's re-check (via the package-private {@code
-   * PolarisEntityResolver}) is safe only because it runs inside the same DB transaction as the
-   * write — nothing states that as a condition, a wrapping transaction just happens to serialize
-   * against the concurrent delete. {@code updateEntityPropertiesIfNotChanged} and its batch form
-   * deliberately do NOT get this treatment: neither old implementation's update path uses {@code
-   * catalogPath} to reach the entity being updated (it is resolved directly by catalogId+id), so
-   * there is no "hanging under a deleted path" failure mode for update to close.
+   * per {@code catalogPath} entity to its mutation (see {@code
+   * RecordMutations#pathExistsPreconditions}), so a path entity deleted between the read below and
+   * the commit fails the write instead of silently succeeding underneath it — the concrete failure
+   * mode this closes is a table left hanging under a concurrently-dropped namespace, which Atomic's
+   * own unconditional derivation cannot detect. This is a REAL happens-before guarantee neither old
+   * implementation has: Atomic never re-checks the path at all, and Transactional's re-check (via
+   * the package-private {@code PolarisEntityResolver}) is safe only because it runs inside the same
+   * DB transaction as the write — nothing states that as a condition, a wrapping transaction just
+   * happens to serialize against the concurrent delete. {@code updateEntityPropertiesIfNotChanged}
+   * and its batch form deliberately do NOT get this treatment: neither old implementation's update
+   * path uses {@code catalogPath} to reach the entity being updated (it is resolved directly by
+   * catalogId+id), so there is no "hanging under a deleted path" failure mode for update to close.
    */
   static long catalogIdOf(@Nullable List<PolarisEntityCore> catalogPath) {
     return catalogPath == null || catalogPath.isEmpty()
@@ -146,8 +146,8 @@ final class RecordRefs {
   /**
    * The grant records on which {@code entity} is the securable — the anchor every entity gets,
    * grantee or not. Shared by {@code DefaultResolvedEntityReads#loadResolvedEntityById}, {@code
-   * DefaultResolvedEntityReads#loadResolvedEntities} and their {@code toResolvedPolarisEntity}
-   * helper below.
+   * DefaultResolvedEntityReads#loadResolvedEntities} and that class's own {@code
+   * toResolvedPolarisEntity} helper.
    */
   static List<PolarisGrantRecord> grantsAsSecurable(
       @NonNull DurableRecordStore store, @NonNull PolarisEntityCore entity) {
@@ -270,12 +270,12 @@ final class RecordRefs {
   }
 
   /**
-   * All children checks below are READS, not preconditions: {@code Precondition} declares no
-   * set-emptiness operator (see its own "Deliberately absent" section), so "no children under this
-   * parent" cannot ride into the commit the way the retrofit's path checks do. This leaves the
-   * identical TOCTOU window both old impls already carry between this read and the write — {@code
-   * AtomicOperationMetaStoreManager}'s own five TODOs concede the same gap for the same reason, so
-   * this is parity, not a regression introduced here.
+   * Every children check that calls this is a READ, not a precondition: {@code Precondition}
+   * declares no set-emptiness operator (see its own "Deliberately absent" section), so "no children
+   * under this parent" cannot ride into the commit the way the retrofit's path checks do. This
+   * leaves the identical TOCTOU window both old impls already carry between this read and the write
+   * — {@code AtomicOperationMetaStoreManager}'s own five TODOs concede the same gap for the same
+   * reason, so this is parity, not a regression introduced here.
    */
   static List<PolarisBaseEntity> rawChildEntities(
       @NonNull DurableRecordStore store, long catalogId, long parentId) {

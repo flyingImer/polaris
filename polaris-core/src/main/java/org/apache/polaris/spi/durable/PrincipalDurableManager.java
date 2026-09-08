@@ -27,10 +27,16 @@ import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.jspecify.annotations.NonNull;
 
 /**
- * Durable manager for principals: creating a principal together with its secrets in one durable
- * operation, and the principal-typed lookups callers use to find the root principal, a principal,
- * or a principal role. Owns those business rules and knows no storage topology. Authorization and
- * request validation live above this layer.
+ * Durable manager for principals: creating a principal together with its secrets, and the
+ * principal-typed lookups callers use to find the root principal, a principal, or a principal role.
+ * Owns those business rules and knows no storage topology. Authorization and request validation
+ * live above this layer.
+ *
+ * <p>Creating a principal submits mutations for two record kinds, the principal entity and its
+ * secrets record, in one list. A commit cannot span atomicity domains, so that list is atomic only
+ * when both kinds resolve to the same domain; where they resolve to different ones it becomes more
+ * than one commit, and nothing here promises what a crash in between leaves behind. Cross-domain
+ * atomicity is not part of this contract.
  */
 public interface PrincipalDurableManager {
 

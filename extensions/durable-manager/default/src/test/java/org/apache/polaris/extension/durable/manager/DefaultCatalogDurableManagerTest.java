@@ -52,13 +52,13 @@ import org.junit.jupiter.api.Test;
  * AbstractDefaultDurableManagerTest} assembles it: a fresh {@link TreeMapDurableRecordStore} behind
  * {@link RoutingDurableRecordStore} and {@link DefaultDurableOrchestrator}.
  *
- * <p><b>This is scaffolding, not the ticket's parity evidence.</b> {@link
- * org.apache.polaris.core.persistence.BaseDurableManagerTest} is the judge of parity. As of
- * increment 4, {@code createPrincipal}/{@code createCatalog}/grants/secrets exist and {@code
- * bootstrapPolarisService} runs, so most of that fixture now passes against {@link
- * TreeMapDefaultDurableManagerTest} — the remaining red tests call {@code renameEntity}/{@code
- * updateEntityPropertiesIfNotChanged}/{@code dropEntityIfExists}/the resolved-entity-cache reads,
- * none of which increment 4 touches. These tests mirror the fixture's own assertions for the eight
+ * <p><b>This is scaffolding, not the parity evidence.</b> {@link
+ * org.apache.polaris.core.persistence.BaseDurableManagerTest} is the judge of parity, and it passes
+ * against both new-stack bindings ({@link TreeMapDefaultDurableManagerTest}, {@link
+ * JdbcDefaultDurableManagerTest}): {@link AbstractDefaultDurableManagerTest} bootstraps through
+ * {@code AuthBootstrapUtil}, handing it the per-domain managers directly, and no case in the
+ * fixture fails — the single non-running case is the retired-surface policy-mapping oracle,
+ * disabled on its own disclosed override. These tests mirror the fixture's own assertions for the
  * operations in THIS class's scope, rather than inventing looser ones.
  */
 class DefaultCatalogDurableManagerTest {

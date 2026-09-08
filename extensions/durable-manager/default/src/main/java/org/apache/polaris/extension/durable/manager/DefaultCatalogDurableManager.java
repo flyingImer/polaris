@@ -707,10 +707,10 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
    * {@code checkNotNull}, a crash rather than a status) but is not one of the fixture's five tested
    * bindings, and the fixture's own {@code testUpdateEntities} — "update an entity which does not
    * exist" — exercises exactly this and expects a graceful null, which only Atomic's shape
-   * delivers. Realized here as two {@code VERSION_EQUALS} preconditions mirroring {@link
-   * #bumpGrantRecordsVersion}'s own two-column CAS, since a {@code VERSION_EQUALS} precondition
-   * against an absent record already evaluates false (see {@code Precondition}'s {@code holds()}),
-   * so absence and staleness fail the same way without a separate branch.
+   * delivers. Realized here as two {@code VERSION_EQUALS} preconditions mirroring {@code
+   * RecordMutations#bumpGrantRecordsVersion}'s own two-column CAS, since a {@code VERSION_EQUALS}
+   * precondition against an absent record already evaluates false (see {@code Precondition}'s
+   * {@code holds()}), so absence and staleness fail the same way without a separate branch.
    */
   @Override
   public @NonNull EntityResult updateEntityPropertiesIfNotChanged(
@@ -967,9 +967,13 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
    * LAST — grant cleanup, then counterpart version bumps, then best-effort policy-mapping cleanup,
    * then {@code ms.deleteEntityInCurrentTxn}. {@code AtomicOperationMetaStoreManager}'s deletes the
    * entity FIRST, and swaps the other two: grant cleanup, then policy-mapping cleanup, THEN the
-   * version bumps. Inside one commit, where every mutation applies or none do, that order is
-   * unobservable — this method builds the mutations in whichever order is simplest, and the store
-   * applies them as one unordered set. The divergence dissolves rather than being resolved.
+   * version bumps. Inside one commit, where every mutation applies or none do, the difference
+   * between those two orders is unobservable, so the divergence dissolves rather than being
+   * resolved: this method builds the mutations in whichever order is simplest. List order is not
+   * discarded, though — orchestration merges adjacent mutations of equal domain into groups
+   * strictly in list order, and each group is exactly one commit — which is why this method takes
+   * care never to emit two writes on one identity (see the counterpart dedup below, whose comment
+   * rests on the same rule).
    *
    * <h2>Policy-mapping cleanup (the obligation ticket 92 pays)</h2>
    *
@@ -1089,8 +1093,8 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
     // reached from two different grants (e.g. the same principal role usage-granted on both the
     // catalog admin role AND some unrelated role) must be bumped exactly once. Two UPDATE
     // mutations on the same identity in one commit would have the second's version precondition
-    // fail against the first's already-applied bump (mutations in one commit apply in list order
-    // within the same transaction), spuriously failing the whole drop.
+    // fail against the first's already-applied bump, because orchestration preserves list order
+    // into the commit, spuriously failing the whole drop.
     Set<Long> counterpartIds = new HashSet<>();
     for (PolarisGrantRecord g : distinctGrants.values()) {
       mutations.add(

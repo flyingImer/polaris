@@ -48,8 +48,12 @@ import org.jspecify.annotations.NonNull;
 
 /**
  * Default principal-secrets durable manager: load, rotate, reset and delete a principal's secrets.
- * Rotation and reset also update the principal entity's internal properties in the same durable
- * operation.
+ *
+ * <p>Rotation submits the secrets update and, only when the credential-rotation-required flag has
+ * to be set or cleared, an update to the principal entity's internal properties in the same
+ * mutation list. Those are two record kinds: the list is atomic only when both resolve to the same
+ * atomicity domain, and it becomes more than one commit when they do not. Reset writes the new
+ * secrets record alone and never touches the principal entity.
  *
  * <p>Two doors, strictly divided: every write goes through the orchestrator's commit, every read
  * goes to the primitives handle directly. Owns its business rules and knows no storage topology;
