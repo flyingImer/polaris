@@ -74,20 +74,20 @@ import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.persistence.nosql.metastore.mutation.GrantsMutation;
 import org.apache.polaris.persistence.nosql.metastore.privs.SecurableGranteePrivilegeTuple;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisEventManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 record NoSqlMetaStoreManager(
     Supplier<BaseResult> purgeRealm, RootCredentialsSet rootCredentialsSet, Clock clock)
     implements DurableManager,
-        SecretsManager,
-        GrantManager,
-        PolarisPolicyMappingManager,
-        PolarisEventManager {
+        SecretsDurableManager,
+        GrantDurableManager,
+        PolicyDurableManager,
+        EventDurableManager {
 
   NoSqlMetaStore ms(PolarisCallContext callContext) {
     var existing = callContext.getMetaStore();
@@ -339,7 +339,7 @@ record NoSqlMetaStoreManager(
     return loadResolvedEntityById(callCtx, entityCatalogId, entityId, entityType);
   }
 
-  // Principals & Polaris GrantManager
+  // Principals & Polaris GrantDurableManager
 
   @NonNull
   @Override
@@ -576,7 +576,7 @@ record NoSqlMetaStoreManager(
             target.getType(), target.getCatalogId(), target.getId(), Optional.of(policyType));
   }
 
-  // Principals & SecretsManager
+  // Principals & SecretsDurableManager
 
   @NonNull
   @Override

@@ -60,8 +60,8 @@ import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.ids.api.MonotonicClock;
 import org.apache.polaris.persistence.nosql.coretypes.realm.PolicyMapping;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.RealmProvisioner;
 import org.assertj.core.api.SoftAssertions;
 import org.assertj.core.api.junit.jupiter.InjectSoftAssertions;
@@ -311,7 +311,7 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
         .isLessThanOrEqualTo(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE);
 
     var attachResult =
-        ((PolarisPolicyMappingManager) metaStore)
+        ((PolicyDurableManager) metaStore)
             .attachPolicyToEntity(
                 callContext,
                 List.of(catalog, namespace),
@@ -326,7 +326,7 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
         .containsExactlyEntriesOf(parameters);
 
     var loadResult =
-        ((PolarisPolicyMappingManager) metaStore)
+        ((PolicyDurableManager) metaStore)
             .loadPoliciesOnEntityByType(callContext, table, PredefinedPolicyTypes.DATA_COMPACTION);
     assertThat(loadResult.isSuccess()).isTrue();
     assertThat(loadResult.getEntities()).hasSize(1);
@@ -387,7 +387,7 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
         .isGreaterThan(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE);
 
     var attachResult =
-        ((PolarisPolicyMappingManager) metaStore)
+        ((PolicyDurableManager) metaStore)
             .attachPolicyToEntity(
                 callContext,
                 List.of(catalog, namespace),
@@ -403,8 +403,7 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
         .contains("Serialized policy-mapping index value size")
         .contains(String.valueOf(MAX_POLICY_MAPPING_INDEX_VALUE_SIZE));
 
-    var loadResult =
-        ((PolarisPolicyMappingManager) metaStore).loadPoliciesOnEntity(callContext, table);
+    var loadResult = ((PolicyDurableManager) metaStore).loadPoliciesOnEntity(callContext, table);
     assertThat(loadResult)
         .extracting(
             LoadPolicyMappingsResult::isSuccess,
@@ -530,13 +529,13 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
             .build();
 
     assertThat(
-            ((GrantManager) metaStore)
+            ((GrantDurableManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            ((GrantManager) metaStore)
+            ((GrantDurableManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, mismatchedTypeGrantee)
                 .getReturnStatus())
@@ -549,20 +548,20 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
         .isTrue();
 
     assertThat(
-            ((GrantManager) metaStore)
+            ((GrantDurableManager) metaStore)
                 .grantUsageOnRoleToGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
     assertThat(
-            ((GrantManager) metaStore)
+            ((GrantDurableManager) metaStore)
                 .revokeUsageOnRoleFromGrantee(
                     callContext, catalog, catalogAdminRole, createdPrincipalRole)
                 .getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_CANNOT_BE_RESOLVED);
 
     LoadGrantsResult grantsOnCatalogRole =
-        ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, catalogAdminRole);
+        ((GrantDurableManager) metaStore).loadGrantsOnSecurable(callContext, catalogAdminRole);
     assertThat(grantsOnCatalogRole.isSuccess()).isTrue();
     assertThat(grantsOnCatalogRole.getGrantRecords())
         .noneSatisfy(
@@ -582,12 +581,12 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
             "missingPrincipalRole");
 
     LoadGrantsResult grantsToMissing =
-        ((GrantManager) metaStore).loadGrantsToGrantee(callContext, missingPrincipalRole);
+        ((GrantDurableManager) metaStore).loadGrantsToGrantee(callContext, missingPrincipalRole);
     assertThat(grantsToMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
 
     LoadGrantsResult grantsOnMissing =
-        ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, missingPrincipalRole);
+        ((GrantDurableManager) metaStore).loadGrantsOnSecurable(callContext, missingPrincipalRole);
     assertThat(grantsOnMissing.getReturnStatus())
         .isEqualTo(BaseResult.ReturnStatus.ENTITY_NOT_FOUND);
   }
@@ -609,7 +608,7 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
     assertThat(createdPrincipalRole).isNotNull();
 
     assertThat(
-            ((GrantManager) metaStore)
+            ((GrantDurableManager) metaStore)
                 .grantPrivilegeOnSecurableToRole(
                     callContext,
                     createdPrincipalRole,
@@ -621,8 +620,10 @@ public class TestNoSqlMetaStoreManager extends BaseDurableManagerTest {
 
     assertThat(
             List.of(
-                ((GrantManager) metaStore).loadGrantsOnSecurable(callContext, createdPrincipalRole),
-                ((GrantManager) metaStore).loadGrantsToGrantee(callContext, createdPrincipalRole)))
+                ((GrantDurableManager) metaStore)
+                    .loadGrantsOnSecurable(callContext, createdPrincipalRole),
+                ((GrantDurableManager) metaStore)
+                    .loadGrantsToGrantee(callContext, createdPrincipalRole)))
         .extracting(
             LoadGrantsResult::isSuccess,
             LoadGrantsResult::getGrantRecords,

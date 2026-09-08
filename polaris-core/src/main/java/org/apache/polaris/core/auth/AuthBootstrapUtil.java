@@ -35,8 +35,8 @@ import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
@@ -56,8 +56,8 @@ public class AuthBootstrapUtil {
 
     // ADR-0002: grant/secrets siblings are no longer on DurableManager. The concrete impl
     // still nominally implements them, so narrow the passed manager to reach those methods.
-    GrantManager grantManager = (GrantManager) metaStoreManager;
-    SecretsManager secretsManager = (SecretsManager) metaStoreManager;
+    GrantDurableManager grantManager = (GrantDurableManager) metaStoreManager;
+    SecretsDurableManager secretsManager = (SecretsDurableManager) metaStoreManager;
 
     Optional<PrincipalEntity> preliminaryRootPrincipal = metaStoreManager.findRootPrincipal(ctx);
     if (preliminaryRootPrincipal.isPresent()) {

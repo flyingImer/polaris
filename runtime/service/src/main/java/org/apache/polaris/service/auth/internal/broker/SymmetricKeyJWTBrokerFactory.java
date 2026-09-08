@@ -37,7 +37,7 @@ import org.apache.polaris.service.auth.AuthenticationConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration;
 import org.apache.polaris.service.auth.AuthenticationRealmConfiguration.TokenBrokerConfiguration.SymmetricKeyConfiguration;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 
 @ApplicationScoped
 @Identifier("symmetric-key")
@@ -56,7 +56,7 @@ public class SymmetricKeyJWTBrokerFactory implements TokenBrokerFactory {
   @Override
   public TokenBroker create(
       DurableManager metaStoreManager,
-      SecretsManager secretsManager,
+      SecretsDurableManager secretsManager,
       PolarisCallContext polarisCallContext) {
     RealmContext realmContext = polarisCallContext.getRealmContext();
     AuthenticationRealmConfiguration config = authenticationConfiguration.forRealm(realmContext);

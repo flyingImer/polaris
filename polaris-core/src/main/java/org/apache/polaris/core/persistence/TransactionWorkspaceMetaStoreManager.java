@@ -57,10 +57,10 @@ import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisEventManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -81,10 +81,10 @@ import org.jspecify.annotations.Nullable;
  */
 public class TransactionWorkspaceMetaStoreManager
     implements DurableManager,
-        SecretsManager,
-        GrantManager,
-        PolarisPolicyMappingManager,
-        PolarisEventManager {
+        SecretsDurableManager,
+        GrantDurableManager,
+        PolicyDurableManager,
+        EventDurableManager {
   private final PolarisDiagnostics diagnostics;
   private final DurableManager delegate;
 

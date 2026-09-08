@@ -65,7 +65,7 @@ import org.apache.polaris.service.types.Policy;
 import org.apache.polaris.service.types.PolicyAttachmentTarget;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -78,11 +78,11 @@ public class PolicyCatalog {
   private final CatalogEntity catalogEntity;
   private final long catalogId;
   private final DurableManager metaStoreManager;
-  private final PolarisPolicyMappingManager policyMappingManager;
+  private final PolicyDurableManager policyMappingManager;
 
   public PolicyCatalog(
       DurableManager metaStoreManager,
-      PolarisPolicyMappingManager policyMappingManager,
+      PolicyDurableManager policyMappingManager,
       CallContext callContext,
       PolarisResolutionManifestCatalogView resolvedEntityView) {
     this.callContext = callContext;

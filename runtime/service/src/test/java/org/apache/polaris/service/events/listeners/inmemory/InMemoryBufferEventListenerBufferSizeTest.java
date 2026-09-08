@@ -31,7 +31,7 @@ import io.smallrye.mutiny.subscription.BackPressureFailure;
 import java.time.Duration;
 import org.apache.polaris.service.Profiles;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.PolarisEventManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.TestInstance;
 import org.mockito.Mockito;
@@ -63,14 +63,14 @@ class InMemoryBufferEventListenerBufferSizeTest extends InMemoryBufferEventListe
     var manager =
         Mockito.mock(
             DurableManager.class,
-            Mockito.withSettings().extraInterfaces(PolarisEventManager.class));
+            Mockito.withSettings().extraInterfaces(EventDurableManager.class));
     doReturn(manager).when(metaStoreManagerFactory).getOrCreateMetaStoreManager(any());
     RuntimeException error = new RuntimeException("error");
     doThrow(error)
         .doThrow(error) // first batch will give up after 2 attempts
         .doThrow(error)
         .doCallRealMethod() // second batch will succeed on the 2nd attempt
-        .when((PolarisEventManager) manager)
+        .when((EventDurableManager) manager)
         .writeEvents(any(), any());
     sendAsync("test1", 20);
     assertRows("test1", 10);

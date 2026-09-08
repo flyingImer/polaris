@@ -31,7 +31,7 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.types.TokenType;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -42,7 +42,7 @@ public class JWTSymmetricKeyGeneratorTest {
   public void testJWTSymmetricKeyGenerator() {
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     DurableManager metastoreManager = Mockito.mock(DurableManager.class);
-    SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
+    SecretsDurableManager secretsManager = Mockito.mock(SecretsDurableManager.class);
     long principalId = 123L;
     String mainSecret = "test_secret";
     String clientId = "test_client_id";

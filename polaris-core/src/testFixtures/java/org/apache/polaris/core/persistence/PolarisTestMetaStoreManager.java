@@ -57,9 +57,9 @@ import org.apache.polaris.core.policy.PolicyType;
 import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.jspecify.annotations.NonNull;
@@ -75,9 +75,9 @@ public class PolarisTestMetaStoreManager {
 
   // ADR-0002: sibling managers are no longer on DurableManager. The concrete impl passed
   // to this fixture nominally implements them, so narrow it once for the sibling call sites.
-  final SecretsManager polarisSecretsManager;
-  final GrantManager polarisGrantManager;
-  final PolarisPolicyMappingManager polarisPolicyMappingManager;
+  final SecretsDurableManager polarisSecretsManager;
+  final GrantDurableManager polarisGrantManager;
+  final PolicyDurableManager polarisPolicyMappingManager;
 
   // the start time
   private final long testStartTime;
@@ -105,9 +105,9 @@ public class PolarisTestMetaStoreManager {
     this.testStartTime = testStartTime;
     this.polarisCallContext = polarisCallContext;
     this.polarisMetaStoreManager = polarisMetaStoreManager;
-    this.polarisSecretsManager = (SecretsManager) polarisMetaStoreManager;
-    this.polarisGrantManager = (GrantManager) polarisMetaStoreManager;
-    this.polarisPolicyMappingManager = (PolarisPolicyMappingManager) polarisMetaStoreManager;
+    this.polarisSecretsManager = (SecretsDurableManager) polarisMetaStoreManager;
+    this.polarisGrantManager = (GrantDurableManager) polarisMetaStoreManager;
+    this.polarisPolicyMappingManager = (PolicyDurableManager) polarisMetaStoreManager;
     this.supportsChangeTracking = supportsChangeTracking;
     this.doRetry = false;
   }

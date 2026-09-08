@@ -24,7 +24,7 @@ import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.entity.EventEntity;
 import org.jspecify.annotations.NonNull;
 
-public interface PolarisEventManager {
+public interface EventDurableManager {
   default void writeEvents(
       @NonNull PolarisCallContext callCtx, @NonNull List<EventEntity> polarisEvents) {
     DurablePrimitives ms = callCtx.getMetaStore();

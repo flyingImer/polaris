@@ -28,7 +28,7 @@ import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyType;
 import org.jspecify.annotations.NonNull;
 
-public interface PolarisPolicyMappingManager {
+public interface PolicyDurableManager {
 
   /**
    * Attach a policy to a target entity, for example attach a policy to a table.

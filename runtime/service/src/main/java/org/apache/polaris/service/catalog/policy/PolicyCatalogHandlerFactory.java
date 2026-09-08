@@ -23,7 +23,7 @@ import jakarta.inject.Inject;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 
@@ -33,7 +33,7 @@ public class PolicyCatalogHandlerFactory {
   @Inject CallContext callContext;
   @Inject EntityResolver entityResolver;
   @Inject DurableManager metaStoreManager;
-  @Inject PolarisPolicyMappingManager policyMappingManager;
+  @Inject PolicyDurableManager policyMappingManager;
   @Inject PolarisAuthorizer authorizer;
 
   public PolicyCatalogHandler createHandler(String catalogName, PolarisPrincipal principal) {

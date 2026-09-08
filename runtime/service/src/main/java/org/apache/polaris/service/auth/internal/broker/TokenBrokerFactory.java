@@ -20,7 +20,7 @@ package org.apache.polaris.service.auth.internal.broker;
 
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 
 /**
  * Factory that creates a {@link TokenBroker} for generating and parsing. The {@link TokenBroker} is
@@ -29,6 +29,6 @@ import org.apache.polaris.spi.durable.SecretsManager;
 public interface TokenBrokerFactory {
   TokenBroker create(
       DurableManager metaStoreManager,
-      SecretsManager secretsManager,
+      SecretsDurableManager secretsManager,
       PolarisCallContext polarisCallContext);
 }

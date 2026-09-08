@@ -80,12 +80,12 @@ import org.apache.polaris.service.task.TaskHandlerConfiguration;
 import org.apache.polaris.service.tracing.RequestIdFilter;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
-import org.apache.polaris.spi.durable.GrantManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
 import org.apache.polaris.spi.durable.MetricsPersistence;
-import org.apache.polaris.spi.durable.PolarisEventManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.RealmProvisioner;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisMetricsReporter;
@@ -240,31 +240,31 @@ public class ServiceProducers {
   // (a normal-scoped CDI proxy implements only its declared bean type -> ClassCastException).
   @Produces
   @RequestScoped
-  public SecretsManager polarisSecretsManager(
+  public SecretsDurableManager polarisSecretsManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (SecretsManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
-  }
-
-  @Produces
-  @RequestScoped
-  public GrantManager polarisGrantManager(
-      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (GrantManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
-  }
-
-  @Produces
-  @RequestScoped
-  public PolarisPolicyMappingManager polarisPolicyMappingManager(
-      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (PolarisPolicyMappingManager)
+    return (SecretsDurableManager)
         metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
   @Produces
   @RequestScoped
-  public PolarisEventManager polarisEventManager(
+  public GrantDurableManager polarisGrantManager(
       RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
-    return (PolarisEventManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+    return (GrantDurableManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
+  @Produces
+  @RequestScoped
+  public PolicyDurableManager polarisPolicyMappingManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (PolicyDurableManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
+  }
+
+  @Produces
+  @RequestScoped
+  public EventDurableManager polarisEventManager(
+      RealmContext realmContext, MetaStoreManagerFactory metaStoreManagerFactory) {
+    return (EventDurableManager) metaStoreManagerFactory.getOrCreateMetaStoreManager(realmContext);
   }
 
   @Produces
@@ -408,7 +408,7 @@ public class ServiceProducers {
       AuthenticationRealmConfiguration config,
       @Any Instance<TokenBrokerFactory> tokenBrokerFactories,
       DurableManager polarisMetaStoreManager,
-      SecretsManager polarisSecretsManager,
+      SecretsDurableManager polarisSecretsManager,
       CallContext callContext) {
     String type =
         config.type() == AuthenticationType.EXTERNAL ? "none" : config.tokenBroker().type();

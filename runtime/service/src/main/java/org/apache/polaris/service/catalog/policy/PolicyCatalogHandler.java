@@ -56,7 +56,7 @@ import org.apache.polaris.service.types.LoadPolicyResponse;
 import org.apache.polaris.service.types.PolicyAttachmentTarget;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.service.types.UpdatePolicyRequest;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.jspecify.annotations.Nullable;
 
 @PolarisImmutable
@@ -65,7 +65,7 @@ public abstract class PolicyCatalogHandler extends CatalogHandler {
 
   private PolicyCatalog policyCatalog;
 
-  public abstract PolarisPolicyMappingManager policyMappingManager();
+  public abstract PolicyDurableManager policyMappingManager();
 
   @Override
   protected void initializeCatalog() {

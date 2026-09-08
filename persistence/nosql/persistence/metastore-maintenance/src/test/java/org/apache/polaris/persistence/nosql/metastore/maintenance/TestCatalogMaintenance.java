@@ -92,8 +92,8 @@ import org.apache.polaris.persistence.nosql.maintenance.api.MaintenanceRunSpec;
 import org.apache.polaris.persistence.nosql.maintenance.api.MaintenanceService;
 import org.apache.polaris.persistence.nosql.maintenance.impl.MutableMaintenanceConfig;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.RealmProvisioner;
 import org.assertj.core.api.SoftAssertions;
 import org.assertj.core.api.junit.jupiter.InjectSoftAssertions;
@@ -306,7 +306,7 @@ public class TestCatalogMaintenance {
 
     for (var table : tables) {
       assertThat(
-              ((PolarisPolicyMappingManager) manager)
+              ((PolicyDurableManager) manager)
                   .attachPolicyToEntity(
                       callCtx,
                       List.of(catalog, namespace),
@@ -326,7 +326,7 @@ public class TestCatalogMaintenance {
         .isEqualTo(true);
 
     LoadPolicyMappingsResult staleMappings =
-        ((PolarisPolicyMappingManager) manager).loadPoliciesOnEntity(callCtx, tables.getFirst());
+        ((PolicyDurableManager) manager).loadPoliciesOnEntity(callCtx, tables.getFirst());
     assertThat(staleMappings.isSuccess()).isTrue();
     assertThat(staleMappings.getPolicyMappingRecords()).hasSize(1);
     assertThat(staleMappings.getEntities()).isEmpty();
@@ -338,7 +338,7 @@ public class TestCatalogMaintenance {
     assertThat(countPolicyMappingsForPolicy(persistence, policy.getCatalogId(), policy.getId()))
         .isZero();
     var cleanedMappings =
-        ((PolarisPolicyMappingManager) manager).loadPoliciesOnEntity(callCtx, tables.getFirst());
+        ((PolicyDurableManager) manager).loadPoliciesOnEntity(callCtx, tables.getFirst());
     assertThat(cleanedMappings.isSuccess()).isTrue();
     assertThat(cleanedMappings.getPolicyMappingRecords()).isEmpty();
     assertThat(cleanedMappings.getEntities()).isEmpty();
@@ -377,7 +377,7 @@ public class TestCatalogMaintenance {
 
     for (var table : staleTables) {
       assertThat(
-              ((PolarisPolicyMappingManager) manager)
+              ((PolicyDurableManager) manager)
                   .attachPolicyToEntity(
                       callCtx,
                       List.of(catalog, namespace),
@@ -389,7 +389,7 @@ public class TestCatalogMaintenance {
           .isEqualTo(true);
     }
     assertThat(
-            ((PolarisPolicyMappingManager) manager)
+            ((PolicyDurableManager) manager)
                 .attachPolicyToEntity(
                     callCtx,
                     List.of(catalog, namespace),
@@ -413,7 +413,7 @@ public class TestCatalogMaintenance {
     assertThat(countPolicyMappingsForPolicy(persistence, policy.getCatalogId(), policy.getId()))
         .isEqualTo(2L * (staleTables.size() + 1L));
     var liveMappingsBeforeCleanup =
-        ((PolarisPolicyMappingManager) manager).loadPoliciesOnEntity(callCtx, liveTable);
+        ((PolicyDurableManager) manager).loadPoliciesOnEntity(callCtx, liveTable);
     assertThat(liveMappingsBeforeCleanup.isSuccess()).isTrue();
     assertThat(liveMappingsBeforeCleanup.getPolicyMappingRecords())
         .singleElement()
@@ -430,7 +430,7 @@ public class TestCatalogMaintenance {
     assertThat(countPolicyMappingsForPolicy(persistence, policy.getCatalogId(), policy.getId()))
         .isEqualTo(2L);
     var liveMappingsAfterCleanup =
-        ((PolarisPolicyMappingManager) manager).loadPoliciesOnEntity(callCtx, liveTable);
+        ((PolicyDurableManager) manager).loadPoliciesOnEntity(callCtx, liveTable);
     assertThat(liveMappingsAfterCleanup.isSuccess()).isTrue();
     assertThat(liveMappingsAfterCleanup.getPolicyMappingRecords())
         .singleElement()
@@ -464,7 +464,7 @@ public class TestCatalogMaintenance {
 
     for (var table : tables) {
       assertThat(
-              ((GrantManager) manager)
+              ((GrantDurableManager) manager)
                   .grantPrivilegeOnSecurableToRole(
                       callCtx,
                       catalogRole,
@@ -486,7 +486,8 @@ public class TestCatalogMaintenance {
 
     assertThat(countGrantAclHeads(persistence, staleAclNames)).isEqualTo(tables.size() + 1L);
 
-    var staleGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
+    var staleGrants =
+        ((GrantDurableManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
     assertThat(staleGrants.isSuccess()).isTrue();
     assertThat(staleGrants.getGrantRecords()).isEmpty();
     assertThat(staleGrants.getEntities()).isEmpty();
@@ -497,7 +498,8 @@ public class TestCatalogMaintenance {
 
     assertThat(countGrantAclHeads(persistence, staleAclNames)).isZero();
 
-    var cleanedGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
+    var cleanedGrants =
+        ((GrantDurableManager) manager).loadGrantsOnSecurable(callCtx, tables.getFirst());
     assertThat(cleanedGrants.isSuccess()).isTrue();
     assertThat(cleanedGrants.getGrantRecords()).isEmpty();
     assertThat(cleanedGrants.getEntities()).isEmpty();
@@ -526,7 +528,7 @@ public class TestCatalogMaintenance {
             "stale-role-");
 
     assertThat(
-            ((GrantManager) manager)
+            ((GrantDurableManager) manager)
                 .grantPrivilegeOnSecurableToRole(
                     callCtx,
                     liveRole,
@@ -537,7 +539,7 @@ public class TestCatalogMaintenance {
         .isEqualTo(true);
     for (var staleRole : staleRoles) {
       assertThat(
-              ((GrantManager) manager)
+              ((GrantDurableManager) manager)
                   .grantPrivilegeOnSecurableToRole(
                       callCtx,
                       staleRole,
@@ -561,7 +563,7 @@ public class TestCatalogMaintenance {
           .isEqualTo(true);
     }
 
-    var staleGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, table);
+    var staleGrants = ((GrantDurableManager) manager).loadGrantsOnSecurable(callCtx, table);
     assertThat(staleGrants.isSuccess()).isTrue();
     assertThat(staleGrants.getGrantRecords()).hasSize(1);
     assertThat(staleGrants.getEntities()).hasSize(1);
@@ -574,7 +576,7 @@ public class TestCatalogMaintenance {
     assertThat(grantAclRoleIds(persistence, grantAclName(table)))
         .containsExactly(grantEntryName(liveRole));
 
-    var cleanedGrants = ((GrantManager) manager).loadGrantsOnSecurable(callCtx, table);
+    var cleanedGrants = ((GrantDurableManager) manager).loadGrantsOnSecurable(callCtx, table);
     assertThat(cleanedGrants.isSuccess()).isTrue();
     assertThat(cleanedGrants.getGrantRecords()).hasSize(1);
     assertThat(cleanedGrants.getEntities()).hasSize(1);

@@ -99,8 +99,8 @@ import org.apache.polaris.service.persistence.InMemoryPolarisMetaStoreManagerFac
 import org.apache.polaris.service.reporting.DefaultMetricsReporter;
 import org.apache.polaris.service.secrets.UnsafeInMemorySecretsManagerFactory;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.PolarisEventDispatcher;
@@ -468,8 +468,8 @@ public record TestServices(
               callContext,
               entityResolver,
               metaStoreManager,
-              (SecretsManager) metaStoreManager,
-              (GrantManager) metaStoreManager,
+              (SecretsDurableManager) metaStoreManager,
+              (GrantDurableManager) metaStoreManager,
               userSecretsManager,
               serviceIdentityProvider,
               principal,

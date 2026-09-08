@@ -41,7 +41,7 @@ import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.service.admin.PolarisAdminService;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -68,7 +68,7 @@ public class DefaultAuthenticatorTest {
   @Inject PolarisAdminService adminService;
   @Inject RealmContextHolder realmContextHolder;
   @Inject DurableManager metaStoreManager;
-  @Inject SecretsManager secretsManager;
+  @Inject SecretsDurableManager secretsManager;
   @Inject CallContext callContext;
 
   private PrincipalEntity principalEntity;

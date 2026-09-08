@@ -39,9 +39,10 @@ import org.apache.polaris.persistence.treemap.TreeMapSlices;
  * primitives module holds primitives implementations and their tests; nothing else.
  *
  * <p><b>Which layer the subject sits in:</b> TransactionalMetaStoreManagerImpl extends
- * BaseMetaStoreManager, which implements DurableManager, GrantManager, SecretsManager,
- * PolarisPolicyMappingManager and PolarisEventManager. So the subject is a <b>durable manager</b>,
- * the top of the four layers, exercised here over the TreeMap durable-primitives implementation.
+ * BaseMetaStoreManager, which implements DurableManager, GrantDurableManager,
+ * SecretsDurableManager, PolicyDurableManager and EventDurableManager. So the subject is a
+ * <b>durable manager</b>, the top of the four layers, exercised here over the TreeMap
+ * durable-primitives implementation.
  *
  * <p><b>The subject does not survive the overhaul, and neither does this test.</b>
  * TransactionalMetaStoreManagerImpl carries the interactive-transaction shape Issue 47 S8 removes:

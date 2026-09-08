@@ -34,7 +34,7 @@ import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.types.TokenType;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 
@@ -50,7 +50,7 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     DurableManager metastoreManager = Mockito.mock(DurableManager.class);
-    SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
+    SecretsDurableManager secretsManager = Mockito.mock(SecretsDurableManager.class);
     String mainSecret = "client-secret";
     PolarisPrincipalSecrets principalSecrets =
         new PolarisPrincipalSecrets(principalId, clientId, mainSecret, "otherSecret");
@@ -102,7 +102,7 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     DurableManager metastoreManager = Mockito.mock(DurableManager.class);
-    SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
+    SecretsDurableManager secretsManager = Mockito.mock(SecretsDurableManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =
         Algorithm.RSA256(
@@ -136,7 +136,7 @@ public class RSAKeyPairJWTBrokerTest {
 
     PolarisCallContext polarisCallContext = Mockito.mock(PolarisCallContext.class);
     DurableManager metastoreManager = Mockito.mock(DurableManager.class);
-    SecretsManager secretsManager = Mockito.mock(SecretsManager.class);
+    SecretsDurableManager secretsManager = Mockito.mock(SecretsDurableManager.class);
     KeyProvider provider = new LocalRSAKeyProvider(keyPair);
     Algorithm algorithm =
         Algorithm.RSA256(

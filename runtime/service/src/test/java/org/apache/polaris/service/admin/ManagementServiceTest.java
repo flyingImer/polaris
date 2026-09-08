@@ -58,8 +58,8 @@ import org.apache.polaris.extension.auth.rbac.RbacAuthorizer;
 import org.apache.polaris.service.TestServices;
 import org.apache.polaris.service.identity.provider.DefaultServiceIdentityProvider;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.ReservedProperties;
 import org.assertj.core.api.Assertions;
 import org.junit.jupiter.api.BeforeEach;
@@ -382,8 +382,8 @@ public class ManagementServiceTest {
         callContext,
         services.entityResolver(),
         metaStoreManager,
-        (SecretsManager) metaStoreManager,
-        (GrantManager) metaStoreManager,
+        (SecretsDurableManager) metaStoreManager,
+        (GrantDurableManager) metaStoreManager,
         new UnsafeInMemorySecretsManager(),
         new DefaultServiceIdentityProvider(),
         principal,

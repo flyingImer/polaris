@@ -38,7 +38,7 @@ import org.apache.polaris.core.persistence.transactional.TransactionalPersistenc
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.MetricsPersistence;
 import org.apache.polaris.spi.durable.RealmProvisioner;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -205,7 +205,7 @@ public abstract class LocalPolarisMetaStoreManagerFactory<StoreType>
 
     PrincipalEntity rootPrincipal =
         metaStoreManager.findRootPrincipal(polarisContext).orElseThrow();
-    return ((SecretsManager) metaStoreManager)
+    return ((SecretsDurableManager) metaStoreManager)
         .loadPrincipalSecrets(polarisContext, rootPrincipal.getClientId());
   }
 

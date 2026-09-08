@@ -34,7 +34,7 @@ import org.apache.polaris.service.auth.DefaultAuthenticator;
 import org.apache.polaris.service.auth.internal.service.OAuthError;
 import org.apache.polaris.service.types.TokenType;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.PolarisCredential;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -50,7 +50,7 @@ public class JWTBroker implements TokenBroker {
   private static final String CLAIM_KEY_SCOPE = "scope";
 
   private final DurableManager metaStoreManager;
-  private final SecretsManager secretsManager;
+  private final SecretsDurableManager secretsManager;
   private final PolarisCallContext polarisCallContext;
   private final int maxTokenGenerationInSeconds;
   private final Algorithm algorithm;
@@ -58,7 +58,7 @@ public class JWTBroker implements TokenBroker {
 
   JWTBroker(
       DurableManager metaStoreManager,
-      SecretsManager secretsManager,
+      SecretsDurableManager secretsManager,
       PolarisCallContext polarisCallContext,
       int maxTokenGenerationInSeconds,
       Algorithm algorithm,

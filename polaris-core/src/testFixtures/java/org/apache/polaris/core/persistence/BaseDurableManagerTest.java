@@ -50,7 +50,7 @@ import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
 import org.junit.jupiter.api.BeforeEach;
@@ -239,7 +239,7 @@ public abstract class BaseDurableManagerTest {
   @Test
   protected void testCreatePrincipalNeverWithoutSecretsInvariant() {
     DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
-    SecretsManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
+    SecretsDurableManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
     CreatePrincipalResult result =
@@ -636,7 +636,7 @@ public abstract class BaseDurableManagerTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                ((SecretsManager) metaStoreManager)
+                ((SecretsDurableManager) metaStoreManager)
                     .resetPrincipalSecrets(callCtx, principalB.getId(), principalAClientId, null))
         .isInstanceOf(AlreadyExistsException.class);
   }

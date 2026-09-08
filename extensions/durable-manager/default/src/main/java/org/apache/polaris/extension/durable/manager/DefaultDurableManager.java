@@ -84,16 +84,16 @@ import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
 import org.apache.polaris.spi.durable.DurableRecordStore;
-import org.apache.polaris.spi.durable.GrantManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
-import org.apache.polaris.spi.durable.PolarisEventManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -106,8 +106,8 @@ import org.slf4j.LoggerFactory;
  * this class covers their surface.
  *
  * <p>This manager owns every business rule and knows no storage topology. It implements {@link
- * DurableManager}, {@link GrantManager}, {@link SecretsManager}, {@link
- * PolarisPolicyMappingManager} and {@link PolarisEventManager} on one object because {@code
+ * DurableManager}, {@link GrantDurableManager}, {@link SecretsDurableManager}, {@link
+ * PolicyDurableManager} and {@link EventDurableManager} on one object because {@code
  * PolarisTestMetaStoreManager} (and, at ticket 96, every other caller of the old managers) narrows
  * the concrete instance it is handed to each of those sibling interfaces with a runtime cast; a
  * class missing one of them fails that cast, not a later call.
@@ -144,10 +144,10 @@ import org.slf4j.LoggerFactory;
  */
 public class DefaultDurableManager
     implements DurableManager,
-        GrantManager,
-        SecretsManager,
-        PolarisPolicyMappingManager,
-        PolarisEventManager {
+        GrantDurableManager,
+        SecretsDurableManager,
+        PolicyDurableManager,
+        EventDurableManager {
 
   private static final Logger LOGGER = LoggerFactory.getLogger(DefaultDurableManager.class);
 
@@ -2257,7 +2257,7 @@ public class DefaultDurableManager
     return new ResolvedEntityResult(entity, reportedGrantRecordsVersion, grantRecords);
   }
 
-  // ---------------------------------------------------------- GrantManager (ticket 91)
+  // ---------------------------------------------------------- GrantDurableManager (ticket 91)
 
   /**
    * Grant-record identity ref: {@code (securable-catalog, securable, grantee-catalog, grantee,
@@ -2635,7 +2635,7 @@ public class DefaultDurableManager
         PolarisGrantRecord::getSecurableId);
   }
 
-  // ---------------------------------------------------------- SecretsManager (ticket 91)
+  // ---------------------------------------------------------- SecretsDurableManager (ticket 91)
 
   /**
    * Maps a non-applied secrets-mutation {@link OrchestrationResult}. No old-model precedent, same
@@ -2852,7 +2852,7 @@ public class DefaultDurableManager
         result);
   }
 
-  // ------------------------------------------------- PolarisPolicyMappingManager (ticket 92)
+  // ------------------------------------------------- PolicyDurableManager (ticket 92)
 
   /**
    * Policy-mapping identity ref: {@code (target-catalog, target, policy-type, policy-catalog,
@@ -3179,7 +3179,7 @@ public class DefaultDurableManager
     return new LoadPolicyMappingsResult(mappingRecords, policiesFromMappingRecords(mappingRecords));
   }
 
-  // ------------------------------------------------------- PolarisEventManager (ticket 92)
+  // ------------------------------------------------------- EventDurableManager (ticket 92)
 
   /** {@code EVENT}'s identity ref: {@code (event-id)} — both stores' bindings key on it alone. */
   private static RecordRef eventIdentity(@NonNull EventEntity event) {

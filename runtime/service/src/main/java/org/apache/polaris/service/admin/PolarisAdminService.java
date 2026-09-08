@@ -134,8 +134,8 @@ import org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfo;
 import org.apache.polaris.core.storage.azure.AzureStorageConfigurationInfo;
 import org.apache.polaris.service.types.PolicyIdentifier;
 import org.apache.polaris.spi.durable.DurableManager;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.apache.polaris.spi.substrate.EntityResolver;
 import org.apache.polaris.spi.substrate.PolarisAuthorizer;
 import org.apache.polaris.spi.substrate.ReservedProperties;
@@ -164,8 +164,8 @@ public class PolarisAdminService {
   private final PolarisPrincipal polarisPrincipal;
   private final PolarisAuthorizer authorizer;
   private final DurableManager metaStoreManager;
-  private final SecretsManager secretsManager;
-  private final GrantManager grantManager;
+  private final SecretsDurableManager secretsManager;
+  private final GrantDurableManager grantManager;
   private final UserSecretsManager userSecretsManager;
   private final ServiceIdentityProvider serviceIdentityProvider;
   private final ReservedProperties reservedProperties;
@@ -175,8 +175,8 @@ public class PolarisAdminService {
       @NonNull CallContext callContext,
       @NonNull EntityResolver entityResolver,
       @NonNull DurableManager metaStoreManager,
-      @NonNull SecretsManager secretsManager,
-      @NonNull GrantManager grantManager,
+      @NonNull SecretsDurableManager secretsManager,
+      @NonNull GrantDurableManager grantManager,
       @NonNull UserSecretsManager userSecretsManager,
       @NonNull ServiceIdentityProvider serviceIdentityProvider,
       @NonNull PolarisPrincipal principal,

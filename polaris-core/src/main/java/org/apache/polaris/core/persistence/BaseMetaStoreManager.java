@@ -29,19 +29,19 @@ import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
-import org.apache.polaris.spi.durable.GrantManager;
-import org.apache.polaris.spi.durable.PolarisEventManager;
-import org.apache.polaris.spi.durable.PolarisPolicyMappingManager;
-import org.apache.polaris.spi.durable.SecretsManager;
+import org.apache.polaris.spi.durable.EventDurableManager;
+import org.apache.polaris.spi.durable.GrantDurableManager;
+import org.apache.polaris.spi.durable.PolicyDurableManager;
+import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
 
 /** Shared basic DurableManager logic for transactional and non-transactional impls. */
 public abstract class BaseMetaStoreManager
     implements DurableManager,
-        SecretsManager,
-        GrantManager,
-        PolarisPolicyMappingManager,
-        PolarisEventManager {
+        SecretsDurableManager,
+        GrantDurableManager,
+        PolicyDurableManager,
+        EventDurableManager {
 
   public static PolarisStorageConfigurationInfo extractStorageConfiguration(
       @NonNull PolarisDiagnostics diagnostics, PolarisBaseEntity reloadedEntity) {
