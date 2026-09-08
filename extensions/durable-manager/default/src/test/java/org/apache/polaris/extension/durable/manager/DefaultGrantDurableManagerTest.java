@@ -57,10 +57,11 @@ import org.junit.jupiter.api.Test;
  * {@code testGrantRecordWriteIsIdempotent}, {@code testLoadGrantsGranteeVsSecurableRecords} — pass.
  * These tests mirror that fixture's own assertions rather than inventing looser ones.
  */
-class DefaultDurableManagerGrantOpsTest {
+class DefaultGrantDurableManagerTest {
 
   private PolarisCallContext callCtx;
   private DefaultDurableManager manager;
+  private DefaultGrantDurableManager grants;
 
   @BeforeEach
   void setup() {
@@ -85,6 +86,9 @@ class DefaultDurableManagerGrantOpsTest {
             orchestrator,
             primitives,
             PrincipalSecretsGenerator.RANDOM_SECRETS);
+    grants =
+        new DefaultGrantDurableManager(
+            new PolarisDefaultDiagServiceImpl(), orchestrator, primitives);
     RealmContext realmContext = () -> "testRealm";
     callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
   }
@@ -126,11 +130,11 @@ class DefaultDurableManagerGrantOpsTest {
         newEntity(PolarisEntityType.CATALOG_ROLE, catalog.getId(), catalog.getId(), "role1");
 
     PrivilegeResult granted =
-        manager.grantPrivilegeOnSecurableToRole(
+        grants.grantPrivilegeOnSecurableToRole(
             callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     assertThat(granted.isSuccess()).isTrue();
 
-    LoadGrantsResult onSecurable = manager.loadGrantsOnSecurable(callCtx, namespace);
+    LoadGrantsResult onSecurable = grants.loadGrantsOnSecurable(callCtx, namespace);
     assertThat(onSecurable.isSuccess()).isTrue();
     assertThat(onSecurable.getGrantRecords())
         .extracting(PolarisGrantRecord::getGranteeId, PolarisGrantRecord::getPrivilegeCode)
@@ -139,7 +143,7 @@ class DefaultDurableManagerGrantOpsTest {
         .extracting(PolarisBaseEntity::getId)
         .containsExactly(role.getId());
 
-    LoadGrantsResult toGrantee = manager.loadGrantsToGrantee(callCtx, role);
+    LoadGrantsResult toGrantee = grants.loadGrantsToGrantee(callCtx, role);
     assertThat(toGrantee.isSuccess()).isTrue();
     assertThat(toGrantee.getGrantRecords())
         .extracting(PolarisGrantRecord::getSecurableId, PolarisGrantRecord::getPrivilegeCode)
@@ -157,19 +161,19 @@ class DefaultDurableManagerGrantOpsTest {
     PolarisBaseEntity role =
         newEntity(PolarisEntityType.CATALOG_ROLE, catalog.getId(), catalog.getId(), "role2");
 
-    manager.grantPrivilegeOnSecurableToRole(
+    grants.grantPrivilegeOnSecurableToRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
-    manager.grantPrivilegeOnSecurableToRole(
+    grants.grantPrivilegeOnSecurableToRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
 
-    assertThat(manager.loadGrantsOnSecurable(callCtx, namespace).getGrantRecords())
+    assertThat(grants.loadGrantsOnSecurable(callCtx, namespace).getGrantRecords())
         .filteredOn(
             g ->
                 g.getGranteeId() == role.getId()
                     && g.getSecurableId() == namespace.getId()
                     && g.getPrivilegeCode() == PolarisPrivilege.TABLE_READ_DATA.getCode())
         .hasSize(1);
-    assertThat(manager.loadGrantsToGrantee(callCtx, role).getGrantRecords())
+    assertThat(grants.loadGrantsToGrantee(callCtx, role).getGrantRecords())
         .filteredOn(
             g ->
                 g.getGranteeId() == role.getId()
@@ -186,15 +190,15 @@ class DefaultDurableManagerGrantOpsTest {
     PolarisBaseEntity role =
         newEntity(PolarisEntityType.CATALOG_ROLE, catalog.getId(), catalog.getId(), "role3");
 
-    manager.grantPrivilegeOnSecurableToRole(
+    grants.grantPrivilegeOnSecurableToRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     PrivilegeResult revoked =
-        manager.revokePrivilegeOnSecurableFromRole(
+        grants.revokePrivilegeOnSecurableFromRole(
             callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     assertThat(revoked.isSuccess()).isTrue();
 
-    assertThat(manager.loadGrantsOnSecurable(callCtx, namespace).getGrantRecords()).isEmpty();
-    assertThat(manager.loadGrantsToGrantee(callCtx, role).getGrantRecords()).isEmpty();
+    assertThat(grants.loadGrantsOnSecurable(callCtx, namespace).getGrantRecords()).isEmpty();
+    assertThat(grants.loadGrantsToGrantee(callCtx, role).getGrantRecords()).isEmpty();
   }
 
   @Test
@@ -206,7 +210,7 @@ class DefaultDurableManagerGrantOpsTest {
         newEntity(PolarisEntityType.CATALOG_ROLE, catalog.getId(), catalog.getId(), "role4");
 
     PrivilegeResult result =
-        manager.revokePrivilegeOnSecurableFromRole(
+        grants.revokePrivilegeOnSecurableFromRole(
             callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     assertThat(result.isSuccess()).isFalse();
     assertThat(result.getReturnStatus()).isEqualTo(BaseResult.ReturnStatus.GRANT_NOT_FOUND);
@@ -223,12 +227,12 @@ class DefaultDurableManagerGrantOpsTest {
     int namespaceBefore = grantRecordsVersionOf(namespace);
     int roleBefore = grantRecordsVersionOf(role);
 
-    manager.grantPrivilegeOnSecurableToRole(
+    grants.grantPrivilegeOnSecurableToRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     assertThat(grantRecordsVersionOf(namespace)).isEqualTo(namespaceBefore + 1);
     assertThat(grantRecordsVersionOf(role)).isEqualTo(roleBefore + 1);
 
-    manager.revokePrivilegeOnSecurableFromRole(
+    grants.revokePrivilegeOnSecurableFromRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     assertThat(grantRecordsVersionOf(namespace)).isEqualTo(namespaceBefore + 2);
     assertThat(grantRecordsVersionOf(role)).isEqualTo(roleBefore + 2);
@@ -244,20 +248,20 @@ class DefaultDurableManagerGrantOpsTest {
     PolarisBaseEntity principalRole = newEntity(PolarisEntityType.PRINCIPAL_ROLE, 0L, 0L, "pr6");
 
     // `role` is the GRANTEE of a privilege on `namespace` (a securable)...
-    manager.grantPrivilegeOnSecurableToRole(
+    grants.grantPrivilegeOnSecurableToRole(
         callCtx, role, null, namespace, PolarisPrivilege.TABLE_READ_DATA);
     // ...and simultaneously the SECURABLE of a usage grant to `principalRole`.
-    manager.grantUsageOnRoleToGrantee(callCtx, catalog, role, principalRole);
+    grants.grantUsageOnRoleToGrantee(callCtx, catalog, role, principalRole);
 
     // As securable: only the usage-to-principalRole grant, never the one where it's the grantee.
-    LoadGrantsResult onRoleAsSecurable = manager.loadGrantsOnSecurable(callCtx, role);
+    LoadGrantsResult onRoleAsSecurable = grants.loadGrantsOnSecurable(callCtx, role);
     assertThat(onRoleAsSecurable.getGrantRecords())
         .extracting(PolarisGrantRecord::getGranteeId, PolarisGrantRecord::getPrivilegeCode)
         .containsExactly(
             tuple(principalRole.getId(), PolarisPrivilege.CATALOG_ROLE_USAGE.getCode()));
 
     // As grantee: only the table-read grant on namespace, never the usage grant it holds.
-    LoadGrantsResult toRoleAsGrantee = manager.loadGrantsToGrantee(callCtx, role);
+    LoadGrantsResult toRoleAsGrantee = grants.loadGrantsToGrantee(callCtx, role);
     assertThat(toRoleAsGrantee.getGrantRecords())
         .extracting(PolarisGrantRecord::getSecurableId, PolarisGrantRecord::getPrivilegeCode)
         .containsExactly(tuple(namespace.getId(), PolarisPrivilege.TABLE_READ_DATA.getCode()));

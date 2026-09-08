@@ -49,7 +49,7 @@ import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.pagination.PageToken;
-import org.apache.polaris.spi.durable.DurableManager;
+import org.apache.polaris.spi.durable.CatalogDurableManager;
 import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.assertj.core.api.Assertions;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -110,7 +110,7 @@ public abstract class BaseDurableManagerTest {
 
   @Test
   protected void testCreateEntities() {
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     List<PolarisBaseEntity> createdEntities =
@@ -142,10 +142,11 @@ public abstract class BaseDurableManagerTest {
 
   @Test
   protected void testCreatePrincipalReturnedEntitySameAsPersisted() {
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     PolarisBaseEntity principalEntity =
-        metaStoreManager
+        polarisTestMetaStoreManager
+            .principalManager
             .createPrincipal(
                 callCtx,
                 new PrincipalEntity.Builder()
@@ -185,7 +186,7 @@ public abstract class BaseDurableManagerTest {
    */
   @Test
   protected void testCreateCatalogAtomicityInvariant() {
-    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager mgr = polarisTestMetaStoreManager.catalogManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     PolarisBaseEntity catalog =
         new PolarisBaseEntity(
@@ -238,12 +239,12 @@ public abstract class BaseDurableManagerTest {
    */
   @Test
   protected void testCreatePrincipalNeverWithoutSecretsInvariant() {
-    DurableManager mgr = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager mgr = polarisTestMetaStoreManager.catalogManager;
     SecretsDurableManager secretsMgr = polarisTestMetaStoreManager.polarisSecretsManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
     CreatePrincipalResult result =
-        mgr.createPrincipal(
+        polarisTestMetaStoreManager.principalManager.createPrincipal(
             callCtx,
             new PrincipalEntity.Builder()
                 .setId(mgr.generateNewEntityId(callCtx).getId())
@@ -267,7 +268,7 @@ public abstract class BaseDurableManagerTest {
 
   @Test
   protected void testCreateEntitiesAlreadyExisting() {
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     List<PolarisBaseEntity> createdEntities =
@@ -301,7 +302,7 @@ public abstract class BaseDurableManagerTest {
 
   @Test
   protected void testCreateEntitiesWithConflict() {
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     TaskEntity task1 = createTask("task1", 100L);
     TaskEntity task2 = createTask("task2", 101L);
     TaskEntity task3 = createTask("task3", 103L);
@@ -431,10 +432,13 @@ public abstract class BaseDurableManagerTest {
           null, PolarisEntityType.TASK, PolarisEntitySubType.NULL_SUBTYPE, "task_" + i);
     }
     String executorId = "testExecutor_abc";
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     List<PolarisBaseEntity> taskList =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(5)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(5))
+            .getEntities();
     Assertions.assertThat(taskList)
         .isNotNull()
         .isNotEmpty()
@@ -452,7 +456,10 @@ public abstract class BaseDurableManagerTest {
 
     // grab a second round of tasks. Assert that none of the original 5 are in the list
     List<PolarisBaseEntity> newTaskList =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(5)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(5))
+            .getEntities();
     Assertions.assertThat(newTaskList)
         .isNotNull()
         .isNotEmpty()
@@ -466,7 +473,10 @@ public abstract class BaseDurableManagerTest {
 
     // only 10 tasks are unassigned. Requesting 20, we should only receive those 10
     List<PolarisBaseEntity> lastTen =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(20)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(20))
+            .getEntities();
 
     Assertions.assertThat(lastTen)
         .isNotNull()
@@ -480,7 +490,10 @@ public abstract class BaseDurableManagerTest {
             .collect(Collectors.toSet());
 
     List<PolarisBaseEntity> emtpyList =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(20)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(20))
+            .getEntities();
 
     Assertions.assertThat(emtpyList).isNotNull().isEmpty();
 
@@ -488,7 +501,10 @@ public abstract class BaseDurableManagerTest {
 
     // all the tasks are unassigned. Fetch them all
     List<PolarisBaseEntity> allTasks =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(20)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(20))
+            .getEntities();
 
     Assertions.assertThat(allTasks)
         .isNotNull()
@@ -503,7 +519,10 @@ public abstract class BaseDurableManagerTest {
     clock.add(Duration.ofMinutes(10));
 
     List<PolarisBaseEntity> finalList =
-        metaStoreManager.loadTasks(callCtx, executorId, PageToken.fromLimit(20)).getEntities();
+        polarisTestMetaStoreManager
+            .taskManager
+            .loadTasks(callCtx, executorId, PageToken.fromLimit(20))
+            .getEntities();
 
     Assertions.assertThat(finalList).isNotNull().isEmpty();
   }
@@ -514,7 +533,7 @@ public abstract class BaseDurableManagerTest {
       polarisTestMetaStoreManager.createEntity(
           null, PolarisEntityType.TASK, PolarisEntitySubType.NULL_SUBTYPE, "task_" + i);
     }
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
     List<Future<Set<String>>> futureList = new ArrayList<>();
     ExecutorService executorService = Executors.newCachedThreadPool();
@@ -532,7 +551,8 @@ public abstract class BaseDurableManagerTest {
                     retry = false;
                     try {
                       taskList =
-                          metaStoreManager
+                          polarisTestMetaStoreManager
+                              .taskManager
                               .loadTasks(callCtx, executorId, PageToken.fromLimit(5))
                               .getEntities();
                       taskList.stream().map(PolarisBaseEntity::getName).forEach(taskNames::add);
@@ -626,7 +646,7 @@ public abstract class BaseDurableManagerTest {
 
   @Test
   protected void testResetCredentialsClientIdCollision() {
-    DurableManager metaStoreManager = polarisTestMetaStoreManager.polarisMetaStoreManager;
+    CatalogDurableManager metaStoreManager = polarisTestMetaStoreManager.catalogManager;
     PolarisCallContext callCtx = polarisTestMetaStoreManager.polarisCallContext;
 
     PrincipalEntity principalA = polarisTestMetaStoreManager.createPrincipal("principalA");
@@ -636,8 +656,8 @@ public abstract class BaseDurableManagerTest {
 
     Assertions.assertThatThrownBy(
             () ->
-                ((SecretsDurableManager) metaStoreManager)
-                    .resetPrincipalSecrets(callCtx, principalB.getId(), principalAClientId, null))
+                polarisTestMetaStoreManager.polarisSecretsManager.resetPrincipalSecrets(
+                    callCtx, principalB.getId(), principalAClientId, null))
         .isInstanceOf(AlreadyExistsException.class);
   }
 }

@@ -22,6 +22,7 @@ import java.util.List;
 import java.util.Map;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
+import org.apache.polaris.core.auth.AuthBootstrapUtil;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.entity.EventEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
@@ -83,6 +84,11 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
    */
   protected DefaultDurableManager managerUnderTest;
 
+  protected DefaultGrantDurableManager grantUnderTest;
+  protected DefaultSecretsDurableManager secretsUnderTest;
+  protected DefaultPolicyDurableManager policyUnderTest;
+  protected DefaultEventDurableManager eventUnderTest;
+
   protected DurableRecordStore newHandle;
   protected PolarisCallContext newModelCallCtx;
 
@@ -104,13 +110,14 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
             List.of(store),
             store);
     var orchestrator = new DefaultDurableOrchestrator(primitives);
+    var diagnostics = new PolarisDefaultDiagServiceImpl();
     var manager =
         new DefaultDurableManager(
-            clock,
-            new PolarisDefaultDiagServiceImpl(),
-            orchestrator,
-            primitives,
-            PrincipalSecretsGenerator.RANDOM_SECRETS);
+            clock, diagnostics, orchestrator, primitives, PrincipalSecretsGenerator.RANDOM_SECRETS);
+    var grantManager = new DefaultGrantDurableManager(diagnostics, orchestrator, primitives);
+    var secretsManager = new DefaultSecretsDurableManager(diagnostics, orchestrator, primitives);
+    var policyManager = new DefaultPolicyDurableManager(diagnostics, orchestrator, primitives);
+    var eventManager = new DefaultEventDurableManager(orchestrator, primitives);
 
     RealmContext realmContext = () -> "testRealm";
     PolarisCallContext callCtx = new PolarisCallContext(realmContext, new NeverCallOldPrimitives());
@@ -122,11 +129,26 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
     // fixture assertion of "testStartTime <= entity.getCreateTimestamp()" (ensureExistsById, used
     // by validateBootstrap/testLookup/etc.) fail for the bootstrapped root principal and role.
     long testStartTime = System.currentTimeMillis();
-    manager.bootstrapPolarisService(callCtx);
+    AuthBootstrapUtil.createPolarisPrincipalForRealm(
+        manager, manager, grantManager, secretsManager, callCtx);
     this.managerUnderTest = manager;
+    this.grantUnderTest = grantManager;
+    this.secretsUnderTest = secretsManager;
+    this.policyUnderTest = policyManager;
+    this.eventUnderTest = eventManager;
     this.newHandle = primitives;
     this.newModelCallCtx = callCtx;
-    return new PolarisTestMetaStoreManager(manager, callCtx, testStartTime, true);
+    return new PolarisTestMetaStoreManager(
+        manager,
+        manager,
+        manager,
+        grantManager,
+        secretsManager,
+        policyManager,
+        manager,
+        callCtx,
+        testStartTime,
+        true);
   }
 
   // ------------------------------------------------------------ ticket-92 proving cases
@@ -248,7 +270,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
 
     // Target side: attach P1 -> T1, drop T1, the mapping goes with it.
     Assertions.assertThat(
-            managerUnderTest
+            policyUnderTest
                 .attachPolicyToEntity(
                     newModelCallCtx, nsPath, table1, List.of(catalog), policy1, null)
                 .isSuccess())
@@ -269,7 +291,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
 
     // Policy side: attach P2 -> T2, drop P2 itself, the mapping goes with it.
     Assertions.assertThat(
-            managerUnderTest
+            policyUnderTest
                 .attachPolicyToEntity(
                     newModelCallCtx, nsPath, table2, List.of(catalog), policy2, null)
                 .isSuccess())
@@ -342,7 +364,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                         PolicyEntity.POLICY_TYPE_CODE_KEY,
                         Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))));
     Assertions.assertThat(
-            managerUnderTest
+            policyUnderTest
                 .attachPolicyToEntity(
                     newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
                 .isSuccess())
@@ -357,7 +379,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
             null,
             EventEntity.ResourceType.CATALOG,
             "r");
-    managerUnderTest.writeEvents(newModelCallCtx, List.of(event));
+    eventUnderTest.writeEvents(newModelCallCtx, List.of(event));
 
     // Bootstrap state this proving case leans on: the root principal (and its secrets row).
     PolarisBaseEntity rootPrincipal =
@@ -472,7 +494,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                 "someone",
                 EventEntity.ResourceType.TABLE,
                 "r2"));
-    managerUnderTest.writeEvents(newModelCallCtx, events);
+    eventUnderTest.writeEvents(newModelCallCtx, events);
     for (EventEntity written : events) {
       EventEntity stored =
           newHandle
@@ -540,7 +562,7 @@ public abstract class AbstractDefaultDurableManagerTest extends BaseDurableManag
                         PolicyEntity.POLICY_TYPE_CODE_KEY,
                         Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))));
     Assertions.assertThat(
-            managerUnderTest
+            policyUnderTest
                 .attachPolicyToEntity(
                     newModelCallCtx, nsPath, table, List.of(catalog), policy, null)
                 .isSuccess())
