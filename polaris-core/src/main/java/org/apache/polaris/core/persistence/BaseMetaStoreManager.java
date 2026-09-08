@@ -18,26 +18,42 @@
  */
 package org.apache.polaris.core.persistence;
 
+import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
+import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PrincipalEntity;
+import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
+import org.apache.polaris.core.persistence.resolver.ResolvedEntityReads;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
+import org.apache.polaris.spi.durable.CatalogDurableManager;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurablePrimitives;
 import org.apache.polaris.spi.durable.EventDurableManager;
 import org.apache.polaris.spi.durable.GrantDurableManager;
 import org.apache.polaris.spi.durable.PolicyDurableManager;
+import org.apache.polaris.spi.durable.PrincipalDurableManager;
 import org.apache.polaris.spi.durable.SecretsDurableManager;
+import org.apache.polaris.spi.durable.TaskDurableManager;
 import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
 
 /** Shared basic DurableManager logic for transactional and non-transactional impls. */
 public abstract class BaseMetaStoreManager
     implements DurableManager,
+        CatalogDurableManager,
+        PrincipalDurableManager,
+        TaskDurableManager,
+        ResolvedEntityReads,
         SecretsDurableManager,
         GrantDurableManager,
         PolicyDurableManager,
@@ -182,5 +198,53 @@ public abstract class BaseMetaStoreManager
     DurablePrimitives ms = callCtx.getMetaStore();
 
     return new GenerateEntityIdResult(ms.generateNewId(callCtx));
+  }
+
+  // The previous model's manager also satisfies the per-domain contracts. Java requires an explicit
+  // choice where a default method is inherited from two unrelated interfaces; keep the existing
+  // one.
+  @Override
+  public @NonNull List<PolarisBaseEntity> listFullEntitiesAll(
+      @NonNull PolarisCallContext callCtx,
+      @Nullable List<PolarisEntityCore> catalogPath,
+      @NonNull PolarisEntityType entityType,
+      @NonNull PolarisEntitySubType entitySubType) {
+    return DurableManager.super.listFullEntitiesAll(
+        callCtx, catalogPath, entityType, entitySubType);
+  }
+
+  @Override
+  public <T extends PolarisEntity & LocationBasedEntity>
+      Optional<Optional<String>> hasOverlappingSiblings(
+          @NonNull PolarisCallContext callContext, T entity) {
+    return DurableManager.super.hasOverlappingSiblings(callContext, entity);
+  }
+
+  @Override
+  public boolean requiresEntityReload() {
+    return DurableManager.super.requiresEntityReload();
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findRootPrincipal(PolarisCallContext polarisCallContext) {
+    return DurableManager.super.findRootPrincipal(polarisCallContext);
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findPrincipalById(
+      PolarisCallContext polarisCallContext, long principalId) {
+    return DurableManager.super.findPrincipalById(polarisCallContext, principalId);
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findPrincipalByName(
+      PolarisCallContext polarisCallContext, String principalName) {
+    return DurableManager.super.findPrincipalByName(polarisCallContext, principalName);
+  }
+
+  @Override
+  public Optional<PrincipalRoleEntity> findPrincipalRoleByName(
+      PolarisCallContext polarisCallContext, String principalRoleName) {
+    return DurableManager.super.findPrincipalRoleByName(polarisCallContext, principalRoleName);
   }
 }

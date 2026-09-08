@@ -37,6 +37,7 @@ import org.apache.polaris.core.entity.AsyncTaskType;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.EntityNameLookupRecord;
 import org.apache.polaris.core.entity.EventEntity;
+import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
 import org.apache.polaris.core.entity.PolarisEntity;
@@ -76,10 +77,12 @@ import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.resolver.ResolvedEntityReads;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.policy.PolicyMappingUtil;
 import org.apache.polaris.core.policy.PolicyType;
+import org.apache.polaris.spi.durable.CatalogDurableManager;
 import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.durable.DurableOrchestrator;
@@ -91,9 +94,11 @@ import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.PolicyDurableManager;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.PrincipalDurableManager;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
 import org.apache.polaris.spi.durable.SecretsDurableManager;
+import org.apache.polaris.spi.durable.TaskDurableManager;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 import org.slf4j.Logger;
@@ -144,6 +149,10 @@ import org.slf4j.LoggerFactory;
  */
 public class DefaultDurableManager
     implements DurableManager,
+        CatalogDurableManager,
+        PrincipalDurableManager,
+        TaskDurableManager,
+        ResolvedEntityReads,
         GrantDurableManager,
         SecretsDurableManager,
         PolicyDurableManager,
@@ -3238,5 +3247,53 @@ public class DefaultDurableManager
                     .orElse(result.outcome().toString()));
       }
     }
+  }
+
+  // The previous model's manager also satisfies the per-domain contracts. Java requires an explicit
+  // choice where a default method is inherited from two unrelated interfaces; keep the existing
+  // one.
+  @Override
+  public @NonNull List<PolarisBaseEntity> listFullEntitiesAll(
+      @NonNull PolarisCallContext callCtx,
+      @Nullable List<PolarisEntityCore> catalogPath,
+      @NonNull PolarisEntityType entityType,
+      @NonNull PolarisEntitySubType entitySubType) {
+    return DurableManager.super.listFullEntitiesAll(
+        callCtx, catalogPath, entityType, entitySubType);
+  }
+
+  @Override
+  public <T extends PolarisEntity & LocationBasedEntity>
+      Optional<Optional<String>> hasOverlappingSiblings(
+          @NonNull PolarisCallContext callContext, T entity) {
+    return DurableManager.super.hasOverlappingSiblings(callContext, entity);
+  }
+
+  @Override
+  public boolean requiresEntityReload() {
+    return DurableManager.super.requiresEntityReload();
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findRootPrincipal(PolarisCallContext polarisCallContext) {
+    return DurableManager.super.findRootPrincipal(polarisCallContext);
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findPrincipalByName(
+      PolarisCallContext polarisCallContext, String principalName) {
+    return DurableManager.super.findPrincipalByName(polarisCallContext, principalName);
+  }
+
+  @Override
+  public Optional<PrincipalEntity> findPrincipalById(
+      PolarisCallContext polarisCallContext, long principalId) {
+    return DurableManager.super.findPrincipalById(polarisCallContext, principalId);
+  }
+
+  @Override
+  public Optional<PrincipalRoleEntity> findPrincipalRoleByName(
+      PolarisCallContext polarisCallContext, String principalRoleName) {
+    return DurableManager.super.findPrincipalRoleByName(polarisCallContext, principalRoleName);
   }
 }

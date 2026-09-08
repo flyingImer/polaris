@@ -16,75 +16,39 @@
  * specific language governing permissions and limitations
  * under the License.
  */
+
 package org.apache.polaris.spi.durable;
 
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
-import org.apache.polaris.core.auth.AuthBootstrapUtil;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
-import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
-import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
-import org.apache.polaris.core.entity.PrincipalEntity;
-import org.apache.polaris.core.entity.PrincipalRoleEntity;
-import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.dao.entity.ChangeTrackingResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
-import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
-import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
-import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
 /**
- * Polaris Metastore Manager manages all Polaris entities and associated grant records metadata for
- * authorization. It uses the underlying persistent metastore to store and retrieve Polaris metadata
- *
- * <p>Interim contract of the previous persistence model (as of September 2026). New consumers use
- * the per-domain durable manager contracts in this package; no implementation of the new
- * persistence stack implements this interface, and it is removed together with the previous model.
+ * Durable manager for the entity tree: catalogs, namespaces, tables, views, roles, policies, tasks
+ * and every other entity kind share one record kind and are created, read, renamed and dropped
+ * here. Owns the business rules of those operations (existence checks, name-collision semantics,
+ * the id-before-write discipline, cleanup composition on drop) and knows no storage topology.
+ * Authorization and request validation live above this layer.
  */
-public interface DurableManager {
-
-  /**
-   * Bootstrap the Polaris service, creating the root catalog, root principal, and associated
-   * service admin role. Will fail if the service has already been bootstrapped.
-   *
-   * @param callCtx call context
-   * @return the result of the bootstrap attempt
-   */
-  @NonNull
-  default BaseResult bootstrapPolarisService(@NonNull PolarisCallContext callCtx) {
-    AuthBootstrapUtil.createPolarisPrincipalForRealm(this, callCtx);
-    return new BaseResult(BaseResult.ReturnStatus.SUCCESS);
-  }
-
-  /**
-   * Purge all metadata associated with the Polaris service, resetting the metastore to the state it
-   * was in prior to bootstrapping.
-   *
-   * <p>*************************** WARNING ************************
-   *
-   * <p>This will destroy whatever Polaris metadata exists in the metastore
-   *
-   * @param callCtx call context
-   * @return always success or unexpected error
-   */
-  @NonNull BaseResult purge(@NonNull PolarisCallContext callCtx);
+public interface CatalogDurableManager {
 
   /**
    * Resolve an entity by name. Can be a top-level entity like a catalog or an entity inside a
@@ -177,18 +141,6 @@ public interface DurableManager {
    * @return the newly created id, not expected to fail
    */
   @NonNull GenerateEntityIdResult generateNewEntityId(@NonNull PolarisCallContext callCtx);
-
-  /**
-   * Create a new principal. This not only creates the new principal entity but also generates a
-   * client_id/secret pair for this new principal.
-   *
-   * @param callCtx call context
-   * @param principal the principal entity to create
-   * @return the client_id/secret for the new principal which was created. Will return
-   *     ENTITY_ALREADY_EXISTS if the principal already exists
-   */
-  @NonNull CreatePrincipalResult createPrincipal(
-      @NonNull PolarisCallContext callCtx, @NonNull PrincipalEntity principal);
 
   /**
    * Create a new catalog. This not only creates the new catalog entity but also the initial admin
@@ -333,111 +285,6 @@ public interface DurableManager {
       @NonNull PolarisEntityType entityType);
 
   /**
-   * Fetch a list of tasks to be completed. Tasks
-   *
-   * @param callCtx call context
-   * @param executorId executor id
-   * @param pageToken page token to start after
-   * @return list of tasks to be completed
-   */
-  @NonNull EntitiesResult loadTasks(
-      @NonNull PolarisCallContext callCtx, String executorId, PageToken pageToken);
-
-  /**
-   * Load change tracking information for a set of entities in one single shot and return for each
-   * the version for the entity itself and the version associated to its grant records.
-   *
-   * @param callCtx call context
-   * @param entityIds list of catalog/entity pair ids for which we need to efficiently load the
-   *     version information, both entity version and grant records version.
-   * @return a list of version tracking information. Order in that returned list is the same as the
-   *     input list. Some elements might be NULL if the entity has been purged. Not expected to fail
-   */
-  @NonNull ChangeTrackingResult loadEntitiesChangeTracking(
-      @NonNull PolarisCallContext callCtx, @NonNull List<PolarisEntityId> entityIds);
-
-  /**
-   * Load a resolved entity, i.e. an entity definition and associated grant records, from the
-   * backend store. The entity is identified by its id (entity catalog id and id).
-   *
-   * <p>For entities that can be grantees, the associated grant records will include both the grant
-   * records for this entity as a grantee and for this entity as a securable.
-   *
-   * @param callCtx call context
-   * @param entityCatalogId id of the catalog for that entity
-   * @param entityId id of the entity
-   * @return result with entity and grants. Status will be ENTITY_NOT_FOUND if the entity was not
-   *     found
-   */
-  @NonNull ResolvedEntityResult loadResolvedEntityById(
-      @NonNull PolarisCallContext callCtx,
-      long entityCatalogId,
-      long entityId,
-      PolarisEntityType entityType);
-
-  /**
-   * Load a resolved entity, i.e. an entity definition and associated grant records, from the
-   * backend store. The entity is identified by its name. Will return NULL if the entity does not
-   * exist, i.e. has been purged or dropped.
-   *
-   * <p>For entities that can be grantees, the associated grant records will include both the grant
-   * records for this entity as a grantee and for this entity as a securable.
-   *
-   * @param callCtx call context
-   * @param entityCatalogId id of the catalog for that entity
-   * @param parentId the id of the parent of that entity
-   * @param entityType the type of this entity
-   * @param entityName the name of this entity
-   * @return result with entity and grants. Status will be ENTITY_NOT_FOUND if the entity was not
-   *     found
-   */
-  @NonNull ResolvedEntityResult loadResolvedEntityByName(
-      @NonNull PolarisCallContext callCtx,
-      long entityCatalogId,
-      long parentId,
-      @NonNull PolarisEntityType entityType,
-      @NonNull String entityName);
-
-  /**
-   * Load a batch of resolved entities of a specified entity type given their {@link
-   * PolarisEntityId}. Will return an empty list if the input list is empty. Order in that returned
-   * list is the same as the input list. Some elements might be NULL if the entity has been dropped.
-   *
-   * @param callCtx call context
-   * @param entityType the type of entities to load
-   * @param entityIds the list of entity ids to load
-   * @return a non-null list of entities corresponding to the lookup keys. Some elements might be
-   *     NULL if the entity has been dropped.
-   */
-  @NonNull ResolvedEntitiesResult loadResolvedEntities(
-      @NonNull PolarisCallContext callCtx,
-      @NonNull PolarisEntityType entityType,
-      @NonNull List<PolarisEntityId> entityIds);
-
-  /**
-   * Refresh a resolved entity from the backend store. Will return NULL if the entity does not
-   * exist, i.e. has been purged or dropped. Else, will determine what has changed based on the
-   * version information sent by the caller and will return only what has changed.
-   *
-   * <p>For entities that can be grantees, the associated grant records will include both the grant
-   * records for this entity as a grantee and for this entity as a securable.
-   *
-   * @param callCtx call context
-   * @param entityType type of the entity whose entity and grants we are refreshing
-   * @param entityCatalogId id of the catalog for that entity
-   * @param entityId the id of the entity to load
-   * @return result with entity and grants. Status will be ENTITY_NOT_FOUND if the entity was not
-   *     found
-   */
-  @NonNull ResolvedEntityResult refreshResolvedEntity(
-      @NonNull PolarisCallContext callCtx,
-      int entityVersion,
-      int entityGrantRecordsVersion,
-      @NonNull PolarisEntityType entityType,
-      long entityCatalogId,
-      long entityId);
-
-  /**
    * Check if the specified IcebergTableLikeEntity has any same-namespace siblings which share a
    * location
    *
@@ -451,63 +298,5 @@ public interface DurableManager {
       Optional<Optional<String>> hasOverlappingSiblings(
           @NonNull PolarisCallContext callContext, T entity) {
     return Optional.empty();
-  }
-
-  /**
-   * Indicates whether this metastore manager implementation requires entities to be reloaded via
-   * {@link #loadEntitiesChangeTracking} in order to ensure the most recent versions are obtained.
-   *
-   * <p>Generally this flag is {@code true} when entity caching is used.
-   */
-  default boolean requiresEntityReload() {
-    return true;
-  }
-
-  default Optional<PrincipalEntity> findRootPrincipal(PolarisCallContext polarisCallContext) {
-    return findPrincipalByName(polarisCallContext, PolarisEntityConstants.getRootPrincipalName());
-  }
-
-  default Optional<PrincipalEntity> findPrincipalById(
-      PolarisCallContext polarisCallContext, long principalId) {
-    EntityResult loadResult =
-        loadEntity(
-            polarisCallContext,
-            PolarisEntityConstants.getNullId(),
-            principalId,
-            PolarisEntityType.PRINCIPAL);
-    if (!loadResult.isSuccess()) {
-      return Optional.empty();
-    }
-    return Optional.of(loadResult.getEntity()).map(PrincipalEntity::of);
-  }
-
-  default Optional<PrincipalEntity> findPrincipalByName(
-      PolarisCallContext polarisCallContext, String principalName) {
-    EntityResult entityResult =
-        readEntityByName(
-            polarisCallContext,
-            null,
-            PolarisEntityType.PRINCIPAL,
-            PolarisEntitySubType.NULL_SUBTYPE,
-            principalName);
-    if (!entityResult.isSuccess()) {
-      return Optional.empty();
-    }
-    return Optional.of(entityResult.getEntity()).map(PrincipalEntity::of);
-  }
-
-  default Optional<PrincipalRoleEntity> findPrincipalRoleByName(
-      PolarisCallContext polarisCallContext, String principalRoleName) {
-    EntityResult entityResult =
-        readEntityByName(
-            polarisCallContext,
-            null,
-            PolarisEntityType.PRINCIPAL_ROLE,
-            PolarisEntitySubType.NULL_SUBTYPE,
-            principalRoleName);
-    if (!entityResult.isSuccess()) {
-      return Optional.empty();
-    }
-    return Optional.of(entityResult.getEntity()).map(PrincipalRoleEntity::of);
   }
 }
