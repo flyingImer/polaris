@@ -350,7 +350,8 @@ public class DatasourceOperations {
             try {
               // Committed: the statements are in storage, so any later failure leaves them there.
               // Declined: the body rolled back, so nothing is.
-              finishedEffect = runAndFinish(callback, connection) ? DurableEffect.UNKNOWN : DurableEffect.NONE;
+              finishedEffect =
+                  runAndFinish(callback, connection) ? DurableEffect.UNKNOWN : DurableEffect.NONE;
             } catch (DisruptedTransactionException e) {
               disrupted = e;
             } catch (RuntimeException e) {
@@ -475,8 +476,8 @@ public class DatasourceOperations {
    * <p><b>Adding a SQL state here is not a local change.</b> A retry re-runs the whole operation on
    * a fresh connection, so a state may only be listed once it is established that the failure it
    * names leaves nothing in storage. Any change to this set therefore states, in the same change,
-   * which durable effect the new state carries; otherwise an operation that may already have applied
-   * gets replayed.
+   * which durable effect the new state carries; otherwise an operation that may already have
+   * applied gets replayed.
    *
    * <p>That bar is met today by the one listed state, whose semantics make an aborted transaction
    * apply nothing. It is NOT established for the fallback below, which reads the message when a

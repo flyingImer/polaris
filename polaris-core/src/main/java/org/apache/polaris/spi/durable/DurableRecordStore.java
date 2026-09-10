@@ -122,8 +122,8 @@ public interface DurableRecordStore {
    *
    * @throws IllegalArgumentException if a mutation references an unregistered record kind, or if a
    *     {@link Mutation.Op#DELETE} carries a payload
-   * @throws CommitDisruptedException if infrastructure failed before the commit, during it, or after
-   *     one that already succeeded, so the store could not report an outcome; {@link
+   * @throws CommitDisruptedException if infrastructure failed before the commit, during it, or
+   *     after one that already succeeded, so the store could not report an outcome; {@link
    *     CommitDisruptedException#durableEffect()} states whether the store can prove nothing was
    *     applied or cannot tell
    */
