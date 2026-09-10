@@ -48,6 +48,12 @@ class FaultInjectingDataSource implements DataSource {
     ON_EXECUTE,
     /** A statement fails and the rollback that cleans up after it fails too. */
     ON_EXECUTE_AND_ROLLBACK,
+    /**
+     * Every statement succeeds, the callback declines the transaction, and the rollback that makes
+     * that rejection true fails. Nothing failed on the way in, so this position is reachable only
+     * through a declined body, not through any of the others.
+     */
+    ON_DECLINE_ROLLBACK,
     /** The transaction commit itself fails, after every statement has been issued. */
     ON_COMMIT,
     /** The commit fails and the connection then fails again while being restored. */
@@ -59,6 +65,7 @@ class FaultInjectingDataSource implements DataSource {
   private final DataSource delegate;
   private Fault armed;
   private String sqlState = "08006";
+  private boolean autoCommitRestored;
 
   FaultInjectingDataSource(DataSource delegate) {
     this.delegate = delegate;
@@ -66,6 +73,7 @@ class FaultInjectingDataSource implements DataSource {
 
   void arm(Fault fault) {
     this.armed = fault;
+    this.autoCommitRestored = false;
   }
 
   /** Clears the fault so a test can read storage back through a working connection. */
@@ -76,6 +84,17 @@ class FaultInjectingDataSource implements DataSource {
   void armWithState(Fault fault, String sqlState) {
     this.armed = fault;
     this.sqlState = sqlState;
+    this.autoCommitRestored = false;
+  }
+
+  /**
+   * Whether the connection was asked to go back to auto-commit since the fault was armed. It is the
+   * observable for "the transaction helper left the connection as it found it", which no assertion
+   * on the thrown effect can see: a pool that is handed a connection still in a transaction resets
+   * the mode itself, and that reset commits.
+   */
+  boolean autoCommitRestored() {
+    return autoCommitRestored;
   }
 
   @Override
@@ -112,12 +131,18 @@ class FaultInjectingDataSource implements DataSource {
               && name.equals("prepareStatement")) {
             throw new SQLException("statement refused by the fault injector", sqlState);
           }
-          if (armed == Fault.ON_EXECUTE_AND_ROLLBACK && name.equals("rollback")) {
+          if ((armed == Fault.ON_EXECUTE_AND_ROLLBACK || armed == Fault.ON_DECLINE_ROLLBACK)
+              && name.equals("rollback")) {
             throw new SQLException("rollback refused by the fault injector", sqlState);
           }
           if ((armed == Fault.ON_COMMIT || armed == Fault.ON_COMMIT_AND_RESTORE)
               && name.equals("commit")) {
             throw new SQLException("commit refused by the fault injector", sqlState);
+          }
+          if (name.equals("setAutoCommit") && Boolean.TRUE.equals(args[0])) {
+            // Recorded before the fault below, so the flag says the restore was reached rather than
+            // that it succeeded.
+            autoCommitRestored = true;
           }
           if ((armed == Fault.ON_RESTORE_AFTER_COMMIT || armed == Fault.ON_COMMIT_AND_RESTORE)
               && name.equals("setAutoCommit")

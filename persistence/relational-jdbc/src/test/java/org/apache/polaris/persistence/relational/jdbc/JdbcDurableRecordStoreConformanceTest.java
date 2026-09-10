@@ -20,6 +20,7 @@ package org.apache.polaris.persistence.relational.jdbc;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.IOException;
 import java.io.InputStream;
@@ -107,6 +108,20 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .subTypeCode(PolarisEntitySubType.NULL_SUBTYPE.getCode())
         .parentId(1L)
         .name("disruption")
+        .entityVersion(1)
+        .propertiesAsMap(Map.of())
+        .internalPropertiesAsMap(Map.of())
+        .build();
+  }
+
+  private static PolarisBaseEntity missingEntity() {
+    return new PolarisBaseEntity.Builder()
+        .catalogId(1L)
+        .id(9999L)
+        .typeCode(PolarisEntityType.NAMESPACE.getCode())
+        .subTypeCode(PolarisEntitySubType.NULL_SUBTYPE.getCode())
+        .parentId(1L)
+        .name("absent")
         .entityVersion(1)
         .propertiesAsMap(Map.of())
         .internalPropertiesAsMap(Map.of())
@@ -217,10 +232,50 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
 
     // Two failures on one dead connection: the commit, then the cleanup after it. The verdict the
     // commit failure reached must survive the second failure rather than be recomputed from it.
-    assertThatThrownBy(() -> store.commit(oneCreate()))
+    Throwable thrown = catchThrowable(() -> store.commit(oneCreate()));
+
+    assertThat(thrown)
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+    // The verdict and the failure that landed after it travel together: one step to the cause, not
+    // one step per wrap the failure happened to pass through on its way out.
+    Throwable[] alsoFailed = thrown.getCause().getSuppressed();
+    assertThat(alsoFailed).hasSize(1);
+    assertThat(alsoFailed[0]).hasMessageContaining("restore refused by the fault injector");
+  }
+
+  @Test
+  void aDeclinedRequestWhoseRollbackFailsLeavesTheOutcomeUnknown() {
+    DurableRecordStore store = storeOverInjector();
+
+    // Two mutations, the second one declined: an UPDATE of a row that is not there fails its
+    // implied exists condition. The first one's INSERT is issued before that, so the rollback the
+    // decline asks for has real statements to undo, and here that rollback fails.
+    Mutation created =
+        Mutation.of(
+            PolarisRecordKinds.ENTITY, Mutation.Op.CREATE, DISRUPTION_REF, disruptionEntity());
+    RecordRef missingRef = RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(9999L));
+    Mutation declined =
+        Mutation.of(PolarisRecordKinds.ENTITY, Mutation.Op.UPDATE, missingRef, missingEntity());
+    injector.arm(FaultInjectingDataSource.Fault.ON_DECLINE_ROLLBACK);
+
+    // A decline whose rollback succeeded is a rejection, reported as a result. This one could not
+    // be undone, so it stops being a rejection and becomes a disruption, and nothing here can say
+    // whether the issued statements survived.
+    assertThatThrownBy(() -> store.commit(List.of(created, declined)))
+        .isInstanceOf(CommitDisruptedException.class)
+        // Classified by the transaction helper, not read pessimistically by the store's fallback:
+        // an unclassified SQLException would reach the same label without the guard being there.
+        .hasCauseInstanceOf(DisruptedTransactionException.class)
+        .extracting(e -> ((CommitDisruptedException) e).durableEffect())
+        .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+
+    // And the connection went back to the pool in the mode it was borrowed in, rather than with
+    // auto-commit still off for the pool's own reset to deal with.
+    assertThat(injector.autoCommitRestored()).isTrue();
+    // No read-back, for the reason the commit-failure case above gives: UNKNOWN claims nothing
+    // about storage, and what a failed rollback leaves is the driver's and the pool's business.
   }
 
   @Test
