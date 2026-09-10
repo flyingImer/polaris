@@ -112,10 +112,19 @@ public interface DurableRecordStore {
    * (decided 2026-08-13): they return {@link CommitResult.Failure#TOO_MANY_ITEMS} and {@link
    * CommitResult.Failure#DOMAIN_MISMATCH}, because a correct caller can run into the cap in
    * ordinary operation and must branch on the distinguishable reason — split the work, or regroup —
-   * rather than catch. Exceptions are reserved for malformed requests no retry or reshaping fixes.
+   * rather than catch.
+   *
+   * <p><b>Exceptions are reserved for two cases: a malformed request no retry or reshaping fixes,
+   * and infrastructure that stopped the store from reporting an outcome at all.</b> A returned
+   * {@link CommitResult} therefore always states a known outcome. Only the second exception case
+   * leaves the durable effect in question, and it says what the store knows about that effect, so a
+   * caller never has to guess from the absence of a result.
    *
    * @throws IllegalArgumentException if a mutation references an unregistered record kind, or if a
    *     {@link Mutation.Op#DELETE} carries a payload
+   * @throws CommitDisruptedException if infrastructure failed before or during the commit, so the
+   *     store could not report an outcome; {@link CommitDisruptedException#durableEffect()} states
+   *     whether the store can prove nothing was applied or cannot tell
    */
   @NonNull CommitResult commit(@NonNull List<Mutation> mutations);
 
