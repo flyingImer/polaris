@@ -44,6 +44,7 @@ import java.util.stream.Stream;
 import javax.sql.DataSource;
 import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
 import org.apache.polaris.persistence.relational.jdbc.QueryGenerator.PreparedQuery;
+import org.apache.polaris.spi.durable.CommitDisruptedException.DurableEffect;
 import org.apache.polaris.persistence.relational.jdbc.models.Converter;
 import org.jspecify.annotations.NonNull;
 import org.slf4j.Logger;
@@ -323,26 +324,80 @@ public class DatasourceOperations {
   public void runWithinTransaction(TransactionCallback callback) throws SQLException {
     withRetries(
         () -> {
-          try (Connection connection = borrowConnection()) {
-            boolean autoCommit = connection.getAutoCommit();
-            boolean success = false;
-            connection.setAutoCommit(false);
+          Connection borrowed;
+          try {
+            borrowed = borrowConnection();
+          } catch (SQLException e) {
+            // Nothing was issued, so nothing can be in storage.
+            throw new DisruptedTransactionException(
+                DurableEffect.NONE, "Failed to acquire a connection", e);
+          }
+          try (Connection connection = borrowed) {
+            boolean autoCommit;
             try {
-              try {
-                success = callback.execute(connection);
-              } finally {
-                if (success) {
-                  connection.commit();
-                } else {
-                  connection.rollback();
-                }
-              }
+              autoCommit = connection.getAutoCommit();
+              connection.setAutoCommit(false);
+            } catch (SQLException e) {
+              throw new DisruptedTransactionException(
+                  DurableEffect.NONE, "Failed to start a transaction", e);
+            }
+            boolean committed = false;
+            try {
+              runAndFinish(callback, connection);
+              committed = true;
             } finally {
-              connection.setAutoCommit(autoCommit);
+              try {
+                connection.setAutoCommit(autoCommit);
+              } catch (SQLException e) {
+                // After a successful commit the statements ARE in storage, so a failure while
+                // restoring the connection may not be reported as if nothing had happened.
+                throw new DisruptedTransactionException(
+                    committed ? DurableEffect.UNKNOWN : DurableEffect.NONE,
+                    "Failed to restore the connection's auto-commit state",
+                    e);
+              }
             }
           }
           return null;
         });
+  }
+
+  /**
+   * Runs the callback and finishes its transaction, classifying every failure by what it leaves in
+   * storage. A rollback that succeeds proves the statements did not survive; a commit that fails,
+   * and a rollback that fails on top of a failed callback, prove nothing either way.
+   */
+  private void runAndFinish(TransactionCallback callback, Connection connection)
+      throws SQLException {
+    boolean success;
+    try {
+      success = callback.execute(connection);
+    } catch (SQLException e) {
+      try {
+        connection.rollback();
+      } catch (SQLException rollbackFailure) {
+        DisruptedTransactionException disrupted =
+            new DisruptedTransactionException(
+                DurableEffect.UNKNOWN, "Transaction failed and its rollback failed", e);
+        disrupted.addSuppressed(rollbackFailure);
+        throw disrupted;
+      }
+      throw new DisruptedTransactionException(
+          DurableEffect.NONE, "Transaction failed and was rolled back", e);
+    }
+    if (!success) {
+      // The callback declined: a rejection, not a disruption. Its own reason is the caller's.
+      connection.rollback();
+      return;
+    }
+    try {
+      connection.commit();
+    } catch (SQLException e) {
+      // The statements all reached the server before this call, and nothing here can ask the
+      // server whether it applied them.
+      throw new DisruptedTransactionException(
+          DurableEffect.UNKNOWN, "Failed to commit the transaction", e);
+    }
   }
 
   public Integer execute(Connection connection, QueryGenerator.PreparedQuery preparedQuery)
@@ -357,6 +412,15 @@ public class DatasourceOperations {
     }
   }
 
+  /**
+   * Whether the operation may be run again from the top.
+   *
+   * <p><b>Adding a SQL state here is not a local change.</b> A retry re-runs the whole operation on
+   * a fresh connection, so a state may only be listed once it is established that the failure it
+   * names leaves nothing in storage. Any change to this set therefore states, in the same change,
+   * which durable effect the new state carries; otherwise a transaction that may already have
+   * applied gets replayed.
+   */
   private boolean isRetryable(SQLException e) {
     String sqlState = e.getSQLState();
 
@@ -414,6 +478,11 @@ public class DatasourceOperations {
                   sqlException.getSQLState(),
                   attempts,
                   maxDuration);
+          // Giving up must not erase what the transaction helper established about durable
+          // effect; a plain re-wrap would drop it and leave the store with nothing to report.
+          if (sqlException instanceof DisruptedTransactionException disrupted) {
+            throw new DisruptedTransactionException(disrupted, exceptionMessage);
+          }
           throw new SQLException(
               exceptionMessage, sqlException.getSQLState(), sqlException.getErrorCode(), e);
         }
