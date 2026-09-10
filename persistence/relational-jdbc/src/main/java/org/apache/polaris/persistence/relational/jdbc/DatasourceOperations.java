@@ -346,6 +346,7 @@ public class DatasourceOperations {
             // failure adds information to it rather than replacing it.
             SQLException failure = null;
             RuntimeException escaping = null;
+            Error fatal = null;
             DurableEffect finishedEffect = DurableEffect.NONE;
             try {
               // Committed: the statements are in storage, so any later failure leaves them there.
@@ -360,6 +361,10 @@ public class DatasourceOperations {
               failure = e;
             } catch (RuntimeException e) {
               escaping = e;
+            } catch (Error e) {
+              // An Error is not this class's to interpret, but the connection it was thrown over is
+              // still this class's to hand back in the state it was borrowed in.
+              fatal = e;
             }
             try {
               connection.setAutoCommit(autoCommit);
@@ -374,6 +379,10 @@ public class DatasourceOperations {
                 escaping.addSuppressed(e);
                 throw escaping;
               }
+              if (fatal != null) {
+                fatal.addSuppressed(e);
+                throw fatal;
+              }
               throw new DisruptedTransactionException(
                   finishedEffect, "Failed to restore the connection's auto-commit state", e);
             }
@@ -382,6 +391,9 @@ public class DatasourceOperations {
             }
             if (escaping != null) {
               throw escaping;
+            }
+            if (fatal != null) {
+              throw fatal;
             }
           }
           return null;
@@ -400,10 +412,9 @@ public class DatasourceOperations {
    * reset's, so the store reports UNKNOWN under its pessimism clause rather than claiming NONE.
    *
    * <p>Every exit issues a commit or a rollback first, because the connection returns to a pool
-   * whose own mode restore would otherwise commit whatever was still in flight. Two exits have
-   * nothing to issue: a rollback that itself failed, which is the UNKNOWN above, and an {@link
-   * Error} from the callback, which passes both catches below and leaves the transaction for that
-   * mode restore to decide.
+   * whose own mode restore would otherwise commit whatever was still in flight. That holds for what
+   * the callback throws as well as for what it returns, an {@link Error} included. One exit has
+   * nothing left to issue: a rollback that itself failed, which is the UNKNOWN above.
    *
    * @return true when the transaction was committed, false when the callback declined it and it was
    *     rolled back
@@ -426,6 +437,17 @@ public class DatasourceOperations {
                 DurableEffect.UNKNOWN, "Transaction failed and its rollback failed", e);
         disrupted.addSuppressed(rollbackFailure);
         throw disrupted;
+      }
+      throw e;
+    } catch (Error e) {
+      // The rollback is owed whatever asked for it, and an Error asks for it too: the statements
+      // the callback issued sit in an open transaction, and leaving them there hands them to the
+      // pool's mode reset. The Error keeps its own type, because nothing above reads a durable
+      // effect off one, and a rollback that fails travels with it rather than replacing it.
+      try {
+        connection.rollback();
+      } catch (SQLException rollbackFailure) {
+        e.addSuppressed(rollbackFailure);
       }
       throw e;
     }

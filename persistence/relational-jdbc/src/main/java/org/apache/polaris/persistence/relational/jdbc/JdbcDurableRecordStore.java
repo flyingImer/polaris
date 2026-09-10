@@ -394,8 +394,18 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             return true;
           });
     } catch (DisruptedTransactionException e) {
-      throw new CommitDisruptedException(
-          e.durableEffect(), "Failed to commit " + mutations.size() + " mutations", e);
+      CommitDisruptedException disrupted =
+          new CommitDisruptedException(
+              e.durableEffect(), "Failed to commit " + mutations.size() + " mutations", e);
+      // Whatever also failed on the way out rides the exception a caller catches. That is where
+      // this
+      // type's own rule about a verdict and a later failure says to look for it, and a caller
+      // should
+      // not have to know how many times the failure was wrapped on its way here.
+      for (Throwable alsoFailed : e.getSuppressed()) {
+        disrupted.addSuppressed(alsoFailed);
+      }
+      throw disrupted;
     } catch (SQLException e) {
       // Everything from the transaction helper arrives classified. Anything else reaching here is
       // unclassified, and the only safe reading of an unclassified failure is the pessimistic one.
