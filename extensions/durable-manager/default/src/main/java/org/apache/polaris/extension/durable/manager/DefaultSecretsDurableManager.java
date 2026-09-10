@@ -205,13 +205,15 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
    * exactly this (principal B tries to claim principal A's already-in-use client id). C7: resolve
    * that read before building anything to commit, matching the file's style elsewhere.
    *
-   * <p>That read rides into the commit as {@code NOT_EXISTS} on the same identity. Both shipped
-   * stores reject a duplicate CREATE on their own — the measurement is in {@code
-   * DefaultGrantDurableManager#persistNewGrantRecord}'s javadoc — so declaring the condition
-   * changes nothing observable against them today; it is what keeps the lost-race branch below
-   * correct against a store that applies an unconditioned CREATE as the contract states, where the
-   * loser's write would otherwise land and replace the winner's row with one carrying a different
-   * principal id.
+   * <p>That read rides into the commit as {@code NOT_EXISTS} on the same identity: the CREATE is
+   * refused when a row for {@code resolvedClientId} exists at commit time, so a caller that loses
+   * the race between the pre-read and the commit raises the same {@link AlreadyExistsException} the
+   * pre-read does. The refusal is the declared condition's rather than a store's. {@code
+   * DefaultGrantDurableManager#persistNewGrantRecord}'s javadoc reports a commit-twice measurement
+   * against TreeMap, whose CREATE rejects a duplicate whatever the mutation declares, and says the
+   * same of the JDBC store without a measurement behind it; what a store that does neither would do
+   * with an unconditioned CREATE on an existing identity is not settled here, and this method's
+   * outcome no longer depends on it.
    */
   @Override
   public @NonNull PrincipalSecretsResult resetPrincipalSecrets(
