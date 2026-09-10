@@ -344,7 +344,7 @@ public class DatasourceOperations {
             // What the transaction body established, kept so the restore below can never recompute
             // it. An effect is a verdict: once reached it is reported as reached, and a later
             // failure adds information to it rather than replacing it.
-            DisruptedTransactionException disrupted = null;
+            SQLException failure = null;
             RuntimeException escaping = null;
             DurableEffect finishedEffect = DurableEffect.NONE;
             try {
@@ -352,8 +352,12 @@ public class DatasourceOperations {
               // Declined: the body rolled back, so nothing is.
               finishedEffect =
                   runAndFinish(callback, connection) ? DurableEffect.UNKNOWN : DurableEffect.NONE;
-            } catch (DisruptedTransactionException e) {
-              disrupted = e;
+            } catch (SQLException e) {
+              // Every SQLException, not only the classified ones: the restore below has to run on
+              // every exit of the body, because a connection handed back with auto-commit off is a
+              // connection whose next reset decides an open transaction. The body classifies all of
+              // its own failures today, which makes this the guard against it ever stopping.
+              failure = e;
             } catch (RuntimeException e) {
               escaping = e;
             }
@@ -362,9 +366,9 @@ public class DatasourceOperations {
             } catch (SQLException e) {
               // Restoring the connection is the last step, and it cannot revise what the body
               // already established. It only ever attaches itself to that verdict.
-              if (disrupted != null) {
-                disrupted.addSuppressed(e);
-                throw disrupted;
+              if (failure != null) {
+                failure.addSuppressed(e);
+                throw failure;
               }
               if (escaping != null) {
                 escaping.addSuppressed(e);
@@ -373,8 +377,8 @@ public class DatasourceOperations {
               throw new DisruptedTransactionException(
                   finishedEffect, "Failed to restore the connection's auto-commit state", e);
             }
-            if (disrupted != null) {
-              throw disrupted;
+            if (failure != null) {
+              throw failure;
             }
             if (escaping != null) {
               throw escaping;
@@ -389,10 +393,17 @@ public class DatasourceOperations {
    * storage, and reporting whether the transaction was committed.
    *
    * <p>A rollback that succeeds proves the statements did not survive, whatever kind of failure
-   * asked for it. A commit that fails, and a rollback that fails on top of a failed callback, prove
-   * nothing either way. The transaction is never left open: every exit either commits or rolls
-   * back, because the connection returns to a pool whose mode restore would otherwise commit
-   * whatever was still in flight.
+   * asked for it. A commit that fails proves nothing either way, because every statement reached
+   * the server before it. A rollback that fails proves nothing either way for a different reason:
+   * the commit was never issued, so nothing asked the server to keep the statements, but the fate
+   * of the transaction the failed rollback leaves open is now the server's and the next mode
+   * reset's, so the store reports UNKNOWN under its pessimism clause rather than claiming NONE.
+   *
+   * <p>Every exit issues a commit or a rollback first, because the connection returns to a pool
+   * whose own mode restore would otherwise commit whatever was still in flight. Two exits have
+   * nothing to issue: a rollback that itself failed, which is the UNKNOWN above, and an {@link
+   * Error} from the callback, which passes both catches below and leaves the transaction for that
+   * mode restore to decide.
    *
    * @return true when the transaction was committed, false when the callback declined it and it was
    *     rolled back
@@ -419,8 +430,16 @@ public class DatasourceOperations {
       throw e;
     }
     if (!success) {
-      // The callback declined: a rejection, not a disruption. Its own reason is the caller's.
-      connection.rollback();
+      // The callback declined: a rejection, not a disruption. Its own reason is the caller's, so
+      // long as the rollback that makes the rejection true actually runs. When it does not, the
+      // statements the declined body issued are still in an open transaction, and a rejection is
+      // no longer what happened.
+      try {
+        connection.rollback();
+      } catch (SQLException rollbackFailure) {
+        throw new DisruptedTransactionException(
+            DurableEffect.UNKNOWN, "Failed to roll back a declined transaction", rollbackFailure);
+      }
       return false;
     }
     try {

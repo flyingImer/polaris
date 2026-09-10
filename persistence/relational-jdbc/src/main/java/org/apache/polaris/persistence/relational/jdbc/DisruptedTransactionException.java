@@ -66,6 +66,12 @@ class DisruptedTransactionException extends SQLException {
   DisruptedTransactionException(DisruptedTransactionException original, String message) {
     super(message, original.getSQLState(), original.getErrorCode(), original);
     this.durableEffect = original.durableEffect;
+    // The suppressed failures travel with the effect. A caller that catches this instance is told
+    // the rollback or the restore also failed by looking at what it caught, which is where the
+    // store's contract says to look; without this it would have to walk down to the cause first.
+    for (Throwable suppressed : original.getSuppressed()) {
+      addSuppressed(suppressed);
+    }
   }
 
   DurableEffect durableEffect() {
