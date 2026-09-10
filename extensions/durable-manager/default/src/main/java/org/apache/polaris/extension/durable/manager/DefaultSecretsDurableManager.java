@@ -93,6 +93,21 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
         BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
   }
 
+  /**
+   * Whether a non-applied commit failed because a declared condition did not hold, which is how
+   * both mutation paths below tell "another caller got there first" from an infrastructure failure.
+   * A {@code ROLLBACK_INCOMPLETE} outcome is never a lost race: compensation itself did not finish,
+   * which {@link #mapFailedSecretsMutation} reports as an admin-reclamation case.
+   */
+  private static boolean lostRace(@NonNull OrchestrationResult result) {
+    return result.outcome() != OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE
+        && result
+            .groupFailure()
+            .flatMap(CommitResult::failure)
+            .filter(f -> f == CommitResult.Failure.PRECONDITION_FAILED)
+            .isPresent();
+  }
+
   @Override
   public @NonNull PrincipalSecretsResult loadPrincipalSecrets(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId) {
@@ -189,6 +204,14 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
    * of which principal it belongs to — {@code testResetCredentialsClientIdCollision} exercises
    * exactly this (principal B tries to claim principal A's already-in-use client id). C7: resolve
    * that read before building anything to commit, matching the file's style elsewhere.
+   *
+   * <p>That read rides into the commit as {@code NOT_EXISTS} on the same identity. Both shipped
+   * stores reject a duplicate CREATE on their own — the measurement is in {@code
+   * DefaultGrantDurableManager#persistNewGrantRecord}'s javadoc — so declaring the condition
+   * changes nothing observable against them today; it is what keeps the lost-race branch below
+   * correct against a store that applies an unconditioned CREATE as the contract states, where the
+   * loser's write would otherwise land and replace the winner's row with one carrying a different
+   * principal id.
    */
   @Override
   public @NonNull PrincipalSecretsResult resetPrincipalSecrets(
@@ -215,18 +238,11 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
                     Mutation.Op.CREATE,
                     ref,
                     secrets,
-                    List.of(Precondition.none()))));
+                    List.of(Precondition.notExists(ref)))));
     if (result.isApplied()) {
       return new PrincipalSecretsResult(secrets);
     }
-    boolean lostRace =
-        result.outcome() != OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE
-            && result
-                .groupFailure()
-                .flatMap(CommitResult::failure)
-                .filter(f -> f == CommitResult.Failure.PRECONDITION_FAILED)
-                .isPresent();
-    if (lostRace) {
+    if (lostRace(result)) {
       // Lost the race between the pre-check above and this commit: someone else claimed
       // resolvedClientId in between. Same exception the pre-check reports.
       throw new AlreadyExistsException("Client ID already in use: " + resolvedClientId);
@@ -236,10 +252,21 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
 
   /**
    * Ported from {@code TreeMapDurablePrimitivesImpl#deletePrincipalSecretsInCurrentTxn}'s two
-   * checks (secrets must exist, principal id must match), then a plain DELETE — same risk profile
-   * as {@code DefaultGrantDurableManager#revokeGrantRecord}'s DELETE: existence was just confirmed
-   * by this method's own read, and no precondition closes the (equally present in the old model)
-   * race between that read and the write.
+   * checks (secrets must exist, principal id must match), then a DELETE conditioned on the same
+   * existence those checks just read. Unconditioned — as this method and the old model both were —
+   * a DELETE of an already-deleted record is a store-level no-op, so two concurrent callers both
+   * returned normally and no serial order explained that pair. With the condition the loser is
+   * refused and raises the read-side check's own {@code cannot_find_secrets} signature, which is
+   * what a serialized second call reports. Same shape as {@code
+   * DefaultPolicyDurableManager#detachPolicyFromEntity}'s {@code EXISTS} on the mapping's own
+   * identity; {@code DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used
+   * to be paired with, still carries the unconditioned form.
+   *
+   * <p>The signature is the read-side check's, the exception type is not: the check above routes
+   * through {@code checkNotNull} and the branch below through {@code fail}, so a lost race raises
+   * {@code IllegalStateException} where an absent row on entry raises {@code NullPointerException}.
+   * Nothing in this surface's contract distinguishes them — the method is {@code void} and every
+   * failure here is unchecked — but the divergence is stated rather than left to be discovered.
    */
   @Override
   public void deletePrincipalSecrets(
@@ -258,7 +285,18 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
     OrchestrationResult result =
         orchestrator.commit(
             List.of(
-                Mutation.of(PolarisRecordKinds.PRINCIPAL_SECRETS, Mutation.Op.DELETE, ref, null)));
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.DELETE,
+                    ref,
+                    null,
+                    List.of(Precondition.exists(ref)))));
+    if (lostRace(result)) {
+      // Lost the race between the reads above and this commit: the row is already gone. Same
+      // signature the read-side check above reports for an absent row.
+      throw diagnostics.fail(
+          "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+    }
     diagnostics.check(
         result.isApplied(),
         "failed_to_delete_principal_secrets",
