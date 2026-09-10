@@ -24,6 +24,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 import static org.mockito.ArgumentMatchers.any;
 import static org.mockito.Mockito.atLeast;
 import static org.mockito.Mockito.atMost;
+import static org.mockito.Mockito.inOrder;
 import static org.mockito.Mockito.reset;
 import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
@@ -228,6 +229,34 @@ public class DatasourceOperationsTest {
         IllegalArgumentException.class, () -> datasourceOperations.runWithinTransaction(callback));
 
     verify(mockConnection).rollback();
+  }
+
+  @Test
+  void testRunWithinTransaction_errorAlsoTriggersRollbackBeforeTheRestore() throws Exception {
+    reset(mockConnection);
+    when(mockDataSource.getConnection()).thenReturn(mockConnection);
+    when(mockConnection.getAutoCommit()).thenReturn(true);
+    AssertionError thrownByTheCallback = new AssertionError("the JVM's own kind of failure");
+    DatasourceOperations.TransactionCallback callback =
+        connection -> {
+          connection.prepareStatement("insert into whatever values (1)");
+          throw thrownByTheCallback;
+        };
+
+    // An Error is not a transaction outcome and this class does not reinterpret it as one, so the
+    // caller gets the same object back.
+    AssertionError caught =
+        assertThrows(
+            AssertionError.class, () -> datasourceOperations.runWithinTransaction(callback));
+    assertEquals(thrownByTheCallback, caught);
+
+    // The order is the whole point. Restoring auto-commit over an open transaction commits it, so a
+    // rollback that ran afterwards would be undoing statements the restore had already made
+    // durable.
+    var order = inOrder(mockConnection);
+    order.verify(mockConnection).setAutoCommit(false);
+    order.verify(mockConnection).rollback();
+    order.verify(mockConnection).setAutoCommit(true);
   }
 
   @Test

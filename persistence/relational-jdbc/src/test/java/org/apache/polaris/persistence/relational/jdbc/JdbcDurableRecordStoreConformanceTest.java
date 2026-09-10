@@ -238,9 +238,9 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
-    // The verdict and the failure that landed after it travel together: one step to the cause, not
-    // one step per wrap the failure happened to pass through on its way out.
-    Throwable[] alsoFailed = thrown.getCause().getSuppressed();
+    // The verdict and the failure that landed after it travel together, on the object the caller
+    // caught, not some number of wraps below it.
+    Throwable[] alsoFailed = thrown.getSuppressed();
     assertThat(alsoFailed).hasSize(1);
     assertThat(alsoFailed[0]).hasMessageContaining("restore refused by the fault injector");
   }
