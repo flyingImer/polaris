@@ -43,6 +43,8 @@ import org.apache.polaris.persistence.relational.jdbc.models.ModelEvent;
 import org.apache.polaris.persistence.relational.jdbc.models.ModelGrantRecord;
 import org.apache.polaris.persistence.relational.jdbc.models.ModelPolicyMappingRecord;
 import org.apache.polaris.persistence.relational.jdbc.models.ModelPrincipalAuthenticationData;
+import org.apache.polaris.spi.durable.CommitDisruptedException;
+import org.apache.polaris.spi.durable.CommitDisruptedException.DurableEffect;
 import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
@@ -391,8 +393,14 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
             }
             return true;
           });
+    } catch (DisruptedTransactionException e) {
+      throw new CommitDisruptedException(
+          e.durableEffect(), "Failed to commit " + mutations.size() + " mutations", e);
     } catch (SQLException e) {
-      throw new RuntimeException("Failed to commit " + mutations.size() + " mutations", e);
+      // Everything from the transaction helper arrives classified. Anything else reaching here is
+      // unclassified, and the only safe reading of an unclassified failure is the pessimistic one.
+      throw new CommitDisruptedException(
+          DurableEffect.UNKNOWN, "Failed to commit " + mutations.size() + " mutations", e);
     }
     return failed.isEmpty() ? CommitResult.applied() : CommitResult.preconditionFailed(failed);
   }
