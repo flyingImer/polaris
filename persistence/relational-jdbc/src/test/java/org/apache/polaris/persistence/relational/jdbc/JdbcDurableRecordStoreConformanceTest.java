@@ -18,6 +18,7 @@
  */
 package org.apache.polaris.persistence.relational.jdbc;
 
+import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
 import java.io.IOException;
@@ -30,10 +31,12 @@ import org.apache.polaris.core.durable.conformance.BaseDurableRecordStoreConform
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.spi.durable.CommitDisruptedException;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.Mutation;
+import org.apache.polaris.spi.durable.Precondition;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.jupiter.api.Test;
@@ -93,25 +96,27 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
     return new JdbcDurableRecordStore(operationsOver(injector), REALM, SCHEMA_VERSION);
   }
 
+  private static final RecordRef DISRUPTION_REF =
+      RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(4242L));
+
+  private static PolarisBaseEntity disruptionEntity() {
+    return new PolarisBaseEntity.Builder()
+        .catalogId(1L)
+        .id(4242L)
+        .typeCode(PolarisEntityType.NAMESPACE.getCode())
+        .subTypeCode(PolarisEntitySubType.NULL_SUBTYPE.getCode())
+        .parentId(1L)
+        .name("disruption")
+        .entityVersion(1)
+        .propertiesAsMap(Map.of())
+        .internalPropertiesAsMap(Map.of())
+        .build();
+  }
+
   private static List<Mutation> oneCreate() {
-    PolarisBaseEntity entity =
-        new PolarisBaseEntity.Builder()
-            .catalogId(1L)
-            .id(4242L)
-            .typeCode(PolarisEntityType.NAMESPACE.getCode())
-            .subTypeCode(PolarisEntitySubType.NULL_SUBTYPE.getCode())
-            .parentId(1L)
-            .name("disruption")
-            .entityVersion(1)
-            .propertiesAsMap(Map.of())
-            .internalPropertiesAsMap(Map.of())
-            .build();
     return List.of(
         Mutation.of(
-            PolarisRecordKinds.ENTITY,
-            Mutation.Op.CREATE,
-            RecordRef.byIdentity(PolarisRecordKinds.ENTITY, List.of(entity.getId())),
-            entity));
+            PolarisRecordKinds.ENTITY, Mutation.Op.CREATE, DISRUPTION_REF, disruptionEntity()));
   }
 
   @Test
@@ -123,6 +128,7 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.NONE);
+    assertRowAbsent(store);
   }
 
   @Test
@@ -134,6 +140,8 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.NONE);
+    // NONE is a claim about storage, so the claim is checked against storage.
+    assertRowAbsent(store);
   }
 
   @Test
@@ -145,6 +153,12 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+    // No read-back assertion here on purpose. UNKNOWN claims nothing about storage, and this is
+    // the one position where that is the whole point: the statements reached the server and the
+    // failure says nothing about what it did with them. Pinning either state would pin this
+    // driver's cleanup, not the contract. (The rollback the helper attempts here is why a read
+    // finds nothing on H2; a server that had already committed would keep the row, and both are
+    // conformant.)
   }
 
   @Test
@@ -157,6 +171,86 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .isInstanceOf(CommitDisruptedException.class)
         .extracting(e -> ((CommitDisruptedException) e).durableEffect())
         .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+    // And they are: the label is checked against the row it is a claim about.
+    assertRowPresent(store);
+  }
+
+  /** Reads storage back through a working connection, so the fault under test is cleared first. */
+  private void assertRowPresent(DurableRecordStore store) {
+    injector.disarm();
+    assertThat(store.get(DISRUPTION_REF, PolarisBaseEntity.class)).isPresent();
+  }
+
+  private void assertRowAbsent(DurableRecordStore store) {
+    injector.disarm();
+    assertThat(store.get(DISRUPTION_REF, PolarisBaseEntity.class)).isEmpty();
+  }
+
+  @Test
+  void aFailureStartingTheTransactionProvesNothingWasApplied() {
+    DurableRecordStore store = storeOverInjector();
+    injector.arm(FaultInjectingDataSource.Fault.ON_TRANSACTION_START);
+
+    assertThatThrownBy(() -> store.commit(oneCreate()))
+        .isInstanceOf(CommitDisruptedException.class)
+        .extracting(e -> ((CommitDisruptedException) e).durableEffect())
+        .isEqualTo(CommitDisruptedException.DurableEffect.NONE);
+  }
+
+  @Test
+  void aRollbackThatAlsoFailsLeavesTheOutcomeUnknown() {
+    DurableRecordStore store = storeOverInjector();
+    injector.arm(FaultInjectingDataSource.Fault.ON_EXECUTE_AND_ROLLBACK);
+
+    // Nothing here can establish what the failed cleanup left, so the pessimistic label is the
+    // only honest one.
+    assertThatThrownBy(() -> store.commit(oneCreate()))
+        .isInstanceOf(CommitDisruptedException.class)
+        .extracting(e -> ((CommitDisruptedException) e).durableEffect())
+        .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+  }
+
+  @Test
+  void aSecondFailureWhileLeavingDoesNotDowngradeAnUnknownCommit() {
+    DurableRecordStore store = storeOverInjector();
+    injector.arm(FaultInjectingDataSource.Fault.ON_COMMIT_AND_RESTORE);
+
+    // Two failures on one dead connection: the commit, then the cleanup after it. The verdict the
+    // commit failure reached must survive the second failure rather than be recomputed from it.
+    assertThatThrownBy(() -> store.commit(oneCreate()))
+        .isInstanceOf(CommitDisruptedException.class)
+        .extracting(e -> ((CommitDisruptedException) e).durableEffect())
+        .isEqualTo(CommitDisruptedException.DurableEffect.UNKNOWN);
+  }
+
+  @Test
+  void aRejectedRequestKeepsItsTypeAndLeavesNothingBehind() {
+    DurableRecordStore store = storeOverInjector();
+
+    // Two mutations, the second malformed: a version condition against a kind that carries no
+    // version. The first one's INSERT is issued before the second is validated, so the transaction
+    // is open with a row in it when the request is rejected.
+    Mutation good =
+        Mutation.of(
+            PolarisRecordKinds.ENTITY, Mutation.Op.CREATE, DISRUPTION_REF, disruptionEntity());
+    RecordRef grantRef =
+        RecordRef.byIdentity(PolarisRecordKinds.GRANT_RECORD, List.of(1L, 2L, 3L, 4L, 5));
+    Mutation malformed =
+        Mutation.of(
+            PolarisRecordKinds.GRANT_RECORD,
+            Mutation.Op.UPDATE,
+            grantRef,
+            new PolarisGrantRecord(1L, 2L, 3L, 4L, 5),
+            List.of(
+                Precondition.versionEquals(
+                    grantRef, Precondition.VersionAttribute.RECORD_VERSION, 1L)));
+
+    assertThatThrownBy(() -> store.commit(List.of(good, malformed)))
+        .isInstanceOf(IllegalArgumentException.class);
+
+    // The rejection keeps its own type, and the row the open transaction held is gone: a rejected
+    // request is all-or-nothing like any other commit.
+    assertRowAbsent(store);
   }
 
   private static final class TestJdbcConfiguration implements RelationalJdbcConfiguration {

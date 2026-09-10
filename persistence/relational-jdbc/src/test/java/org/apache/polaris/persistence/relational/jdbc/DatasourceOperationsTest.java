@@ -215,6 +215,22 @@ public class DatasourceOperationsTest {
   }
 
   @Test
+  void testRunWithinTransaction_runtimeExceptionAlsoTriggersRollback() throws Exception {
+    when(mockDataSource.getConnection()).thenReturn(mockConnection);
+    DatasourceOperations.TransactionCallback callback =
+        connection -> {
+          throw new IllegalArgumentException("rejected while building a statement");
+        };
+
+    // A rejected request is not a transaction failure, so it keeps its own type. It still must not
+    // leave the transaction open: the auto-commit restore that follows would commit it.
+    assertThrows(
+        IllegalArgumentException.class, () -> datasourceOperations.runWithinTransaction(callback));
+
+    verify(mockConnection).rollback();
+  }
+
+  @Test
   void testSuccessfulExecutionOnFirstAttempt() throws SQLException {
     when(relationalJdbcConfiguration.maxRetries()).thenReturn(Optional.of(3));
     when(relationalJdbcConfiguration.maxDurationInMs()).thenReturn(Optional.of(1000L));

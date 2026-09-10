@@ -42,10 +42,16 @@ class FaultInjectingDataSource implements DataSource {
   enum Fault {
     /** Nothing is issued: the connection is never handed out. */
     ON_CONNECT,
+    /** Opening the transaction fails, before any statement is issued. */
+    ON_TRANSACTION_START,
     /** A statement fails once the transaction is open. */
     ON_EXECUTE,
+    /** A statement fails and the rollback that cleans up after it fails too. */
+    ON_EXECUTE_AND_ROLLBACK,
     /** The transaction commit itself fails, after every statement has been issued. */
     ON_COMMIT,
+    /** The commit fails and the connection then fails again while being restored. */
+    ON_COMMIT_AND_RESTORE,
     /** The commit succeeds and the connection then fails while being restored. */
     ON_RESTORE_AFTER_COMMIT,
   }
@@ -60,6 +66,11 @@ class FaultInjectingDataSource implements DataSource {
 
   void arm(Fault fault) {
     this.armed = fault;
+  }
+
+  /** Clears the fault so a test can read storage back through a working connection. */
+  void disarm() {
+    this.armed = null;
   }
 
   void armWithState(Fault fault, String sqlState) {
@@ -92,17 +103,27 @@ class FaultInjectingDataSource implements DataSource {
     InvocationHandler handler =
         (proxy, method, args) -> {
           String name = method.getName();
-          if (armed == Fault.ON_EXECUTE && name.equals("prepareStatement")) {
+          if (armed == Fault.ON_TRANSACTION_START
+              && name.equals("setAutoCommit")
+              && Boolean.FALSE.equals(args[0])) {
+            throw new SQLException("transaction start refused by the fault injector", sqlState);
+          }
+          if ((armed == Fault.ON_EXECUTE || armed == Fault.ON_EXECUTE_AND_ROLLBACK)
+              && name.equals("prepareStatement")) {
             throw new SQLException("statement refused by the fault injector", sqlState);
           }
-          if (armed == Fault.ON_COMMIT && name.equals("commit")) {
+          if (armed == Fault.ON_EXECUTE_AND_ROLLBACK && name.equals("rollback")) {
+            throw new SQLException("rollback refused by the fault injector", sqlState);
+          }
+          if ((armed == Fault.ON_COMMIT || armed == Fault.ON_COMMIT_AND_RESTORE)
+              && name.equals("commit")) {
             throw new SQLException("commit refused by the fault injector", sqlState);
           }
-          if (armed == Fault.ON_RESTORE_AFTER_COMMIT
+          if ((armed == Fault.ON_RESTORE_AFTER_COMMIT || armed == Fault.ON_COMMIT_AND_RESTORE)
               && name.equals("setAutoCommit")
               && Boolean.TRUE.equals(args[0])) {
-            // The commit has already run by the time auto-commit is restored, which is what makes
-            // this position distinct from the others.
+            // Restoring auto-commit is the last thing that happens, so a failure here lands after
+            // the transaction body has already decided what it left behind.
             throw new SQLException("restore refused by the fault injector", sqlState);
           }
           try {
