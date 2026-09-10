@@ -32,10 +32,10 @@ import org.jspecify.annotations.Nullable;
  * <p><b>What a caller may infer is exactly {@link #durableEffect()}, and nothing more.</b> A store
  * that can prove no mutation reached durable storage reports {@link DurableEffect#NONE}, and the
  * caller may then treat the commit as never having happened — retrying the identical request is
- * safe. A store that cannot prove that reports {@link DurableEffect#UNKNOWN}, and the caller may not
- * claim the mutations are absent. Reading nothing at all is the conservative direction: a caller
- * that ignores this distinction treats every disruption as {@code UNKNOWN}, which is never wrong,
- * only pessimistic.
+ * safe. A store that cannot prove that reports {@link DurableEffect#UNKNOWN}, and the caller may
+ * not claim the mutations are absent. Reading nothing at all is the conservative direction: a
+ * caller that ignores this distinction treats every disruption as {@code UNKNOWN}, which is never
+ * wrong, only pessimistic.
  *
  * <p>The distinction is about durable effect, not about how far execution got. A store may well
  * have started writing and still prove that nothing survived — an aborted transaction is the

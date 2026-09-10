@@ -27,8 +27,8 @@ import org.apache.polaris.spi.durable.CommitDisruptedException.DurableEffect;
  *
  * <p>It stays a {@link SQLException}, and keeps the original SQL state and vendor code, for two
  * reasons: every existing caller of the transaction helper catches {@code SQLException} and must
- * keep working unchanged, and the retry surface classifies by SQL state, which it can only do if the
- * state survives the wrap.
+ * keep working unchanged, and the retry surface classifies by SQL state, which it can only do if
+ * the state survives the wrap.
  *
  * <p>Only the transaction helper creates one, because it is the only place that knows where a
  * failure landed: before anything was issued, after statements were issued but the rollback
