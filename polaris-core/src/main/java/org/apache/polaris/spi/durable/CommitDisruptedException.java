@@ -40,6 +40,14 @@ import org.jspecify.annotations.Nullable;
  * <p>The distinction is about durable effect, not about how far execution got. A store may well
  * have started writing and still prove that nothing survived — an aborted transaction is the
  * ordinary case — so "how far it got" is not the question a portable caller can act on.
+ *
+ * <p><b>A verdict a store has reached is never downgraded, and {@code UNKNOWN} is never overwritten
+ * by {@code NONE}.</b> Once a store establishes what a commit left behind, a later failure on the
+ * way out — cleaning up, returning a connection, anything after the fact — adds itself to that
+ * verdict as a suppressed exception rather than replacing it. The rule matters because the two
+ * mistakes are not symmetric: reporting {@code UNKNOWN} where {@code NONE} was provable costs a
+ * caller a safe retry, while reporting {@code NONE} where the outcome was unknown invites it to act
+ * as though a write that may be in storage is absent.
  */
 public class CommitDisruptedException extends PolarisException {
 

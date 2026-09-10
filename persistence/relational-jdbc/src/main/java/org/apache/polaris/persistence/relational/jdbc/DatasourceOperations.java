@@ -341,21 +341,42 @@ public class DatasourceOperations {
               throw new DisruptedTransactionException(
                   DurableEffect.NONE, "Failed to start a transaction", e);
             }
-            boolean committed = false;
+            // What the transaction body established, kept so the restore below can never recompute
+            // it. An effect is a verdict: once reached it is reported as reached, and a later
+            // failure adds information to it rather than replacing it.
+            DisruptedTransactionException disrupted = null;
+            RuntimeException escaping = null;
+            DurableEffect finishedEffect = DurableEffect.NONE;
             try {
-              runAndFinish(callback, connection);
-              committed = true;
-            } finally {
-              try {
-                connection.setAutoCommit(autoCommit);
-              } catch (SQLException e) {
-                // After a successful commit the statements ARE in storage, so a failure while
-                // restoring the connection may not be reported as if nothing had happened.
-                throw new DisruptedTransactionException(
-                    committed ? DurableEffect.UNKNOWN : DurableEffect.NONE,
-                    "Failed to restore the connection's auto-commit state",
-                    e);
+              // Committed: the statements are in storage, so any later failure leaves them there.
+              // Declined: the body rolled back, so nothing is.
+              finishedEffect = runAndFinish(callback, connection) ? DurableEffect.UNKNOWN : DurableEffect.NONE;
+            } catch (DisruptedTransactionException e) {
+              disrupted = e;
+            } catch (RuntimeException e) {
+              escaping = e;
+            }
+            try {
+              connection.setAutoCommit(autoCommit);
+            } catch (SQLException e) {
+              // Restoring the connection is the last step, and it cannot revise what the body
+              // already established. It only ever attaches itself to that verdict.
+              if (disrupted != null) {
+                disrupted.addSuppressed(e);
+                throw disrupted;
               }
+              if (escaping != null) {
+                escaping.addSuppressed(e);
+                throw escaping;
+              }
+              throw new DisruptedTransactionException(
+                  finishedEffect, "Failed to restore the connection's auto-commit state", e);
+            }
+            if (disrupted != null) {
+              throw disrupted;
+            }
+            if (escaping != null) {
+              throw escaping;
             }
           }
           return null;
@@ -364,15 +385,27 @@ public class DatasourceOperations {
 
   /**
    * Runs the callback and finishes its transaction, classifying every failure by what it leaves in
-   * storage. A rollback that succeeds proves the statements did not survive; a commit that fails,
-   * and a rollback that fails on top of a failed callback, prove nothing either way.
+   * storage, and reporting whether the transaction was committed.
+   *
+   * <p>A rollback that succeeds proves the statements did not survive, whatever kind of failure
+   * asked for it. A commit that fails, and a rollback that fails on top of a failed callback, prove
+   * nothing either way. The transaction is never left open: every exit either commits or rolls
+   * back, because the connection returns to a pool whose mode restore would otherwise commit
+   * whatever was still in flight.
+   *
+   * @return true when the transaction was committed, false when the callback declined it and it was
+   *     rolled back
    */
-  private void runAndFinish(TransactionCallback callback, Connection connection)
+  private boolean runAndFinish(TransactionCallback callback, Connection connection)
       throws SQLException {
     boolean success;
     try {
       success = callback.execute(connection);
     } catch (SQLException e) {
+      throw rollBackAfter(connection, e);
+    } catch (RuntimeException e) {
+      // A malformed request is reported by type, not as a disruption, so the exception is passed
+      // through once the statements it issued before failing have been rolled back.
       try {
         connection.rollback();
       } catch (SQLException rollbackFailure) {
@@ -382,22 +415,46 @@ public class DatasourceOperations {
         disrupted.addSuppressed(rollbackFailure);
         throw disrupted;
       }
-      throw new DisruptedTransactionException(
-          DurableEffect.NONE, "Transaction failed and was rolled back", e);
+      throw e;
     }
     if (!success) {
       // The callback declined: a rejection, not a disruption. Its own reason is the caller's.
       connection.rollback();
-      return;
+      return false;
     }
     try {
       connection.commit();
     } catch (SQLException e) {
       // The statements all reached the server before this call, and nothing here can ask the
-      // server whether it applied them.
-      throw new DisruptedTransactionException(
-          DurableEffect.UNKNOWN, "Failed to commit the transaction", e);
+      // server whether it applied them, so the effect stays unknown whatever happens next. The
+      // rollback is still attempted: the transaction may be open, and leaving it open would hand
+      // the decision to the auto-commit restore below, which commits whatever it finds.
+      DisruptedTransactionException disrupted =
+          new DisruptedTransactionException(
+              DurableEffect.UNKNOWN, "Failed to commit the transaction", e);
+      try {
+        connection.rollback();
+      } catch (SQLException rollbackFailure) {
+        disrupted.addSuppressed(rollbackFailure);
+      }
+      throw disrupted;
     }
+    return true;
+  }
+
+  /** Rolls back after a failed callback and says what that leaves in storage. */
+  private DisruptedTransactionException rollBackAfter(Connection connection, SQLException cause) {
+    try {
+      connection.rollback();
+    } catch (SQLException rollbackFailure) {
+      DisruptedTransactionException disrupted =
+          new DisruptedTransactionException(
+              DurableEffect.UNKNOWN, "Transaction failed and its rollback failed", cause);
+      disrupted.addSuppressed(rollbackFailure);
+      return disrupted;
+    }
+    return new DisruptedTransactionException(
+        DurableEffect.NONE, "Transaction failed and was rolled back", cause);
   }
 
   public Integer execute(Connection connection, QueryGenerator.PreparedQuery preparedQuery)
@@ -418,8 +475,14 @@ public class DatasourceOperations {
    * <p><b>Adding a SQL state here is not a local change.</b> A retry re-runs the whole operation on
    * a fresh connection, so a state may only be listed once it is established that the failure it
    * names leaves nothing in storage. Any change to this set therefore states, in the same change,
-   * which durable effect the new state carries; otherwise a transaction that may already have
-   * applied gets replayed.
+   * which durable effect the new state carries; otherwise an operation that may already have applied
+   * gets replayed.
+   *
+   * <p>That bar is met today by the one listed state, whose semantics make an aborted transaction
+   * apply nothing. It is NOT established for the fallback below, which reads the message when a
+   * driver supplies no state: a reset connection reported that way can be a reset during a commit,
+   * which proves nothing about storage. That fallback predates this classification and still serves
+   * the single-statement and batch paths, where the same replay hazard therefore remains open.
    */
   private boolean isRetryable(SQLException e) {
     String sqlState = e.getSQLState();

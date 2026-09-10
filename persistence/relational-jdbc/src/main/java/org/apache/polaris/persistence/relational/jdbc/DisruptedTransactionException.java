@@ -30,6 +30,14 @@ import org.apache.polaris.spi.durable.CommitDisruptedException.DurableEffect;
  * keep working unchanged, and the retry surface classifies by SQL state, which it can only do if
  * the state survives the wrap.
  *
+ * <p><b>One behaviour change to disclose:</b> the retry surface also has a fallback that reads the
+ * exception MESSAGE when the SQL state is null, and this wrap replaces the message with its own.
+ * A stateless driver failure whose text named a refused or reset connection was retried before and
+ * is not retried now, for transactions only; the other operations reach that fallback unchanged.
+ * The direction is fewer whole-transaction replays, which is the safe side of the same hazard the
+ * retry set's own rule names, so the wrap keeps its message and the change is recorded here rather
+ * than worked around.
+ *
  * <p>Only the transaction helper creates one, because it is the only place that knows where a
  * failure landed: before anything was issued, after statements were issued but the rollback
  * succeeded, or at a point where nothing can be proven either way. This type is how that knowledge
@@ -41,6 +49,16 @@ class DisruptedTransactionException extends SQLException {
 
   DisruptedTransactionException(DurableEffect durableEffect, String message, SQLException cause) {
     super(message, cause.getSQLState(), cause.getErrorCode(), cause);
+    this.durableEffect = durableEffect;
+  }
+
+  /**
+   * For a cause that carries no SQL state of its own, such as a rejected request that failed while
+   * building a statement. With no state there is nothing for the retry surface to classify, which is
+   * correct here: re-running the operation would fail the same way.
+   */
+  DisruptedTransactionException(DurableEffect durableEffect, String message, Throwable cause) {
+    super(message, null, 0, cause);
     this.durableEffect = durableEffect;
   }
 
