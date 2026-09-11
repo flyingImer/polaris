@@ -42,6 +42,8 @@ import org.apache.polaris.core.admin.model.CatalogProperties;
 import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.core.config.FeatureConfiguration;
+import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.events.PolarisEvent;
 import org.apache.polaris.core.events.PolarisEventType;
 import org.apache.polaris.service.TestServices;
@@ -152,6 +154,69 @@ public class CommitTransactionEventTest {
         afterUpdateTableEvent.attributes().getRequired(EventAttributes.TABLE_METADATA);
     assertThat(metadata).isNotNull();
     assertThat(metadata.properties()).containsEntry(propertyName, "value2");
+  }
+
+  /**
+   * A multi-table transaction in which one table's location changes must commit. The location
+   * change is expressed as a property ({@code write.data.path}) rather than as a {@code
+   * SetLocation} update, which is what the requested-locations-changed guard compares, so this
+   * reaches the location-overlap validation under default configuration.
+   */
+  @Test
+  void testCommitTransactionWithLocationChangeSucceeds() {
+    TestServices testServices = createTestServices();
+    createCatalogAndNamespace(
+        testServices,
+        Map.of(
+            FeatureConfiguration.ALLOW_EXTERNAL_TABLE_LOCATION.catalogConfig(),
+            "false",
+            FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.catalogConfig(),
+            "true"),
+        catalogLocation);
+
+    String table1Name = "test-table-7";
+    String table2Name = "test-table-8";
+    createTable(testServices, table1Name, catalogLocation);
+    createTable(testServices, table2Name, catalogLocation);
+
+    // Inside table1's own location: an out-of-table location is refused by a separate check.
+    String newDataLocation =
+        String.format(
+            "%s/%s/%s/%s/custom-data/%s",
+            catalogLocation, catalog, namespace, table1Name, UUID.randomUUID());
+
+    CommitTransactionRequest request =
+        new CommitTransactionRequest(
+            List.of(
+                UpdateTableRequest.create(
+                    TableIdentifier.of(namespace, table1Name),
+                    List.of(),
+                    List.of(
+                        new MetadataUpdate.SetProperties(
+                            Map.of(
+                                IcebergTableLikeEntity.USER_SPECIFIED_WRITE_DATA_LOCATION_KEY,
+                                newDataLocation)))),
+                UpdateTableRequest.create(
+                    TableIdentifier.of(namespace, table2Name),
+                    List.of(),
+                    List.of(new MetadataUpdate.SetProperties(Map.of(propertyName, "value2"))))));
+
+    try (Response response =
+        testServices
+            .restApi()
+            .commitTransaction(
+                catalog,
+                request,
+                IDEMPOTENCY_KEY,
+                testServices.realmContext(),
+                testServices.securityContext())) {
+      assertThat(response.getStatus()).isEqualTo(Response.Status.NO_CONTENT.getStatusCode());
+    }
+
+    InMemoryEventCollector testPolarisEventDispatcher =
+        (InMemoryEventCollector) testServices.polarisEventDispatcher();
+    assertThat(testPolarisEventDispatcher.getLatest(PolarisEventType.AFTER_COMMIT_TRANSACTION))
+        .isNotNull();
   }
 
   private void createCatalogAndNamespace(
