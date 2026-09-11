@@ -96,31 +96,16 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
   }
 
   /**
-   * Whether a non-applied commit failed because a declared condition did not hold, which is how
-   * both mutation paths below tell "another caller got there first" from an infrastructure failure.
-   * A {@code ROLLBACK_INCOMPLETE} outcome is never a lost race: compensation itself did not finish,
-   * which {@link #mapFailedSecretsMutation} reports as an admin-reclamation case.
+   * The conditions {@link OrchestrationResult#refusedConditions()} reports, rendered for a conflict
+   * message.
+   *
+   * <p>Only the rendering lives here. Which conditions a commit was refused by is the result's own
+   * state and the result answers that itself, as it does for whether the commit was refused at all.
+   * A store may report a subset, so this names what was reported and never claims to be complete.
    */
-  private static boolean lostRace(@NonNull OrchestrationResult result) {
-    return result.outcome() != OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE
-        && result
-            .groupFailure()
-            .flatMap(CommitResult::failure)
-            .filter(f -> f == CommitResult.Failure.PRECONDITION_FAILED)
-            .isPresent();
-  }
-
-  /**
-   * The declared conditions the store REPORTED as refused, rendered for a conflict message. {@code
-   * CommitResult#failedPreconditions()} may report only a subset — both shipped stores stop at the
-   * first failed condition, and the contract's minimum is "at least the one that stopped the
-   * commit" — so this names what was reported and never claims to be the complete set.
-   */
-  private static @NonNull String refusedConditions(@NonNull OrchestrationResult result) {
+  private static @NonNull String renderedRefusedConditions(@NonNull OrchestrationResult result) {
     List<String> reported =
-        result.groupFailure().map(CommitResult::failedPreconditions).orElse(List.of()).stream()
-            .map(Precondition::toString)
-            .toList();
+        result.refusedConditions().stream().map(Precondition::toString).toList();
     return String.join(", ", reported);
   }
 
@@ -212,7 +197,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
     if (result.isApplied()) {
       return new PrincipalSecretsResult(updated);
     }
-    if (lostRace(result)) {
+    if (result.isRefusedAndRolledBack()) {
       // Lost the race between the read above and this commit: the row this rotation was computed
       // from is gone, or is no longer the row that was read. The commit was refused by its own
       // declared condition and rolled back in full, so nothing this call intended reached storage
@@ -221,7 +206,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
       throw new CommitConflictException(
           "Cannot rotate principal secrets for client id %s (principal %s): "
               + "commit refused by declared condition(s): %s",
-          clientId, principalId, refusedConditions(result));
+          clientId, principalId, renderedRefusedConditions(result));
     }
     return mapFailedSecretsMutation(result);
   }
@@ -272,7 +257,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
     if (result.isApplied()) {
       return new PrincipalSecretsResult(secrets);
     }
-    if (lostRace(result)) {
+    if (result.isRefusedAndRolledBack()) {
       // Lost the race between the pre-check above and this commit: someone else claimed
       // resolvedClientId in between. Same exception the pre-check reports, plus the declared
       // condition that refused the commit.
@@ -280,7 +265,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
           "Client ID already in use: "
               + resolvedClientId
               + "; commit refused by declared condition(s): "
-              + refusedConditions(result));
+              + renderedRefusedConditions(result));
     }
     return mapFailedSecretsMutation(result);
   }
@@ -336,7 +321,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
                     ref,
                     null,
                     List.of(Precondition.unchangedSince(ref, read.token())))));
-    if (lostRace(result)) {
+    if (result.isRefusedAndRolledBack()) {
       // Lost the race between the reads above and this commit: the row is gone, or it is no longer
       // the row those reads saw. The commit was refused by its own declared unchanged-since
       // condition and rolled back completely, so this is a REPORTED conflict in the Polaris
@@ -344,7 +329,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
       throw new CommitConflictException(
           "Cannot delete principal secrets for client id %s (principal %s): "
               + "commit refused by declared condition(s): %s",
-          clientId, principalId, refusedConditions(result));
+          clientId, principalId, renderedRefusedConditions(result));
     }
     diagnostics.check(
         result.isApplied(),

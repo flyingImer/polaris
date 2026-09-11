@@ -307,7 +307,7 @@ public class DefaultPolicyDurableManager implements PolicyDurableManager {
               + " mutation(s) require admin reclamation");
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+    if (!result.isRefusedAndRolledBack()) {
       return new PolicyAttachmentResult(
           BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
     }

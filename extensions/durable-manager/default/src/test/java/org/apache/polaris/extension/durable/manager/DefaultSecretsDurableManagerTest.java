@@ -190,7 +190,11 @@ class DefaultSecretsDurableManagerTest {
     assertThatThrownBy(() -> secrets.deletePrincipalSecrets(callCtx, clientId, principal.getId()))
         .isInstanceOf(CommitConflictException.class)
         .hasMessageContaining(clientId)
-        .hasMessageContaining("Precondition{EXISTS");
+        .hasMessageContaining("Precondition{UNCHANGED_SINCE")
+        // The refused condition is named, never the token inside it. This message is rendered into
+        // a
+        // 409 a client can read, and this kind's token carries the row's secret-hash columns.
+        .hasMessageNotContaining("ReadToken");
 
     assertThat(routing.get(ref, PolarisPrincipalSecrets.class)).isEmpty();
   }

@@ -204,7 +204,7 @@ public class DefaultGrantDurableManager implements GrantDurableManager {
               + " mutation(s) require admin reclamation");
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    return failure == CommitResult.Failure.PRECONDITION_FAILED
+    return result.isRefusedAndRolledBack()
         ? new PrivilegeResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null)
         : new PrivilegeResult(
             BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());

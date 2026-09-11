@@ -115,8 +115,7 @@ final class RecordMutations {
     if (result.outcome() == OrchestrationResult.Outcome.ROLLBACK_INCOMPLETE) {
       return BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED;
     }
-    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    return failure == CommitResult.Failure.PRECONDITION_FAILED
+    return result.isRefusedAndRolledBack()
         ? BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS
         : BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED;
   }
@@ -129,7 +128,7 @@ final class RecordMutations {
           + " mutation(s) require admin reclamation";
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    return failure == CommitResult.Failure.PRECONDITION_FAILED ? null : failure.toString();
+    return result.isRefusedAndRolledBack() ? null : failure.toString();
   }
 
   /**

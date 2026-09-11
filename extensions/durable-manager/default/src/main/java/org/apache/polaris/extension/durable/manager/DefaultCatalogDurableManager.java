@@ -200,7 +200,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
               + " mutation(s) require admin reclamation");
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+    if (!result.isRefusedAndRolledBack()) {
       // TOO_MANY_ITEMS / DOMAIN_MISMATCH on a single mutation is a caller or deployment bug, not
       // an ordinary race; surfacing it as ENTITY_ALREADY_EXISTS would misreport the cause.
       return new EntityResult(
@@ -618,7 +618,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
       }
       CommitResult groupFailure = result.groupFailure().orElseThrow();
       CommitResult.Failure failure = groupFailure.failure().orElseThrow();
-      if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+      if (!result.isRefusedAndRolledBack()) {
         return new EntitiesResult(
             BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
       }
@@ -942,7 +942,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
     }
     CommitResult groupFailure = result.groupFailure().orElseThrow();
     CommitResult.Failure failure = groupFailure.failure().orElseThrow();
-    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+    if (!result.isRefusedAndRolledBack()) {
       return new EntityResult(
           BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
     }
@@ -1303,7 +1303,7 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
               + " mutation(s) require admin reclamation");
     }
     CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
-    if (failure != CommitResult.Failure.PRECONDITION_FAILED) {
+    if (!result.isRefusedAndRolledBack()) {
       return new DropEntityResult(
           BaseResult.ReturnStatus.UNEXPECTED_ERROR_SIGNALED, failure.toString());
     }
