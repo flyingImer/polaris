@@ -31,7 +31,6 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
-import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
@@ -53,15 +52,15 @@ import org.junit.jupiter.api.Test;
  * the missing hook: it plants the competing row inside the FIRST commit call, after the pre-check
  * has already read empty.
  *
- * <p>Assembled the same way {@link DefaultDurableManagerEntityOpsTest} assembles the manager, with
+ * <p>Assembled the same way {@link DefaultCatalogDurableManagerTest} assembles the manager, with
  * the preempting decorator wrapped around the base store, under routing.
  */
-class DefaultDurableManagerCreateRaceTest {
+class DefaultCatalogDurableManagerCreateRaceTest {
 
   private static final PolarisCallContext CALL_CTX =
       new PolarisCallContext(() -> "testRealm", new NeverCallOldPrimitives());
 
-  private static DefaultDurableManager managerOver(DurableRecordStore store) {
+  private static DefaultCatalogDurableManager managerOver(DurableRecordStore store) {
     DurableRecordStore primitives =
         new RoutingDurableRecordStore(
             new MappedDurableRecordStoreLocator(
@@ -74,15 +73,14 @@ class DefaultDurableManagerCreateRaceTest {
                 Map.of("main", store)),
             List.of(store),
             store);
-    return new DefaultDurableManager(
+    return new DefaultCatalogDurableManager(
         Clock.systemUTC(),
         new PolarisDefaultDiagServiceImpl(),
         new DefaultDurableOrchestrator(primitives),
-        primitives,
-        PrincipalSecretsGenerator.RANDOM_SECRETS);
+        primitives);
   }
 
-  private static PolarisBaseEntity newCatalog(DefaultDurableManager manager, String name) {
+  private static PolarisBaseEntity newCatalog(DefaultCatalogDurableManager manager, String name) {
     long id = manager.generateNewEntityId(CALL_CTX).getId();
     return new PolarisBaseEntity.Builder()
         .catalogId(PolarisEntityConstants.getNullId())
@@ -113,7 +111,7 @@ class DefaultDurableManagerCreateRaceTest {
               Mutation m = racedCreate(intercepted);
               return List.of(Mutation.of(m.kind(), Mutation.Op.CREATE, m.target(), m.record()));
             });
-    DefaultDurableManager manager = managerOver(raced);
+    DefaultCatalogDurableManager manager = managerOver(raced);
     PolarisBaseEntity catalog = newCatalog(manager, "raced-idempotent");
 
     EntityResult result = manager.createEntityIfNotExists(CALL_CTX, null, catalog);
@@ -141,7 +139,7 @@ class DefaultDurableManagerCreateRaceTest {
                       RecordRef.byIdentity(m.kind(), List.of(winner.getId())),
                       winner));
             });
-    DefaultDurableManager manager = managerOver(raced);
+    DefaultCatalogDurableManager manager = managerOver(raced);
     PolarisBaseEntity catalog = newCatalog(manager, "raced-conflict");
 
     EntityResult result = manager.createEntityIfNotExists(CALL_CTX, null, catalog);
