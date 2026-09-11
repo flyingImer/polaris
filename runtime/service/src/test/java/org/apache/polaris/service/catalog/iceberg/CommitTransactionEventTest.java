@@ -37,6 +37,7 @@ import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.admin.model.CatalogProperties;
 import org.apache.polaris.core.admin.model.CreateCatalogRequest;
@@ -213,10 +214,89 @@ public class CommitTransactionEventTest {
       assertThat(response.getStatus()).isEqualTo(Response.Status.NO_CONTENT.getStatusCode());
     }
 
+    // A 204 only proves nothing threw. Read the table back, so this case proves what its name says:
+    // the location change is actually persisted.
+    try (Response loaded =
+        testServices
+            .restApi()
+            .loadTable(
+                catalog,
+                namespace,
+                table1Name,
+                null,
+                null,
+                "ALL",
+                null,
+                testServices.realmContext(),
+                testServices.securityContext())) {
+      assertThat(loaded.readEntity(LoadTableResponse.class).tableMetadata().properties())
+          .containsEntry(
+              IcebergTableLikeEntity.USER_SPECIFIED_WRITE_DATA_LOCATION_KEY, newDataLocation);
+    }
+
     InMemoryEventCollector testPolarisEventDispatcher =
         (InMemoryEventCollector) testServices.polarisEventDispatcher();
     assertThat(testPolarisEventDispatcher.getLatest(PolarisEventType.AFTER_COMMIT_TRANSACTION))
         .isNotNull();
+  }
+
+  /**
+   * A multi-table transaction that fails must leave every table untouched. The first table's change
+   * is valid and has already been applied to its metadata by the time the second table's
+   * requirement check fails, so this is what proves the whole transaction is one commit rather than
+   * one commit per table.
+   */
+  @Test
+  void testFailedTransactionLeavesTheFirstTableUnchanged() {
+    TestServices testServices = createTestServices();
+    createCatalogAndNamespace(testServices, Map.of(), catalogLocation);
+
+    String table1Name = "test-table-9";
+    String table2Name = "test-table-10";
+    createTable(testServices, table1Name, catalogLocation);
+    createTable(testServices, table2Name, catalogLocation);
+
+    CommitTransactionRequest request =
+        new CommitTransactionRequest(
+            List.of(
+                UpdateTableRequest.create(
+                    TableIdentifier.of(namespace, table1Name),
+                    List.of(),
+                    List.of(new MetadataUpdate.SetProperties(Map.of(propertyName, "value1")))),
+                UpdateTableRequest.create(
+                    TableIdentifier.of(namespace, table2Name),
+                    List.of(new UpdateRequirement.AssertCurrentSchemaID(-1)),
+                    List.of(new MetadataUpdate.SetProperties(Map.of(propertyName, "value2"))))));
+
+    assertThatThrownBy(
+            () ->
+                testServices
+                    .restApi()
+                    .commitTransaction(
+                        catalog,
+                        request,
+                        IDEMPOTENCY_KEY,
+                        testServices.realmContext(),
+                        testServices.securityContext()))
+        .isInstanceOf(RuntimeException.class);
+
+    // The first table must carry no trace of the aborted transaction.
+    try (Response loaded =
+        testServices
+            .restApi()
+            .loadTable(
+                catalog,
+                namespace,
+                table1Name,
+                null,
+                null,
+                "ALL",
+                null,
+                testServices.realmContext(),
+                testServices.securityContext())) {
+      assertThat(loaded.readEntity(LoadTableResponse.class).tableMetadata().properties())
+          .doesNotContainKey(propertyName);
+    }
   }
 
   private void createCatalogAndNamespace(
