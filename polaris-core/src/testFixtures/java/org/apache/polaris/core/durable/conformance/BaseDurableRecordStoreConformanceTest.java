@@ -30,6 +30,7 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -38,6 +39,7 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.junit.jupiter.api.BeforeEach;
@@ -90,6 +92,49 @@ public abstract class BaseDurableRecordStoreConformanceTest {
   }
 
   // ---------------------------------------------------------------- payloads
+
+  /**
+   * A principal-secrets record, the kind the read-token cases use: it is the one registered kind
+   * that carries no version, so it has no {@code versionEquals} to fall back on and is the reason
+   * the unchanged-since operator exists.
+   *
+   * <p>Salt and both hashes are passed explicitly rather than derived. The convenience constructors
+   * generate them randomly, so two records built from the same arguments would differ and a token
+   * taken over the stored values would never compare equal to itself.
+   */
+  protected static PolarisPrincipalSecrets secrets(long principalId, String clientId, String tag) {
+    return new PolarisPrincipalSecrets(
+        principalId,
+        clientId,
+        "main-" + tag,
+        "secondary-" + tag,
+        "salt-" + tag,
+        "mainhash-" + tag,
+        "secondaryhash-" + tag);
+  }
+
+  protected static RecordRef secretsRef(String clientId) {
+    return RecordRef.byIdentity(PolarisRecordKinds.PRINCIPAL_SECRETS, List.of(clientId));
+  }
+
+  protected static Mutation createSecrets(PolarisPrincipalSecrets record) {
+    RecordRef ref = secretsRef(record.getPrincipalClientId());
+    return Mutation.of(
+        PolarisRecordKinds.PRINCIPAL_SECRETS,
+        Mutation.Op.CREATE,
+        ref,
+        record,
+        List.of(Precondition.notExists(ref)));
+  }
+
+  /** An unconditioned overwrite, standing in for a competing writer that changes the row. */
+  protected static Mutation overwriteSecrets(PolarisPrincipalSecrets record) {
+    return Mutation.of(
+        PolarisRecordKinds.PRINCIPAL_SECRETS,
+        Mutation.Op.UPDATE,
+        secretsRef(record.getPrincipalClientId()),
+        record);
+  }
 
   protected static PolarisBaseEntity entity(long id, long parentId, String name, int version) {
     return new PolarisBaseEntity.Builder()
@@ -733,6 +778,104 @@ public abstract class BaseDurableRecordStoreConformanceTest {
     CommitResult result =
         s.commit(List.of(Mutation.of(pc.kind(), Mutation.Op.CREATE, ref(pc, record), record)));
     assertThat(result.isApplied()).as("fixture create applies").isTrue();
+  }
+
+  // ------------------------------------------------- read tokens, for a kind with no version
+
+  @Test
+  protected void aCommitCarryingTheTokenItReadApplies() {
+    assertThat(store.commit(List.of(createSecrets(secrets(1L, "client-a", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        store.read(secretsRef("client-a"), PolarisPrincipalSecrets.class).orElseThrow();
+    assertThat(read.value().getPrincipalId()).isEqualTo(1L);
+
+    CommitResult result =
+        store.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.DELETE,
+                    secretsRef("client-a"),
+                    null,
+                    List.of(Precondition.unchangedSince(secretsRef("client-a"), read.token())))));
+
+    assertThat(result.isApplied()).isTrue();
+    assertThat(store.get(secretsRef("client-a"), PolarisPrincipalSecrets.class)).isEmpty();
+  }
+
+  @Test
+  protected void aStaleTokenIsRefusedAndTheCompetingWriteSurvives() {
+    assertThat(store.commit(List.of(createSecrets(secrets(1L, "client-b", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        store.read(secretsRef("client-b"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    // A competing writer changes the row after that read came back.
+    assertThat(store.commit(List.of(overwriteSecrets(secrets(1L, "client-b", "two")))).isApplied())
+        .isTrue();
+
+    CommitResult result =
+        store.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.DELETE,
+                    secretsRef("client-b"),
+                    null,
+                    List.of(Precondition.unchangedSince(secretsRef("client-b"), read.token())))));
+
+    assertThat(result.isApplied()).isFalse();
+    assertThat(result.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    assertThat(result.failedPreconditions())
+        .extracting(Precondition::op)
+        .contains(Precondition.Op.UNCHANGED_SINCE);
+    // The loser changed nothing: what is in storage is still the competitor's row.
+    assertThat(store.get(secretsRef("client-b"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-two");
+  }
+
+  @Test
+  protected void aTokenIsRefusedWhenTheRowWasRecreatedForAnotherPrincipal() {
+    assertThat(store.commit(List.of(createSecrets(secrets(1L, "client-c", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        store.read(secretsRef("client-c"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    // Removed, then claimed by a different principal under the same client id, atomically.
+    assertThat(
+            store
+                .commit(
+                    List.of(
+                        Mutation.of(
+                            PolarisRecordKinds.PRINCIPAL_SECRETS,
+                            Mutation.Op.DELETE,
+                            secretsRef("client-c"),
+                            null),
+                        createSecrets(secrets(2L, "client-c", "two"))))
+                .isApplied())
+        .isTrue();
+
+    CommitResult result =
+        store.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.DELETE,
+                    secretsRef("client-c"),
+                    null,
+                    List.of(Precondition.unchangedSince(secretsRef("client-c"), read.token())))));
+
+    assertThat(result.isApplied()).isFalse();
+    assertThat(result.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    // A row IS present, so a must-exist condition would have let this through and deleted the other
+    // principal's secrets. That is the window this operator closes and existence alone does not.
+    assertThat(store.get(secretsRef("client-c"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getPrincipalId)
+        .isEqualTo(2L);
   }
 
   private static RecordRef ref(PathCase pc, Object record) {

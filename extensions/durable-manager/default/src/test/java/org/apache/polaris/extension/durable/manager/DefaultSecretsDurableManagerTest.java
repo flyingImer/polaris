@@ -199,6 +199,69 @@ class DefaultSecretsDurableManagerTest {
     assertThat(routing.get(ref, PolarisPrincipalSecrets.class)).isEmpty();
   }
 
+  @Test
+  void deleteLosingToARecreateForAnotherPrincipalLeavesThatRowAlone() {
+    PrincipalEntity owner = createPrincipal("recreateOwner");
+    PrincipalEntity claimant = createPrincipal("recreateClaimant");
+    String clientId = owner.getClientId();
+    RecordRef ref = RecordRefs.secretsIdentity(clientId);
+
+    // The winner removes the row and claims the same client id for a different principal, in one
+    // commit, after the loser's reads confirmed both the row and its principal id.
+    primitives.stageBeforeNextCommit(
+        () ->
+            routing.commit(
+                List.of(
+                    Mutation.of(
+                        PolarisRecordKinds.PRINCIPAL_SECRETS, Mutation.Op.DELETE, ref, null),
+                    Mutation.of(
+                        PolarisRecordKinds.PRINCIPAL_SECRETS,
+                        Mutation.Op.CREATE,
+                        ref,
+                        new PolarisPrincipalSecrets(claimant.getId(), clientId, "claimed-secret"),
+                        List.of(Precondition.notExists(ref))))));
+
+    assertThatThrownBy(() -> secrets.deletePrincipalSecrets(callCtx, clientId, owner.getId()))
+        .isInstanceOf(CommitConflictException.class)
+        .hasMessageContaining("Precondition{UNCHANGED_SINCE");
+
+    // A row exists at this identity, so a must-exist condition would have let the loser through and
+    // deleted the claimant's secrets. This is the window the token closes and existence alone does
+    // not: the principal-id equality the loser read never rode into its commit.
+    assertThat(routing.get(ref, PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getPrincipalId)
+        .isEqualTo(claimant.getId());
+  }
+
+  @Test
+  void rotateLosingToADeleteResurrectsNothing() {
+    PrincipalEntity principal = createPrincipal("rotatedThenDeleted");
+    String clientId = principal.getClientId();
+    RecordRef ref = RecordRefs.secretsIdentity(clientId);
+    String oldMainHash =
+        routing.get(ref, PolarisPrincipalSecrets.class).orElseThrow().getMainSecretHash();
+
+    // The winner deletes the row after the rotation read it and computed its new state from it.
+    primitives.stageBeforeNextCommit(
+        () ->
+            routing.commit(
+                List.of(
+                    Mutation.of(
+                        PolarisRecordKinds.PRINCIPAL_SECRETS, Mutation.Op.DELETE, ref, null))));
+
+    assertThatThrownBy(
+            () ->
+                secrets.rotatePrincipalSecrets(
+                    callCtx, clientId, principal.getId(), false, oldMainHash))
+        .isInstanceOf(CommitConflictException.class)
+        .hasMessageContaining("Precondition{UNCHANGED_SINCE");
+
+    // Unconditioned, this store's UPDATE writes whatever it is given, so the loser used to put the
+    // rotated row back over a completed delete. The loser now changes nothing.
+    assertThat(routing.get(ref, PolarisPrincipalSecrets.class)).isEmpty();
+  }
+
   /**
    * Forwards everything to a real handle, with two additions the cases above need: a one-shot
    * action that runs at the start of the next {@code commit}, and the mutations of the last commit

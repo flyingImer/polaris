@@ -24,6 +24,7 @@ import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
@@ -33,11 +34,14 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.spi.durable.CommitDisruptedException;
+import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.h2.jdbcx.JdbcConnectionPool;
 import org.junit.jupiter.api.Test;
@@ -70,6 +74,62 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
   private static JdbcConnectionPool freshPool() {
     return JdbcConnectionPool.create(
         "jdbc:h2:mem:durable_conformance_" + System.nanoTime() + ";DB_CLOSE_DELAY=-1", "sa", "");
+  }
+
+  /**
+   * A stale token is refused against a competitor that committed on a DIFFERENT connection between
+   * this caller's read and its write. The suite's other token cases run one store against itself,
+   * which cannot show that: this one can, because the check travels in the write's own WHERE clause
+   * rather than in a read taken beforehand.
+   *
+   * <p>Two stores over ONE pool. {@link #freshPool} mints a distinct in-memory URL per call, so
+   * sharing the pool is what makes these two stores see the same rows; the schema script is
+   * create-if-not-exists, so running it once per store is harmless.
+   *
+   * <p>The isolation level is asserted rather than assumed. Nothing in this store sets one, so a
+   * borrowed connection runs at the driver's default, and pinning it here means a driver that
+   * changed it would report the new value instead of quietly weakening every folded condition.
+   */
+  @Test
+  void aStaleTokenIsRefusedAgainstACompetitorOnAnotherConnection() throws SQLException {
+    JdbcConnectionPool shared = freshPool();
+    DurableRecordStore mine =
+        new JdbcDurableRecordStore(operationsOver(shared), REALM, SCHEMA_VERSION);
+    DurableRecordStore theirs =
+        new JdbcDurableRecordStore(operationsOver(shared), REALM, SCHEMA_VERSION);
+
+    try (Connection probe = shared.getConnection()) {
+      assertThat(probe.getTransactionIsolation()).isEqualTo(Connection.TRANSACTION_READ_COMMITTED);
+    }
+
+    assertThat(mine.commit(List.of(createSecrets(secrets(1L, "two-conn", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        mine.read(secretsRef("two-conn"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    // Committed on the other connection, after the read above came back.
+    assertThat(theirs.commit(List.of(overwriteSecrets(secrets(1L, "two-conn", "two")))).isApplied())
+        .isTrue();
+
+    CommitResult refused =
+        mine.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.DELETE,
+                    secretsRef("two-conn"),
+                    null,
+                    List.of(Precondition.unchangedSince(secretsRef("two-conn"), read.token())))));
+
+    assertThat(refused.isApplied()).isFalse();
+    assertThat(refused.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    assertThat(refused.failedPreconditions())
+        .extracting(Precondition::op)
+        .contains(Precondition.Op.UNCHANGED_SINCE);
+    assertThat(mine.get(secretsRef("two-conn"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-two");
   }
 
   private static DatasourceOperations operationsOver(javax.sql.DataSource dataSource) {
