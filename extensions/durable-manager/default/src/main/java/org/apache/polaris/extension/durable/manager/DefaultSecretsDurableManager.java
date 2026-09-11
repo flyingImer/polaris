@@ -287,19 +287,22 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
 
   /**
    * Ported from {@code TreeMapDurablePrimitivesImpl#deletePrincipalSecretsInCurrentTxn}'s two
-   * checks (secrets must exist, principal id must match), then a DELETE conditioned on the same
-   * existence those checks just read. Unconditioned — as this method and the old model both were —
-   * a DELETE of an already-deleted record is a store-level no-op, so two concurrent callers both
-   * returned normally and no serial order explained that pair. With the condition the loser is
-   * refused, and that refusal is reported as a conflict (next paragraph). Recorded rather than
-   * glossed: a strictly serialized second call would instead report the row ABSENT, so the conflict
-   * and the serialized answer are not the same answer; signalling a condition-refused, fully
-   * rolled-back commit as a conflict is this manager's own chosen signal for that reported outcome
-   * rather than a rule the durable contracts state, and it is the message that carries which
-   * condition refused. Same shape as {@code DefaultPolicyDurableManager#detachPolicyFromEntity}'s
-   * {@code EXISTS} on the mapping's own identity; {@code
-   * DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used to be paired
-   * with, still carries the unconditioned form.
+   * checks (secrets must exist, principal id must match), then a DELETE conditioned on the row
+   * those checks actually read, carried in as the token that read returned. Unconditioned — as this
+   * method and the old model both were — a DELETE of an already-deleted record is a store-level
+   * no-op, so two concurrent callers both returned normally and no serial order explained that
+   * pair. Conditioned on existence alone it still deleted a row that had been removed and recreated
+   * for a different principal inside the window, because the principal-id equality it read never
+   * rode in; the token is what closes that. With the condition the loser is refused, and that
+   * refusal is reported as a conflict (next paragraph). Recorded rather than glossed: a strictly
+   * serialized second call would instead report the row ABSENT, so the conflict and the serialized
+   * answer are not the same answer; signalling a condition-refused, fully rolled-back commit as a
+   * conflict is this manager's own chosen signal for that reported outcome rather than a rule the
+   * durable contracts state, and it is the message that carries which condition refused. {@code
+   * DefaultPolicyDurableManager#detachPolicyFromEntity} conditions its own DELETE on {@code EXISTS}
+   * over the mapping's identity, which is the weaker form this method carried until the token
+   * existed; {@code DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used
+   * to be paired with, still carries the unconditioned form.
    *
    * <p>The two absences signal differently, deliberately. A row absent on ENTRY is reported by the
    * read-side {@code checkNotNull} as {@code NullPointerException}; losing the race AFTER those
@@ -334,9 +337,10 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
                     null,
                     List.of(Precondition.unchangedSince(ref, read.token())))));
     if (lostRace(result)) {
-      // Lost the race between the reads above and this commit: the row is already gone. The commit
-      // was refused by its own declared EXISTS condition and rolled back completely, so this is a
-      // REPORTED conflict in the Polaris exception family, not an invariant violation.
+      // Lost the race between the reads above and this commit: the row is gone, or it is no longer
+      // the row those reads saw. The commit was refused by its own declared unchanged-since
+      // condition and rolled back completely, so this is a REPORTED conflict in the Polaris
+      // exception family, not an invariant violation.
       throw new CommitConflictException(
           "Cannot delete principal secrets for client id %s (principal %s): "
               + "commit refused by declared condition(s): %s",
