@@ -144,6 +144,21 @@ public interface DurableRecordStore {
   @NonNull <T> Optional<T> get(@NonNull RecordRef ref, @NonNull Class<T> type);
 
   /**
+   * One record together with the token that lets a commit say it has not changed since, or empty if
+   * no record matches the reference.
+   *
+   * <p>This exists for a record kind carrying no version attribute, which therefore cannot ride its
+   * read into a commit through {@link Precondition#versionEquals}. The token is opaque and is
+   * verified only by the store that issued it, so it may travel back to this store and no other.
+   *
+   * <p><b>A second read rather than a widened {@link #get}.</b> Every existing caller reads a
+   * record without needing a token, and a store is free to answer this one less cheaply than {@code
+   * get} — folding the two would charge every reader for a guarantee most of them never use. A kind
+   * that issues no token rejects rather than answering without one.
+   */
+  @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type);
+
+  /**
    * Several records by reference, returned in the order requested.
    *
    * <p>A reference with no matching record yields an empty {@link Optional} in that position rather

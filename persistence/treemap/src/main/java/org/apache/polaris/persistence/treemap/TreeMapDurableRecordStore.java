@@ -42,6 +42,7 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.ReadToken;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
@@ -504,6 +505,26 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
   public @NonNull <T> Optional<T> get(@NonNull RecordRef ref, @NonNull Class<T> type) {
     return slices.runInReadTransaction(
         diagnostics, () -> this.<T>lookupInTransaction(ref).map(type::cast));
+  }
+
+  @Override
+  public @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type) {
+    KindBinding<T> b = binding(ref.kind());
+    Function<T, List<@Nullable Object>> parts = b.tokenParts();
+    if (parts == null) {
+      throw new IllegalArgumentException(
+          "Record kind '"
+              + ref.kind().id()
+              + "' issues no read token, so it cannot be read with one");
+    }
+    // The token is a value snapshot taken inside the read transaction, never the stored object: a
+    // record class here may be mutable and need not define value equality.
+    return slices.runInReadTransaction(
+        diagnostics,
+        () ->
+            this.<T>lookupInTransaction(ref)
+                .map(type::cast)
+                .map(record -> new Read<>(record, ReadToken.of(parts.apply(record)))));
   }
 
   @Override

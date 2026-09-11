@@ -35,6 +35,7 @@ import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
@@ -409,6 +410,11 @@ class DefaultDurableOrchestratorTest {
     @Override
     public @NonNull <T> List<Optional<T>> getMany(
         @NonNull List<RecordRef> refs, @NonNull Class<T> type) {
+      throw new UnsupportedOperationException();
+    }
+
+    @Override
+    public @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type) {
       throw new UnsupportedOperationException();
     }
 

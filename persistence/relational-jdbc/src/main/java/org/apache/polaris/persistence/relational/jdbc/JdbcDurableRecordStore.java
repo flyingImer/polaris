@@ -52,6 +52,8 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
+import org.apache.polaris.spi.durable.ReadToken;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
@@ -652,6 +654,19 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     } catch (SQLException e) {
       throw new RuntimeException("Failed to read " + ref.kind().id(), e);
     }
+  }
+
+  @Override
+  public @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type) {
+    KindBinding<?> b = binding(ref.kind());
+    // Costs no extra statement: get already selects every column. The token is those columns' own
+    // values in the binding's column order, which is the order applyMutation folds them back into a
+    // WHERE clause, so what is read and what is verified line up by construction.
+    return get(ref, type)
+        .map(
+            record ->
+                new Read<>(
+                    record, ReadToken.of(new ArrayList<>(b.rowOf().apply(record).values()))));
   }
 
   @Override

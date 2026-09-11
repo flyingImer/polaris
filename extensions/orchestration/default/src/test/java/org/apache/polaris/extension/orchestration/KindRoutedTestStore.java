@@ -27,6 +27,7 @@ import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
@@ -83,6 +84,11 @@ final class KindRoutedTestStore implements DurableRecordStore {
   @Override
   public @NonNull <T> Optional<T> get(@NonNull RecordRef ref, @NonNull Class<T> type) {
     return forKind(ref.kind()).get(ref, type);
+  }
+
+  @Override
+  public @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type) {
+    return forKind(ref.kind()).read(ref, type);
   }
 
   @Override

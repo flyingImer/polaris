@@ -26,6 +26,7 @@ import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
@@ -76,6 +77,11 @@ public final class CommitRecordingDurableRecordStore implements DurableRecordSto
   @Override
   public @NonNull <T> Optional<T> get(@NonNull RecordRef ref, @NonNull Class<T> type) {
     return delegate.get(ref, type);
+  }
+
+  @Override
+  public @NonNull <T> Optional<Read<T>> read(@NonNull RecordRef ref, @NonNull Class<T> type) {
+    return delegate.read(ref, type);
   }
 
   @Override
