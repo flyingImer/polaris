@@ -168,7 +168,7 @@ class DefaultSecretsDurableManagerTest {
   }
 
   @Test
-  void deleteLosingTheRaceReportsTheAbsentRowInsteadOfRemovingNothing() {
+  void deleteLosingTheRaceIsRefusedAsAConflictNotReportedAsAbsent() {
     PrincipalEntity principal = createPrincipal("deletedTwice");
     String clientId = principal.getClientId();
     RecordRef ref = RecordRefs.secretsIdentity(clientId);

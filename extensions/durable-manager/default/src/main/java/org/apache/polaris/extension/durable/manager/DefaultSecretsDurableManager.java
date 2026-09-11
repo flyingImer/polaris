@@ -280,8 +280,9 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
    * returned normally and no serial order explained that pair. With the condition the loser is
    * refused, and that refusal is reported as a conflict (next paragraph). Recorded rather than
    * glossed: a strictly serialized second call would instead report the row ABSENT, so the conflict
-   * and the serialized answer are not the same answer; signalling a condition-refused commit as a
-   * conflict is the decided shape for this layer, and it is the message that carries which
+   * and the serialized answer are not the same answer; signalling a condition-refused, fully
+   * rolled-back commit as a conflict is this manager's own chosen signal for that reported outcome
+   * rather than a rule the durable contracts state, and it is the message that carries which
    * condition refused. Same shape as {@code DefaultPolicyDurableManager#detachPolicyFromEntity}'s
    * {@code EXISTS} on the mapping's own identity; {@code
    * DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used to be paired
