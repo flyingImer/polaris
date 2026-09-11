@@ -77,10 +77,18 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
   }
 
   /**
-   * A stale token is refused against a competitor that committed on a DIFFERENT connection between
-   * this caller's read and its write. The suite's other token cases run one store against itself,
-   * which cannot show that: this one can, because the check travels in the write's own WHERE clause
-   * rather than in a read taken beforehand.
+   * The folded condition is re-evaluated against the stored row on every statement, so a token that
+   * went stale is refused even though the writer never held anything open while it went stale.
+   *
+   * <p><b>What this does and does not prove.</b> The three phases here are sequential Java: the
+   * read returns its connection, then the competitor commits in full, then the loser's write
+   * borrows a fresh connection. No transaction is held open across the competitor's commit and no
+   * lock is involved, so this is not an SQL-level interleaving of two open transactions. What it
+   * does show is the property the fold actually rests on — the condition travels in the write's own
+   * WHERE clause and is therefore evaluated against whatever the row contains when that statement
+   * runs, on whichever connection runs it, rather than against anything cached from the earlier
+   * read. The safety argument under real concurrency is the fold itself plus the isolation level,
+   * not this test's ordering.
    *
    * <p>Two stores over ONE pool. {@link #freshPool} mints a distinct in-memory URL per call, so
    * sharing the pool is what makes these two stores see the same rows; the schema script is
@@ -91,7 +99,7 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
    * changed it would report the new value instead of quietly weakening every folded condition.
    */
   @Test
-  void aStaleTokenIsRefusedAgainstACompetitorOnAnotherConnection() throws SQLException {
+  void aStaleTokenIsReEvaluatedFreshOnASecondConnection() throws SQLException {
     JdbcConnectionPool shared = freshPool();
     DurableRecordStore mine =
         new JdbcDurableRecordStore(operationsOver(shared), REALM, SCHEMA_VERSION);
@@ -130,6 +138,109 @@ class JdbcDurableRecordStoreConformanceTest extends BaseDurableRecordStoreConfor
         .get()
         .extracting(PolarisPrincipalSecrets::getMainSecretHash)
         .isEqualTo("mainhash-two");
+  }
+
+  /**
+   * A stale token refuses an UPDATE, not only a DELETE, and the competitor's row survives.
+   *
+   * <p>This store folds the token into whichever statement carries it, and the UPDATE and DELETE
+   * arms fold it separately. Every other token case in the suite issues a DELETE, so dropping the
+   * fold from the UPDATE arm alone would go unnoticed. The production path this pins is the secrets
+   * rotation, whose only race coverage runs against the in-memory store.
+   */
+  @Test
+  void aStaleTokenOnAnUpdateIsRefusedAndTheCompetingRowSurvives() {
+    DurableRecordStore s = new JdbcDurableRecordStore(freshDatasource(), REALM, SCHEMA_VERSION);
+    assertThat(s.commit(List.of(createSecrets(secrets(1L, "upd-stale", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        s.read(secretsRef("upd-stale"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    assertThat(s.commit(List.of(overwriteSecrets(secrets(1L, "upd-stale", "two")))).isApplied())
+        .isTrue();
+
+    CommitResult refused =
+        s.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.UPDATE,
+                    secretsRef("upd-stale"),
+                    secrets(1L, "upd-stale", "three"),
+                    List.of(Precondition.unchangedSince(secretsRef("upd-stale"), read.token())))));
+
+    assertThat(refused.isApplied()).isFalse();
+    assertThat(refused.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    assertThat(refused.failedPreconditions())
+        .extracting(Precondition::op)
+        .contains(Precondition.Op.UNCHANGED_SINCE);
+    assertThat(s.get(secretsRef("upd-stale"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-two");
+  }
+
+  /** The same UPDATE applies when the token is the one the row still matches. */
+  @Test
+  void aFreshTokenOnAnUpdateApplies() {
+    DurableRecordStore s = new JdbcDurableRecordStore(freshDatasource(), REALM, SCHEMA_VERSION);
+    assertThat(s.commit(List.of(createSecrets(secrets(1L, "upd-fresh", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> read =
+        s.read(secretsRef("upd-fresh"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    CommitResult applied =
+        s.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.UPDATE,
+                    secretsRef("upd-fresh"),
+                    secrets(1L, "upd-fresh", "two"),
+                    List.of(Precondition.unchangedSince(secretsRef("upd-fresh"), read.token())))));
+
+    assertThat(applied.isApplied()).isTrue();
+    assertThat(s.get(secretsRef("upd-fresh"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-two");
+  }
+
+  /**
+   * A token read from one row, passed under a reference naming another, is caller error rather than
+   * a condition to evaluate.
+   *
+   * <p>Why this is rejected instead of simply failing: the token carries this kind's whole column
+   * tuple, key columns included, and the fold writes those columns into the same map the target's
+   * own key filled, fold last. Left unchecked, the statement would be re-addressed to the row the
+   * token came from while the caller's reference still named the other one — a write to a record
+   * the caller never asked to write. A token means something only for the record it was read from.
+   */
+  @Test
+  void aTokenReadFromAnotherRowIsRejectedRatherThanRedirectingTheWrite() {
+    DurableRecordStore s = new JdbcDurableRecordStore(freshDatasource(), REALM, SCHEMA_VERSION);
+    assertThat(s.commit(List.of(createSecrets(secrets(1L, "f7-a", "one")))).isApplied()).isTrue();
+    assertThat(s.commit(List.of(createSecrets(secrets(2L, "f7-b", "one")))).isApplied()).isTrue();
+    Read<PolarisPrincipalSecrets> readA =
+        s.read(secretsRef("f7-a"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    Throwable thrown =
+        catchThrowable(
+            () ->
+                s.commit(
+                    List.of(
+                        Mutation.of(
+                            PolarisRecordKinds.PRINCIPAL_SECRETS,
+                            Mutation.Op.DELETE,
+                            secretsRef("f7-b"),
+                            null,
+                            List.of(
+                                Precondition.unchangedSince(secretsRef("f7-b"), readA.token()))))));
+
+    assertThat(thrown).isInstanceOf(IllegalArgumentException.class);
+    // Neither row was touched: the rejection happens before any statement runs.
+    assertThat(s.get(secretsRef("f7-a"), PolarisPrincipalSecrets.class)).isPresent();
+    assertThat(s.get(secretsRef("f7-b"), PolarisPrincipalSecrets.class)).isPresent();
   }
 
   private static DatasourceOperations operationsOver(javax.sql.DataSource dataSource) {

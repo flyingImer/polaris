@@ -453,6 +453,35 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
                   + b.columns().size()
                   + " columns, so it was not issued by this store for this kind");
         }
+        // The token's own key columns must name the row this mutation targets. A token carries this
+        // kind's whole column tuple, key columns included, and the fold writes those columns into
+        // the
+        // same map the target's key already filled: same column name, fold last. So a token read
+        // from
+        // a DIFFERENT row of this kind would silently re-address this statement to that other row
+        // while the caller's ref still says otherwise. Such a token was not issued by a read of
+        // this
+        // record, which is caller error rather than a condition to evaluate. Only key columns are
+        // compared and only they appear in the message: the rest of a token may be secret material.
+        Map<String, Object> targetKey = whereFor(b, m.target());
+        for (int i = 0; i < parts.size(); i++) {
+          String keyColumn = b.columns().get(i);
+          Object targeted = targetKey.get(keyColumn);
+          if (targeted != null && !targeted.equals(parts.get(i))) {
+            throw new IllegalArgumentException(
+                "An unchangedSince token for "
+                    + m.kind().id()
+                    + " carries "
+                    + keyColumn
+                    + "="
+                    + parts.get(i)
+                    + " but this mutation targets "
+                    + keyColumn
+                    + "="
+                    + targeted
+                    + ", so it was not issued by a read of this record");
+          }
+        }
         for (int i = 0; i < parts.size(); i++) {
           Object part = parts.get(i);
           if (part == null) {
