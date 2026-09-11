@@ -22,9 +22,11 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
+import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.Function;
 import java.util.stream.Stream;
@@ -374,6 +376,15 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
         return CommitResult.domainMismatch();
       }
       for (Precondition p : m.preconditions()) {
+        if (p.op() == Precondition.Op.UNCHANGED_SINCE
+            && !p.ref().map(m.target()::equals).orElse(false)) {
+          // A token's meaning is bound to the read that produced it, so this condition says
+          // something only about the record the mutation writes. Aimed at another reference it is
+          // malformed input rather than a wider condition: no retry or regrouping makes it
+          // checkable, which is why this is thrown like a DELETE carrying a payload.
+          throw new IllegalArgumentException(
+              "An unchangedSince condition must name the mutation's own target");
+        }
         if (p.ref().isPresent() && !domain.equals(domainOf(p.ref().get()))) {
           return CommitResult.domainMismatch();
         }
@@ -419,17 +430,47 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
       throws SQLException {
     KindBinding<?> b = binding(m.kind());
 
-    // Preconditions split in two: a version check on the mutation's own target folds into the
-    // statement's WHERE clause, so it costs no extra round trip. Anything else needs its own read.
-    Map<String, Object> foldedVersions = new LinkedHashMap<>();
+    // Preconditions split in two: a condition on the mutation's own target folds into the
+    // statement's WHERE clause, so it costs no extra round trip and the row count decides it.
+    // Anything else needs its own read.
+    Map<String, Object> foldedEquals = new LinkedHashMap<>();
+    Set<String> foldedIsNull = new LinkedHashSet<>();
+    Precondition foldedToken = null;
     for (Precondition p : m.preconditions()) {
       if (p.op() == Precondition.Op.NONE) {
         continue;
       }
-      if (p.op() == Precondition.Op.VERSION_EQUALS
-          && p.ref().map(m.target()::equals).orElse(false)) {
-        String column = versionColumn(b, p);
-        foldedVersions.put(column, p.expectedVersion());
+      boolean onOwnTarget = p.ref().map(m.target()::equals).orElse(false);
+      if (p.op() == Precondition.Op.VERSION_EQUALS && onOwnTarget) {
+        foldedEquals.put(versionColumn(b, p), p.expectedVersion());
+      } else if (p.op() == Precondition.Op.UNCHANGED_SINCE && onOwnTarget) {
+        // The token carries this row's own column values, in the binding's column order, so the
+        // check IS the write's WHERE clause. A competitor that commits first leaves no row matching
+        // those values and the statement touches nothing. Checking it with a separate SELECT would
+        // prove nothing at this store's isolation level: a competitor committing between the check
+        // and the write would go unnoticed and the write would land on its row.
+        List<@Nullable Object> parts = p.token().orElseThrow().parts();
+        if (parts.size() != b.columns().size()) {
+          throw new IllegalArgumentException(
+              "An unchangedSince token for "
+                  + m.kind().id()
+                  + " carries "
+                  + parts.size()
+                  + " parts but the kind has "
+                  + b.columns().size()
+                  + " columns, so it was not issued by this store for this kind");
+        }
+        for (int i = 0; i < parts.size(); i++) {
+          Object part = parts.get(i);
+          if (part == null) {
+            // A column that WAS null has to compare equal only to null, and `col = ?` bound to null
+            // matches nothing in SQL.
+            foldedIsNull.add(b.columns().get(i));
+          } else {
+            foldedEquals.put(b.columns().get(i), part);
+          }
+        }
+        foldedToken = p;
       } else if (!checkPrecondition(connection, p)) {
         failed.add(p);
         return false;
@@ -459,26 +500,37 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
       }
       case UPDATE -> {
         Map<String, Object> where = whereFor(b, m.target());
-        where.putAll(foldedVersions);
-        // see the CREATE case above for why this is not List.copyOf
-        List<Object> values = new ArrayList<>(b.rowOf().apply(m.record()).values());
+        where.putAll(foldedEquals);
         int rows =
             datasourceOperations.execute(
                 connection,
-                QueryGenerator.generateUpdateQuery(b.columns(), b.table(), values, where));
+                QueryGenerator.generateUpdateQuery(
+                    b.columns(),
+                    b.table(),
+                    b.rowOf().apply(m.record()),
+                    where,
+                    Map.of(),
+                    Map.of(),
+                    foldedIsNull,
+                    Set.of()));
         if (rows == 0) {
-          failed.add(firstVersionPrecondition(m));
+          failed.add(foldedToken != null ? foldedToken : firstVersionPrecondition(m));
           return false;
         }
       }
       case DELETE -> {
         Map<String, Object> where = whereFor(b, m.target());
-        where.putAll(foldedVersions);
+        where.putAll(foldedEquals);
         int rows =
             datasourceOperations.execute(
-                connection, QueryGenerator.generateDeleteQuery(b.columns(), b.table(), where));
-        if (rows == 0 && !foldedVersions.isEmpty()) {
-          failed.add(firstVersionPrecondition(m));
+                connection,
+                QueryGenerator.generateDeleteQuery(
+                    b.columns(), b.table(), where, Map.of(), Map.of(), foldedIsNull, Set.of()));
+        // An unconditioned delete of an absent row stays a no-op, as it has always been here. Once
+        // a condition was folded, though, zero rows means that condition did not hold: the row is
+        // gone, or it is no longer the row the caller read.
+        if (rows == 0 && (!foldedEquals.isEmpty() || !foldedIsNull.isEmpty())) {
+          failed.add(foldedToken != null ? foldedToken : firstVersionPrecondition(m));
           return false;
         }
       }
