@@ -86,6 +86,16 @@ public final class Precondition {
      * The referenced record must exist and the named version attribute must equal the given value.
      */
     VERSION_EQUALS,
+    /**
+     * The referenced record must exist and must still be in the state a {@link ReadToken} was
+     * issued for.
+     *
+     * <p>This is what a record kind carrying no version attribute uses in place of {@link
+     * #VERSION_EQUALS}. It is not a comparison against a field the caller names: the contract knows
+     * only that the token came from a read of the same reference and that the issuing store can
+     * verify it, never how the store decides two states are the same.
+     */
+    UNCHANGED_SINCE,
   }
 
   private static final Precondition NONE = new Precondition(Op.NONE, null, null, 0);
@@ -94,13 +104,24 @@ public final class Precondition {
   private final @Nullable RecordRef ref;
   private final @Nullable VersionAttribute attribute;
   private final long expectedVersion;
+  private final @Nullable ReadToken token;
 
   private Precondition(
       Op op, @Nullable RecordRef ref, @Nullable VersionAttribute attribute, long expectedVersion) {
+    this(op, ref, attribute, expectedVersion, null);
+  }
+
+  private Precondition(
+      Op op,
+      @Nullable RecordRef ref,
+      @Nullable VersionAttribute attribute,
+      long expectedVersion,
+      @Nullable ReadToken token) {
     this.op = op;
     this.ref = ref;
     this.attribute = attribute;
     this.expectedVersion = expectedVersion;
+    this.token = token;
   }
 
   /**
@@ -135,6 +156,23 @@ public final class Precondition {
     return new Precondition(Op.VERSION_EQUALS, ref, attribute, expectedVersion);
   }
 
+  /**
+   * The referenced record must exist and must still be in the state {@code token} was issued for.
+   *
+   * <p>For a record kind that carries no version attribute this is the only way a read rides into a
+   * commit. The token must be one that a read of {@code ref} returned from the same store the
+   * commit goes to: a token is opaque to every caller and is verified only by the store that issued
+   * it.
+   *
+   * <p>The reference must be the mutation's own target. This form on some other record is invalid
+   * input rather than a wider condition, because a token's meaning is bound to the read that
+   * produced it and no other store can check it.
+   */
+  public static @NonNull Precondition unchangedSince(
+      @NonNull RecordRef ref, @NonNull ReadToken token) {
+    return new Precondition(Op.UNCHANGED_SINCE, ref, null, 0, token);
+  }
+
   public @NonNull Op op() {
     return op;
   }
@@ -154,12 +192,20 @@ public final class Precondition {
     return expectedVersion;
   }
 
+  /** Present only when {@link #op()} is {@link Op#UNCHANGED_SINCE}. */
+  public @NonNull Optional<ReadToken> token() {
+    return Optional.ofNullable(token);
+  }
+
   @Override
   public String toString() {
     return switch (op) {
       case NONE -> "Precondition{NONE}";
       case VERSION_EQUALS ->
           "Precondition{" + op + " " + ref + " " + attribute + "=" + expectedVersion + "}";
+      // The token is deliberately left out. This rendering reaches a conflict message a client can
+      // see, and for some record kinds a token's parts are secret material.
+      case UNCHANGED_SINCE -> "Precondition{" + op + " " + ref + "}";
       default -> "Precondition{" + op + " " + ref + "}";
     };
   }

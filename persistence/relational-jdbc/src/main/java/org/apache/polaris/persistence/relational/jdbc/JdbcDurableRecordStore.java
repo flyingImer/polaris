@@ -543,6 +543,15 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     return switch (p.op()) {
       case NOT_EXISTS -> !present;
       case EXISTS, VERSION_EQUALS -> present;
+      // Never evaluated here. An unchangedSince condition names the mutation's own target, so it
+      // folds into that statement's own WHERE clause and is decided by the row count. Checking it
+      // with a separate read would prove nothing under this store's isolation level: a competitor
+      // committing between the read and the write would not be caught, and the write would then
+      // land on the competitor's row.
+      case UNCHANGED_SINCE ->
+          throw new IllegalArgumentException(
+              "An unchangedSince condition is verified by the statement that carries it, never by a"
+                  + " separate read");
       case NONE -> true;
     };
   }

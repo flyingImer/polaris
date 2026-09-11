@@ -19,6 +19,7 @@
 package org.apache.polaris.persistence.treemap;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -41,6 +42,7 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.ReadToken;
 import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.RecordVersions;
@@ -134,13 +136,29 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
    * @param paths the kind's declared lookup paths, realized as record matchers — the registration
    *     half of the declared-once-normative discipline; empty when the kind declares none
    * @param versions null when the kind carries no version
+   * @param tokenParts the values a read token for this kind is built from, in a fixed order; null
+   *     when the kind issues no token. A kind carrying no version needs this to answer an
+   *     unchangedSince precondition. The parts are a value snapshot rather than the stored object,
+   *     because a record class here may be mutable and may not define value equality.
    */
   private record KindBinding<T>(
       TreeMapSlices.Slice<T> slice,
       Function<T, String> identityKey,
       @Nullable Function<T, String> uniquenessKey,
       Map<LookupPath, PathBinding<T>> paths,
-      @Nullable Function<T, RecordVersions> versions) {}
+      @Nullable Function<T, RecordVersions> versions,
+      @Nullable Function<T, List<@Nullable Object>> tokenParts) {
+
+    /** A kind that issues no read token. */
+    KindBinding(
+        TreeMapSlices.Slice<T> slice,
+        Function<T, String> identityKey,
+        @Nullable Function<T, String> uniquenessKey,
+        Map<LookupPath, PathBinding<T>> paths,
+        @Nullable Function<T, RecordVersions> versions) {
+      this(slice, identityKey, uniquenessKey, paths, versions, null);
+    }
+  }
 
   /**
    * One declared lookup path, realized: the anchor signature the declaration states and the record
@@ -251,7 +269,17 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
             // no declared list paths: the model's by-principal and enumeration paths are
             // documented gaps no shipped backend serves, not declarations to realize here
             Map.of(),
-            null));
+            null,
+            // The kind carries no version, so this is what an unchangedSince condition compares:
+            // the persisted state a reader saw. Arrays.asList rather than List.of because a part
+            // may legitimately be null, and a null that WAS null has to compare equal only to null.
+            s ->
+                Arrays.<@Nullable Object>asList(
+                    s.getPrincipalId(),
+                    s.getPrincipalClientId(),
+                    s.getMainSecretHash(),
+                    s.getSecondarySecretHash(),
+                    s.getSecretSalt())));
 
     map.put(
         PolarisRecordKinds.EVENT,
@@ -421,6 +449,22 @@ public class TreeMapDurableRecordStore implements DurableRecordStore {
                       case GRANT_RECORDS_VERSION -> v.grantRecordsVersion() == p.expectedVersion();
                     })
             .orElse(false);
+      }
+      case UNCHANGED_SINCE -> {
+        KindBinding<T> b = binding(ref.kind());
+        Function<T, List<@Nullable Object>> parts = b.tokenParts();
+        if (parts == null) {
+          throw new IllegalArgumentException(
+              "Record kind '"
+                  + ref.kind().id()
+                  + "' issues no read token, so an unchangedSince precondition cannot be satisfied"
+                  + " against it");
+        }
+        // Read through the same in-transaction lookup EXISTS and VERSION_EQUALS use, so the state
+        // compared is the state this commit is about to write over. An absent record fails the
+        // condition: unchangedSince asserts the row is still the one that was read.
+        ReadToken expected = p.token().orElseThrow();
+        yield found.map(parts).map(ReadToken::of).filter(expected::equals).isPresent();
       }
       case NONE -> true;
     };
