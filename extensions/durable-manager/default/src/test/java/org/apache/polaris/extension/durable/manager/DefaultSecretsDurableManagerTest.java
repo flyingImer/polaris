@@ -30,6 +30,7 @@ import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
 import org.apache.polaris.core.persistence.dao.entity.CreatePrincipalResult;
@@ -144,7 +145,8 @@ class DefaultSecretsDurableManagerTest {
     assertThatThrownBy(
             () -> secrets.resetPrincipalSecrets(callCtx, loser.getId(), contendedClientId, null))
         .isInstanceOf(AlreadyExistsException.class)
-        .hasMessageContaining(contendedClientId);
+        .hasMessageContaining(contendedClientId)
+        .hasMessageContaining("Precondition{NOT_EXISTS");
 
     assertThat(primitives.mutationsOfLastCommit())
         .singleElement()
@@ -179,9 +181,12 @@ class DefaultSecretsDurableManagerTest {
                     Mutation.of(
                         PolarisRecordKinds.PRINCIPAL_SECRETS, Mutation.Op.DELETE, ref, null))));
 
+    // A condition-refused commit that rolled back in full is a REPORTED conflict, not an invariant
+    // violation: the in-family type the error mapper renders 409, with the refused condition named.
     assertThatThrownBy(() -> secrets.deletePrincipalSecrets(callCtx, clientId, principal.getId()))
-        .isInstanceOf(IllegalStateException.class)
-        .hasMessageStartingWith("cannot_find_secrets");
+        .isInstanceOf(CommitConflictException.class)
+        .hasMessageContaining(clientId)
+        .hasMessageContaining("Precondition{EXISTS");
 
     assertThat(routing.get(ref, PolarisPrincipalSecrets.class)).isEmpty();
   }
