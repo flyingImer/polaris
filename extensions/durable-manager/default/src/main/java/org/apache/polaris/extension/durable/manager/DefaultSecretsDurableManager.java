@@ -32,6 +32,7 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -106,6 +107,20 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
             .flatMap(CommitResult::failure)
             .filter(f -> f == CommitResult.Failure.PRECONDITION_FAILED)
             .isPresent();
+  }
+
+  /**
+   * The declared conditions the store REPORTED as refused, rendered for a conflict message. {@code
+   * CommitResult#failedPreconditions()} may report only a subset — both shipped stores stop at the
+   * first failed condition, and the contract's minimum is "at least the one that stopped the
+   * commit" — so this names what was reported and never claims to be the complete set.
+   */
+  private static @NonNull String refusedConditions(@NonNull OrchestrationResult result) {
+    List<String> reported =
+        result.groupFailure().map(CommitResult::failedPreconditions).orElse(List.of()).stream()
+            .map(Precondition::toString)
+            .toList();
+    return String.join(", ", reported);
   }
 
   @Override
@@ -246,8 +261,13 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
     }
     if (lostRace(result)) {
       // Lost the race between the pre-check above and this commit: someone else claimed
-      // resolvedClientId in between. Same exception the pre-check reports.
-      throw new AlreadyExistsException("Client ID already in use: " + resolvedClientId);
+      // resolvedClientId in between. Same exception the pre-check reports, plus the declared
+      // condition that refused the commit.
+      throw new AlreadyExistsException(
+          "Client ID already in use: "
+              + resolvedClientId
+              + "; commit refused by declared condition(s): "
+              + refusedConditions(result));
     }
     return mapFailedSecretsMutation(result);
   }
@@ -258,17 +278,22 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
    * existence those checks just read. Unconditioned — as this method and the old model both were —
    * a DELETE of an already-deleted record is a store-level no-op, so two concurrent callers both
    * returned normally and no serial order explained that pair. With the condition the loser is
-   * refused and raises the read-side check's own {@code cannot_find_secrets} signature, which is
-   * what a serialized second call reports. Same shape as {@code
-   * DefaultPolicyDurableManager#detachPolicyFromEntity}'s {@code EXISTS} on the mapping's own
-   * identity; {@code DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used
-   * to be paired with, still carries the unconditioned form.
+   * refused, and that refusal is reported as a conflict (next paragraph). Recorded rather than
+   * glossed: a strictly serialized second call would instead report the row ABSENT, so the conflict
+   * and the serialized answer are not the same answer; signalling a condition-refused commit as a
+   * conflict is the decided shape for this layer, and it is the message that carries which
+   * condition refused. Same shape as {@code DefaultPolicyDurableManager#detachPolicyFromEntity}'s
+   * {@code EXISTS} on the mapping's own identity; {@code
+   * DefaultGrantDurableManager#revokeGrantRecord}'s DELETE, which this method used to be paired
+   * with, still carries the unconditioned form.
    *
-   * <p>The signature is the read-side check's, the exception type is not: the check above routes
-   * through {@code checkNotNull} and the branch below through {@code fail}, so a lost race raises
-   * {@code IllegalStateException} where an absent row on entry raises {@code NullPointerException}.
-   * Nothing in this surface's contract distinguishes them — the method is {@code void} and every
-   * failure here is unchecked — but the divergence is stated rather than left to be discovered.
+   * <p>The two absences signal differently, deliberately. A row absent on ENTRY is reported by the
+   * read-side {@code checkNotNull} as {@code NullPointerException}; losing the race AFTER those
+   * reads passed is a commit the store refused by the declared condition and rolled back in full,
+   * reported as {@code CommitConflictException} — an in-family {@code PolarisConflictException},
+   * which the error mapper renders 409 — naming the refused condition in its message. The method is
+   * {@code void} and every failure here is unchecked, so nothing in this surface's contract
+   * distinguishes the two; the split is stated rather than left to be discovered.
    */
   @Override
   public void deletePrincipalSecrets(
@@ -294,10 +319,13 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
                     null,
                     List.of(Precondition.exists(ref)))));
     if (lostRace(result)) {
-      // Lost the race between the reads above and this commit: the row is already gone. Same
-      // signature the read-side check above reports for an absent row.
-      throw diagnostics.fail(
-          "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+      // Lost the race between the reads above and this commit: the row is already gone. The commit
+      // was refused by its own declared EXISTS condition and rolled back completely, so this is a
+      // REPORTED conflict in the Polaris exception family, not an invariant violation.
+      throw new CommitConflictException(
+          "Cannot delete principal secrets for client id %s (principal %s): "
+              + "commit refused by declared condition(s): %s",
+          clientId, principalId, refusedConditions(result));
     }
     diagnostics.check(
         result.isApplied(),
