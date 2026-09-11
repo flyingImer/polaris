@@ -126,6 +126,40 @@ public final class OrchestrationResult {
     return uncompensated;
   }
 
+  /**
+   * True when a condition this call declared did not hold and nothing this call wrote survives.
+   *
+   * <p>Two facts, and neither is safe alone: the failing group was refused by a precondition rather
+   * than by a size or grouping error, <em>and</em> the rollback completed, so no partial state is
+   * left behind. {@link Outcome#ROLLBACK_INCOMPLETE} is therefore never this, whatever refused it —
+   * that outcome is what {@link #uncompensated()} exists to disclose.
+   *
+   * <p>This is the result's own state rather than a caller's reading of it. Every caller that wants
+   * it otherwise re-derives it from {@link #outcome()} and {@link #groupFailure()}, and a
+   * derivation repeated at a dozen sites is one that eventually disagrees with itself about whether
+   * an incomplete rollback counts.
+   */
+  public boolean isRefusedAndRolledBack() {
+    return outcome != Outcome.ROLLBACK_INCOMPLETE
+        && groupFailure()
+            .flatMap(CommitResult::failure)
+            .filter(failure -> failure == CommitResult.Failure.PRECONDITION_FAILED)
+            .isPresent();
+  }
+
+  /**
+   * The conditions the failing group's store reported as refused, empty when no group was refused
+   * by one.
+   *
+   * <p>What was REPORTED, not necessarily every condition that would have failed: {@link
+   * CommitResult#failedPreconditions()} promises at least the one that stopped the commit and
+   * allows a store to stop there. A caller naming these in a message should say what the store
+   * reported rather than imply the list is complete.
+   */
+  public @NonNull List<Precondition> refusedConditions() {
+    return groupFailure().map(CommitResult::failedPreconditions).orElse(List.of());
+  }
+
   @Override
   public String toString() {
     return switch (outcome) {
