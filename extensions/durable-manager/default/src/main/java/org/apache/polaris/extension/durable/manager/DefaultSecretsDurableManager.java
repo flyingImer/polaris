@@ -43,6 +43,7 @@ import org.apache.polaris.spi.durable.DurableRecordStore;
 import org.apache.polaris.spi.durable.Mutation;
 import org.apache.polaris.spi.durable.OrchestrationResult;
 import org.apache.polaris.spi.durable.Precondition;
+import org.apache.polaris.spi.durable.Read;
 import org.apache.polaris.spi.durable.RecordRef;
 import org.apache.polaris.spi.durable.SecretsDurableManager;
 import org.jspecify.annotations.NonNull;
@@ -171,12 +172,12 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
             PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE);
     boolean doReset = reset || flagPresent;
 
-    PolarisPrincipalSecrets current =
-        primitives
-            .get(RecordRefs.secretsIdentity(clientId), PolarisPrincipalSecrets.class)
-            .orElse(null);
+    RecordRef secretsRef = RecordRefs.secretsIdentity(clientId);
+    Read<PolarisPrincipalSecrets> read =
+        primitives.read(secretsRef, PolarisPrincipalSecrets.class).orElse(null);
     diagnostics.checkNotNull(
-        current, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+        read, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+    PolarisPrincipalSecrets current = read.value();
     diagnostics.check(
         principalId == current.getPrincipalId(),
         "principal_id_mismatch",
@@ -195,9 +196,9 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
         Mutation.of(
             PolarisRecordKinds.PRINCIPAL_SECRETS,
             Mutation.Op.UPDATE,
-            RecordRefs.secretsIdentity(clientId),
+            secretsRef,
             updated,
-            List.of(Precondition.none())));
+            List.of(Precondition.unchangedSince(secretsRef, read.token()))));
     if (reset && !flagPresent) {
       internalProps.put(
           PolarisEntityConstants.PRINCIPAL_CREDENTIAL_ROTATION_REQUIRED_STATE, "true");
@@ -208,9 +209,21 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
     }
 
     OrchestrationResult result = orchestrator.commit(mutations);
-    return result.isApplied()
-        ? new PrincipalSecretsResult(updated)
-        : mapFailedSecretsMutation(result);
+    if (result.isApplied()) {
+      return new PrincipalSecretsResult(updated);
+    }
+    if (lostRace(result)) {
+      // Lost the race between the read above and this commit: the row this rotation was computed
+      // from is gone, or is no longer the row that was read. The commit was refused by its own
+      // declared condition and rolled back in full, so nothing this call intended reached storage
+      // and this is a reported conflict rather than an invariant violation. Before the condition
+      // existed the loser overwrote whatever it found, or resurrected a row a delete had removed.
+      throw new CommitConflictException(
+          "Cannot rotate principal secrets for client id %s (principal %s): "
+              + "commit refused by declared condition(s): %s",
+          clientId, principalId, refusedConditions(result));
+    }
+    return mapFailedSecretsMutation(result);
   }
 
   /**
@@ -300,10 +313,11 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
   public void deletePrincipalSecrets(
       @NonNull PolarisCallContext callCtx, @NonNull String clientId, long principalId) {
     RecordRef ref = RecordRefs.secretsIdentity(clientId);
-    PolarisPrincipalSecrets secrets =
-        primitives.get(ref, PolarisPrincipalSecrets.class).orElse(null);
+    Read<PolarisPrincipalSecrets> read =
+        primitives.read(ref, PolarisPrincipalSecrets.class).orElse(null);
     diagnostics.checkNotNull(
-        secrets, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+        read, "cannot_find_secrets", "client_id={} principalId={}", clientId, principalId);
+    PolarisPrincipalSecrets secrets = read.value();
     diagnostics.check(
         principalId == secrets.getPrincipalId(),
         "principal_id_mismatch",
@@ -318,7 +332,7 @@ public class DefaultSecretsDurableManager implements SecretsDurableManager {
                     Mutation.Op.DELETE,
                     ref,
                     null,
-                    List.of(Precondition.exists(ref)))));
+                    List.of(Precondition.unchangedSince(ref, read.token())))));
     if (lostRace(result)) {
       // Lost the race between the reads above and this commit: the row is already gone. The commit
       // was refused by its own declared EXISTS condition and rolled back completely, so this is a

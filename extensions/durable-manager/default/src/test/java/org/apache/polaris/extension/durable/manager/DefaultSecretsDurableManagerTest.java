@@ -54,11 +54,12 @@ import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 
 /**
- * The two windows the secrets mutations' declared conditions close: a reset that loses the race for
- * a client id, and a delete whose row disappears between its own read and its commit. Both writes
- * used to reach the store unconditioned, so both losers reported an outcome no serial order
- * explains — a create that only the store's own duplicate check refused, and a delete that removed
- * nothing and said so to nobody.
+ * The windows the secrets mutations' declared conditions close: a reset that loses the race for a
+ * client id, a delete whose row disappears between its own read and its commit, and a rotation
+ * whose row disappears in that same window. All three used to reach the store unconditioned. The
+ * delete is the one no serial order explained, because it removed nothing and reported that to
+ * nobody, while the reset's loser was always consistent with a second caller arriving after the
+ * winner, so what changed there is the message it carries rather than the answer.
  *
  * <p>Assembly is {@link DefaultGrantDurableManagerTest}'s: TreeMap behind the routing store, one
  * orchestrator, one primitives handle. {@link StagedRaceDurableRecordStore} wraps that handle and
@@ -66,11 +67,13 @@ import org.junit.jupiter.api.Test;
  * makes, before the mutation it built from them reaches the store. That is the whole window, and
  * reaching it needs no second thread.
  *
- * <p>The delete case is decided by behaviour on either shipped store: both evaluate {@code EXISTS}
- * with a real read (TreeMap in its precondition loop, JDBC with a SELECT over the same where-clause
- * its DELETE uses), and without the condition a DELETE of an absent row is a no-op both report as
- * applied. The reset case cannot be decided that way, because both shipped stores refuse a
- * duplicate CREATE whatever the mutation declares — the measurement is in {@code
+ * <p>The delete and rotate cases are decided by behaviour on either shipped store, because both
+ * verify {@code UNCHANGED_SINCE} against the row itself: TreeMap compares a value snapshot in its
+ * precondition loop, and JDBC folds the token's column values into the statement's own WHERE
+ * clause, so the row count decides it. Without the condition a DELETE of an absent row is a no-op
+ * both stores report as applied, and an UPDATE of one is written on TreeMap without complaint. The
+ * reset case cannot be decided that way, because both shipped stores refuse a duplicate CREATE
+ * whatever the mutation declares — the measurement is in {@code
  * DefaultGrantDurableManager#persistNewGrantRecord}'s javadoc. So it asserts the caller's result
  * and the declared condition: the declaration is what carries the refusal to a store that honours
  * it instead of over-rejecting, and it is the half that goes red if the condition is dropped.
