@@ -19,45 +19,49 @@
 package org.apache.polaris.extension.durable.manager;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.catchThrowable;
 
 import java.time.Clock;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import org.apache.polaris.core.PolarisCallContext;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
-import org.apache.polaris.core.durable.conformance.CommitPreemptingDurableRecordStore;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.exceptions.TooManyItemsException;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
-import org.apache.polaris.core.persistence.dao.entity.BaseResult;
-import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
+import org.apache.polaris.core.persistence.pagination.Page;
+import org.apache.polaris.core.persistence.pagination.PageToken;
 import org.apache.polaris.extension.orchestration.DefaultDurableOrchestrator;
 import org.apache.polaris.extension.primitives.routing.MappedDurableRecordStoreLocator;
 import org.apache.polaris.extension.primitives.routing.RoutingDurableRecordStore;
 import org.apache.polaris.persistence.treemap.TreeMapDurableRecordStore;
+import org.apache.polaris.spi.durable.CommitResult;
 import org.apache.polaris.spi.durable.DurableRecordStore;
+import org.apache.polaris.spi.durable.LookupPath;
 import org.apache.polaris.spi.durable.Mutation;
+import org.apache.polaris.spi.durable.RecordKind;
 import org.apache.polaris.spi.durable.RecordRef;
+import org.apache.polaris.spi.durable.RecordVersions;
+import org.jspecify.annotations.NonNull;
 import org.junit.jupiter.api.Test;
 
 /**
- * Proves the batch update's loud-conflict claim: when one entity in a multi-entity update changes
- * between the manager's read and its commit, the whole batch fails and nothing is applied.
+ * A batch the store refuses as larger than its per-commit limit is permanent, so the batch update
+ * throws instead of returning the lost-race status. The two are different instructions to the
+ * caller: a lost race says re-read and retry, while an oversized list says split it. Collapsing
+ * them makes a client retry the identical request forever.
  *
- * <p>The manager's own staleness pre-check cannot see this window — it reads each row, compares
- * versions, and only then builds the mutations, so a change landing after that read is caught by
- * the committed conditions rather than by the pre-check. {@link CommitPreemptingDurableRecordStore}
- * is the hook that lands one deterministically, the same way the create-race case uses it.
- *
- * <p>Assembled like {@link DefaultCatalogDurableManagerCreateRaceTest}: routing over one store, one
- * orchestrator, one manager. The two entities are created through a manager over the bare store, so
- * only the batch update meets the preempting decorator.
+ * <p>Assembled like {@link DefaultCatalogDurableManagerUpdateRaceTest}: routing over one store, one
+ * orchestrator, one manager. Both entities are created through a manager over the bare store, so
+ * only the batch update meets the refusing decorator.
  */
-class DefaultCatalogDurableManagerUpdateRaceTest {
+class DefaultCatalogDurableManagerBatchLimitTest {
 
   private static final PolarisCallContext CALL_CTX =
       new PolarisCallContext(() -> "testRealm", new NeverCallOldPrimitives());
@@ -113,54 +117,92 @@ class DefaultCatalogDurableManagerUpdateRaceTest {
   }
 
   @Test
-  void aConcurrentChangeToOneEntityFailsTheWholeBatchAndAppliesNothing() {
+  void aBatchRefusedAsTooLargeThrowsRatherThanReportingALostRace() {
     TreeMapDurableRecordStore base =
         new TreeMapDurableRecordStore(new PolarisDefaultDiagServiceImpl());
     DefaultCatalogDurableManager plain = managerOver(base);
-    PolarisBaseEntity first = created(plain, newCatalog(plain, "update-race-a"));
-    PolarisBaseEntity second = created(plain, newCatalog(plain, "update-race-b"));
+    PolarisBaseEntity first = created(plain, newCatalog(plain, "batch-limit-a"));
+    PolarisBaseEntity second = created(plain, newCatalog(plain, "batch-limit-b"));
 
-    // The competitor bumps the first entity's grant-records version inside the batch's own commit,
-    // after the manager has already read both rows and fixed its conditions.
-    DurableRecordStore raced =
-        new CommitPreemptingDurableRecordStore(
-            base,
-            intercepted -> {
-              Mutation batched = intercepted.get(0);
-              // Built from the STORED row, not from the manager's intended new state. The intended
-              // state already carries entityVersion + 1, so competing with it would trip the
-              // record-version condition and this case would prove nothing about the grant-records
-              // one. Leaving entityVersion alone makes the grant-records condition the only thing
-              // that can refuse the commit.
-              PolarisBaseEntity competitor =
-                  new PolarisBaseEntity.Builder(first)
-                      .grantRecordsVersion(first.getGrantRecordsVersion() + 7)
-                      .build();
-              return List.of(
-                  Mutation.of(batched.kind(), Mutation.Op.UPDATE, batched.target(), competitor));
-            });
+    Throwable thrown =
+        catchThrowable(
+            () ->
+                managerOver(new RefusesEveryCommitAsTooLarge(base))
+                    .updateEntitiesPropertiesIfNotChanged(
+                        CALL_CTX,
+                        List.of(
+                            new EntityWithPath(List.of(), withProperty(first, "one")),
+                            new EntityWithPath(List.of(), withProperty(second, "two")))));
 
-    EntitiesResult result =
-        managerOver(raced)
-            .updateEntitiesPropertiesIfNotChanged(
-                CALL_CTX,
-                List.of(
-                    new EntityWithPath(List.of(), withProperty(first, "one")),
-                    new EntityWithPath(List.of(), withProperty(second, "two"))));
+    assertThat(thrown).isInstanceOf(TooManyItemsException.class);
+    assertThat(((TooManyItemsException) thrown).errorCode()).isEqualTo("commit.too_many_items");
 
-    assertThat(result.isSuccess()).isFalse();
-    assertThat(result.getReturnStatus())
-        .isEqualTo(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED);
+    // Nothing was applied: neither row carries the batch's own change.
+    assertThat(readBack(base, first.getId()).getPropertiesAsMap()).doesNotContainKey("batched");
+    assertThat(readBack(base, second.getId()).getPropertiesAsMap()).doesNotContainKey("batched");
+  }
 
-    // Nothing from the batch survives: the entity that did not lose the race is untouched too.
-    assertThat(readBack(base, second.getId()).getEntityVersion())
-        .isEqualTo(second.getEntityVersion());
+  /**
+   * Forwards every read to the real store so the manager's pre-check sees live rows, and reports
+   * each commit as exceeding the per-commit limit. In the style of the shared preempting store: one
+   * intercepted method, everything else forwarded 1:1.
+   */
+  private record RefusesEveryCommitAsTooLarge(DurableRecordStore delegate)
+      implements DurableRecordStore {
 
-    // And the row the competitor targeted holds the competitor's write, not the batch's: proving
-    // the losing mutation's own payload never landed, rather than only that the bystander was
-    // spared.
-    PolarisBaseEntity racedRow = readBack(base, first.getId());
-    assertThat(racedRow.getGrantRecordsVersion()).isEqualTo(first.getGrantRecordsVersion() + 7);
-    assertThat(racedRow.getPropertiesAsMap()).doesNotContainKey("batched");
+    @Override
+    public @NonNull CommitResult commit(@NonNull List<Mutation> mutations) {
+      return CommitResult.tooManyItems();
+    }
+
+    @Override
+    public long generateNewId() {
+      return delegate.generateNewId();
+    }
+
+    @Override
+    public @NonNull <T> Optional<T> get(@NonNull RecordRef ref, @NonNull Class<T> type) {
+      return delegate.get(ref, type);
+    }
+
+    @Override
+    public @NonNull <T> List<Optional<T>> getMany(
+        @NonNull List<RecordRef> refs, @NonNull Class<T> type) {
+      return delegate.getMany(refs, type);
+    }
+
+    @Override
+    public @NonNull <T> Page<T> list(
+        @NonNull RecordKind kind,
+        @NonNull LookupPath path,
+        @NonNull List<Object> anchors,
+        @NonNull PageToken pageToken,
+        @NonNull Class<T> type) {
+      return delegate.list(kind, path, anchors, pageToken, type);
+    }
+
+    @Override
+    public @NonNull <T> Page<T> list(
+        @NonNull LookupPath path,
+        @NonNull List<Object> anchors,
+        @NonNull PageToken pageToken,
+        @NonNull Class<T> type) {
+      return delegate.list(path, anchors, pageToken, type);
+    }
+
+    @Override
+    public @NonNull List<Optional<RecordVersions>> versionsOf(@NonNull List<RecordRef> refs) {
+      return delegate.versionsOf(refs);
+    }
+
+    @Override
+    public @NonNull Object domainOf(@NonNull RecordRef target) {
+      return delegate.domainOf(target);
+    }
+
+    @Override
+    public int maxItemsPerCommit() {
+      return delegate.maxItemsPerCommit();
+    }
   }
 }
