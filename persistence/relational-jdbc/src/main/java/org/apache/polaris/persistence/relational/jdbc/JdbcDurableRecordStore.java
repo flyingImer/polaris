@@ -378,15 +378,6 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
         return CommitResult.domainMismatch();
       }
       for (Precondition p : m.preconditions()) {
-        if (p.op() == Precondition.Op.UNCHANGED_SINCE
-            && !p.ref().map(m.target()::equals).orElse(false)) {
-          // A token's meaning is bound to the read that produced it, so this condition says
-          // something only about the record the mutation writes. Aimed at another reference it is
-          // malformed input rather than a wider condition: no retry or regrouping makes it
-          // checkable, which is why this is thrown like a DELETE carrying a payload.
-          throw new IllegalArgumentException(
-              "An unchangedSince condition must name the mutation's own target");
-        }
         if (p.ref().isPresent() && !domain.equals(domainOf(p.ref().get()))) {
           return CommitResult.domainMismatch();
         }
@@ -580,6 +571,32 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     RecordRef ref = maybeRef.get();
     KindBinding<?> b = binding(ref.kind());
     Map<String, Object> where = whereFor(b, ref);
+    if (p.op() == Precondition.Op.UNCHANGED_SINCE) {
+      // A condition on a record this mutation does not write, decided the way EXISTS and
+      // VERSION_EQUALS are decided for another record: one read inside this same transaction. The
+      // staleness a competitor's commit could introduce between this read and this transaction's
+      // own
+      // commit is the window the contract already accepts for a condition on another record,
+      // because
+      // a stale read of a record nobody here writes cannot corrupt that record. A condition on the
+      // mutation's OWN target never reaches this method: it folds into that statement's WHERE
+      // clause,
+      // where the row count decides it and no window exists.
+      List<?> rows =
+          datasourceOperations.executeSelect(
+              connection,
+              QueryGenerator.generateSelectQuery(b.columns(), b.table(), where),
+              b.reader());
+      if (rows.isEmpty()) {
+        // unchangedSince asserts the record is still the one that was read, so an absent record
+        // fails it rather than vacuously satisfying it.
+        return false;
+      }
+      // Built by the same function that issued the token in read(), so what was handed out and what
+      // is compared here line up by construction rather than by convention.
+      ReadToken current = ReadToken.of(new ArrayList<>(b.rowOf().apply(rows.getFirst()).values()));
+      return p.token().orElseThrow().equals(current);
+    }
     if (p.op() == Precondition.Op.VERSION_EQUALS) {
       where.put(versionColumn(b, p), p.expectedVersion());
     }
@@ -597,15 +614,11 @@ public class JdbcDurableRecordStore implements DurableRecordStore {
     return switch (p.op()) {
       case NOT_EXISTS -> !present;
       case EXISTS, VERSION_EQUALS -> present;
-      // Never evaluated here. An unchangedSince condition names the mutation's own target, so it
-      // folds into that statement's own WHERE clause and is decided by the row count. Checking it
-      // with a separate read would prove nothing under this store's isolation level: a competitor
-      // committing between the read and the write would not be caught, and the write would then
-      // land on the competitor's row.
+      // Decided above, before the presence query, because it needs the row's value columns rather
+      // than only its existence. Reaching here would mean that early return was removed.
       case UNCHANGED_SINCE ->
-          throw new IllegalArgumentException(
-              "An unchangedSince condition is verified by the statement that carries it, never by a"
-                  + " separate read");
+          throw new IllegalStateException(
+              "An unchangedSince condition is decided before the presence query");
       case NONE -> true;
     };
   }

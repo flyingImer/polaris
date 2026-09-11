@@ -878,6 +878,87 @@ public abstract class BaseDurableRecordStoreConformanceTest {
         .isEqualTo(2L);
   }
 
+  /**
+   * A token may condition a write to a DIFFERENT record of the same kind, exactly as {@code exists}
+   * and {@code versionEquals} may. The write applies while the referenced record is untouched.
+   *
+   * <p>This is the same form as the cases above with a different reference, which is the point: a
+   * condition carries its own reference, so whether it equals the mutation's target decides only
+   * how a store verifies it, never whether it can be stated. A store that can fold a condition on
+   * the row it is writing into that write does so; a condition on any other row is read inside the
+   * same transaction, the way the other operators already are.
+   */
+  @Test
+  protected void aCommitCarryingATokenForAnotherRecordApplies() {
+    assertThat(store.commit(List.of(createSecrets(secrets(1L, "other-x", "one")))).isApplied())
+        .isTrue();
+    assertThat(store.commit(List.of(createSecrets(secrets(2L, "other-y", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> readX =
+        store.read(secretsRef("other-x"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    CommitResult result =
+        store.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.UPDATE,
+                    secretsRef("other-y"),
+                    secrets(2L, "other-y", "two"),
+                    List.of(Precondition.unchangedSince(secretsRef("other-x"), readX.token())))));
+
+    assertThat(result.isApplied()).isTrue();
+    assertThat(store.get(secretsRef("other-y"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-two");
+    // The conditioned-on record was read, not written.
+    assertThat(store.get(secretsRef("other-x"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-one");
+  }
+
+  /**
+   * A stale token for another record refuses the whole commit, and the record the commit would have
+   * written is left alone. The discriminating half of the pair above: without evaluation, a
+   * condition on another record would be silently ignored and the write would land.
+   */
+  @Test
+  protected void aStaleTokenForAnotherRecordRefusesTheCommit() {
+    assertThat(store.commit(List.of(createSecrets(secrets(1L, "stale-x", "one")))).isApplied())
+        .isTrue();
+    assertThat(store.commit(List.of(createSecrets(secrets(2L, "stale-y", "one")))).isApplied())
+        .isTrue();
+    Read<PolarisPrincipalSecrets> readX =
+        store.read(secretsRef("stale-x"), PolarisPrincipalSecrets.class).orElseThrow();
+
+    // A competitor changes the record the condition is about, after that read came back.
+    assertThat(store.commit(List.of(overwriteSecrets(secrets(1L, "stale-x", "two")))).isApplied())
+        .isTrue();
+
+    CommitResult result =
+        store.commit(
+            List.of(
+                Mutation.of(
+                    PolarisRecordKinds.PRINCIPAL_SECRETS,
+                    Mutation.Op.UPDATE,
+                    secretsRef("stale-y"),
+                    secrets(2L, "stale-y", "two"),
+                    List.of(Precondition.unchangedSince(secretsRef("stale-x"), readX.token())))));
+
+    assertThat(result.isApplied()).isFalse();
+    assertThat(result.failure()).contains(CommitResult.Failure.PRECONDITION_FAILED);
+    assertThat(result.failedPreconditions())
+        .extracting(Precondition::op)
+        .contains(Precondition.Op.UNCHANGED_SINCE);
+    // The write target never changed: a refused condition fails the whole commit.
+    assertThat(store.get(secretsRef("stale-y"), PolarisPrincipalSecrets.class))
+        .get()
+        .extracting(PolarisPrincipalSecrets::getMainSecretHash)
+        .isEqualTo("mainhash-one");
+  }
+
   private static RecordRef ref(PathCase pc, Object record) {
     return pc.identityRef().apply(record);
   }

@@ -40,9 +40,10 @@ import org.jspecify.annotations.Nullable;
  * <p><b>1. "On another record" is not a separate family of forms.</b> Because a condition carries
  * its own {@link RecordRef}, a condition on the record being written and a condition on some other
  * record are the same form with a different reference. Whether the reference happens to equal the
- * mutation's target is not the contract's business. That collapses what the design discussion
- * called a six-form vocabulary into <b>three operators plus "no condition"</b>. This is a
- * simplification relative to the prose, recorded here rather than applied silently.
+ * mutation's target is not the contract's business: it decides how a store verifies the condition,
+ * never whether the condition can be stated. That collapses what the design discussion called a
+ * six-form vocabulary into <b>four operators plus "no condition"</b>. This is a simplification
+ * relative to the prose, recorded here rather than applied silently.
  *
  * <p><b>2. An attribute dimension does exist, and it is a closed enum rather than a string.</b> The
  * hope that naming the operator would remove the attribute dimension entirely does not survive
@@ -94,6 +95,10 @@ public final class Precondition {
      * #VERSION_EQUALS}. It is not a comparison against a field the caller names: the contract knows
      * only that the token came from a read of the same reference and that the issuing store can
      * verify it, never how the store decides two states are the same.
+     *
+     * <p>Like every other operator, the reference may be the record being written or another record
+     * in the same atomicity domain. That choice changes how a store verifies the condition, not
+     * whether it may be stated.
      */
     UNCHANGED_SINCE,
   }
@@ -164,9 +169,15 @@ public final class Precondition {
    * commit goes to: a token is opaque to every caller and is verified only by the store that issued
    * it.
    *
-   * <p>The reference must be the mutation's own target. This form on some other record is invalid
-   * input rather than a wider condition, because a token's meaning is bound to the read that
-   * produced it and no other store can check it.
+   * <p>The reference need not be the mutation's own target. As with {@link #exists} and {@link
+   * #versionEquals}, it may name another record in the same atomicity domain, and a store verifies
+   * it the way it verifies those: a condition on the record being written is decided by that write
+   * itself where the store can do so, and a condition on any other record is read inside the same
+   * transaction.
+   *
+   * <p>What a token is bound to is the reference it was read from, which is a different rule. A
+   * token issued by a read of one record says nothing about another, so passing it under a
+   * reference it was not read from is invalid input rather than a weaker condition.
    */
   public static @NonNull Precondition unchangedSince(
       @NonNull RecordRef ref, @NonNull ReadToken token) {
