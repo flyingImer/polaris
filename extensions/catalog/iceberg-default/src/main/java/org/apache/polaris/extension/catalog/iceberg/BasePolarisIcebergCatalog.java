@@ -72,10 +72,12 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.iceberg.exceptions.UnprocessableEntityException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.CloseableGroup;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanReport;
@@ -126,6 +128,7 @@ import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.events.EventAttributeMap;
 import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.exceptions.CommitConflictException;
+import org.apache.polaris.core.exceptions.TooManyItemsException;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
@@ -148,6 +151,7 @@ import org.apache.polaris.core.storage.PolarisStorageActions;
 import org.apache.polaris.core.storage.StorageAccessConfig;
 import org.apache.polaris.core.storage.StorageLocation;
 import org.apache.polaris.core.storage.StorageUtil;
+import org.apache.polaris.spi.durable.CommitDisruptedException;
 import org.apache.polaris.spi.durable.DurableManager;
 import org.apache.polaris.spi.feature.CatalogPrefixParser;
 import org.apache.polaris.spi.feature.catalog.AccessDelegationMode;
@@ -1728,9 +1732,24 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
 
     // Commit the collected updates in a single atomic operation
     List<EntityWithPath> pendingUpdates = tableCommitCollector.staged();
-    EntitiesResult result =
-        realMetaStoreManager.updateEntitiesPropertiesIfNotChanged(
-            callContext.getPolarisCallContext(), pendingUpdates);
+    EntitiesResult result;
+    try {
+      result =
+          realMetaStoreManager.updateEntitiesPropertiesIfNotChanged(
+              callContext.getPolarisCallContext(), pendingUpdates);
+    } catch (CommitDisruptedException e) {
+      // The store never reached a verdict, so translate exactly what it can say, here at this
+      // route's own boundary. UNKNOWN must not be reported as a failed commit: the client would
+      // retry over mutations that may already be in storage. NONE may.
+      throw switch (e.durableEffect()) {
+        case UNKNOWN -> new CommitStateUnknownException(e);
+        case NONE -> new CommitFailedException(e, "%s", e.getMessage());
+      };
+    } catch (TooManyItemsException e) {
+      // Permanent, and not a conflict: reported as a client error so the caller splits the
+      // transaction rather than retrying a request that can never fit.
+      throw new ValidationException(e, "%s", e.getMessage());
+    }
     if (!result.isSuccess()) {
       // TODO: Retries and server-side cleanup on failure, review possible exceptions
       throw new CommitFailedException(

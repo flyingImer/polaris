@@ -44,6 +44,7 @@ import org.apache.polaris.core.entity.PolarisPrivilege;
 import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.PrincipalEntity;
 import org.apache.polaris.core.entity.PrincipalRoleEntity;
+import org.apache.polaris.core.exceptions.TooManyItemsException;
 import org.apache.polaris.core.persistence.PolarisObjectMapperUtil;
 import org.apache.polaris.core.persistence.PolarisRecordKinds;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -806,6 +807,17 @@ public class DefaultCatalogDurableManager implements CatalogDurableManager {
           "rollback incomplete: "
               + result.uncompensated().size()
               + " mutation(s) require admin reclamation");
+    }
+    CommitResult.Failure failure = result.groupFailure().orElseThrow().failure().orElseThrow();
+    if (failure == CommitResult.Failure.TOO_MANY_ITEMS) {
+      // A list the store will not accept at any time is not a lost race. Reporting it as a
+      // concurrent modification tells the caller to re-read and retry the same oversized list,
+      // which can only fail again; the caller has to split the work instead. That is a different
+      // instruction, so it leaves the result vocabulary and throws.
+      throw new TooManyItemsException(
+          String.format(
+              "Cannot update %d entities in one commit: the store declined the batch as too large",
+              mutations.size()));
     }
     return new EntitiesResult(BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
   }

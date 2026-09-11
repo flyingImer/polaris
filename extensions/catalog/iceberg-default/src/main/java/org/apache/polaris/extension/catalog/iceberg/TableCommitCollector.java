@@ -20,9 +20,12 @@ package org.apache.polaris.extension.catalog.iceberg;
 
 import java.util.ArrayList;
 import java.util.List;
-import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.polaris.core.entity.PolarisEntityCore;
+import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
+import org.apache.polaris.core.storage.StorageLocation;
+import org.apache.polaris.core.storage.StorageUtil;
 
 /**
  * Collects the per-table entity updates of one multi-table transaction so they can be committed as
@@ -38,8 +41,49 @@ final class TableCommitCollector {
 
   private final List<EntityWithPath> staged = new ArrayList<>();
 
-  /** Records one table's entity update instead of persisting it now. */
-  void stage(List<PolarisEntityCore> catalogPath, PolarisBaseEntity entity) {
+  /**
+   * Every location the staged tables requested, in staging order. A table contributes as many
+   * entries as it declares locations, so this list is not index-aligned with {@link #staged}.
+   */
+  private final List<StorageLocation> stagedLocations = new ArrayList<>();
+
+  /**
+   * Records one table's entity update instead of persisting it now, refusing a table whose base
+   * location overlaps one this transaction has already staged.
+   *
+   * <p>The per-table overlap validation cannot see this case. It resolves siblings from committed
+   * rows, so two tables relocating into the same directory in one request each find the other still
+   * at its old location, and both pass. Nothing afterwards re-examines the set, and the single
+   * commit that follows carries conditions on each table's own version but none on either location
+   * — so there is no writer to lose the race and no ordering that would explain the outcome. The
+   * check belongs here because this is the only point that sees the whole request's locations
+   * before anything is persisted.
+   *
+   * @throws ForbiddenException if the entity's base location is a prefix or a suffix of the base
+   *     location of a table staged earlier in this transaction
+   */
+  void stage(List<PolarisEntityCore> catalogPath, IcebergTableLikeEntity entity) {
+    // The same location set the per-table validation checks against committed siblings: the base
+    // location plus any user-specified write paths, which the entity carries in its internal
+    // properties. Checking only the base location would miss two tables pointing one write path at
+    // the same directory.
+    List<StorageLocation> requested =
+        StorageUtil.getLocationsUsedByTable(
+                entity.getBaseLocation(), entity.getInternalPropertiesAsMap())
+            .stream()
+            .map(StorageLocation::of)
+            .toList();
+    for (StorageLocation staging : requested) {
+      for (StorageLocation earlier : stagedLocations) {
+        if (staging.isChildOf(earlier) || earlier.isChildOf(staging)) {
+          throw new ForbiddenException(
+              "Unable to create entity at location '%s' because it conflicts with another table in "
+                  + "the same transaction at location '%s'",
+              staging, earlier);
+        }
+      }
+    }
+    stagedLocations.addAll(requested);
     staged.add(new EntityWithPath(catalogPath, entity));
   }
 

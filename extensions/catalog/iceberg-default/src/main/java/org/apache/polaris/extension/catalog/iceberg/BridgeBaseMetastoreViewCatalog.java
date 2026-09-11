@@ -318,10 +318,6 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
         PropertyUtil.propertiesWithPrefix(properties, CatalogProperties.TABLE_DEFAULT_PREFIX);
   }
 
-  public void setMetaStoreManager(DurableManager newMetaStoreManager) {
-    this.metaStoreManager = newMetaStoreManager;
-  }
-
   /**
    * Installs the collector that receives per-table entity updates instead of persisting them, for
    * the duration of one multi-table transaction.
