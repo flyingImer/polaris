@@ -227,6 +227,12 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
   private DurableManager metaStoreManager;
 
   /**
+   * Set for the duration of a multi-table transaction, null on every other path. When set, a
+   * table's entity update is staged for the caller's single commit instead of being persisted here.
+   */
+  private TableCommitCollector tableCommitCollector;
+
+  /**
    * @param callContext the current CallContext
    * @param resolvedEntityView accessor to resolved entity paths that have been pre-vetted to ensure
    *     this catalog instance only interacts with authorized resolved paths.
@@ -314,6 +320,14 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
 
   public void setMetaStoreManager(DurableManager newMetaStoreManager) {
     this.metaStoreManager = newMetaStoreManager;
+  }
+
+  /**
+   * Installs the collector that receives per-table entity updates instead of persisting them, for
+   * the duration of one multi-table transaction.
+   */
+  void setTableCommitCollector(TableCommitCollector collector) {
+    this.tableCommitCollector = collector;
   }
 
   @Override
@@ -2698,6 +2712,12 @@ public class BridgeBaseMetastoreViewCatalog extends BaseMetastoreViewCatalog
     validateLocationForTableLike(identifier, metadataLocation, resolvedEntities);
 
     List<PolarisEntity> catalogPath = resolvedEntities.getRawParentPath();
+    if (tableCommitCollector != null) {
+      // A multi-table transaction: stage this table's update, and let the caller commit the whole
+      // set once. No result to inspect here, because nothing has been persisted yet.
+      tableCommitCollector.stage(PolarisEntity.toCoreList(catalogPath), icebergTableLikeEntity);
+      return;
+    }
     EntityResult res =
         getMetaStoreManager()
             .updateEntityPropertiesIfNotChanged(

@@ -128,7 +128,6 @@ import org.apache.polaris.core.events.IcebergEventAttributes;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
-import org.apache.polaris.core.persistence.TransactionWorkspaceMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
@@ -1657,17 +1656,14 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
           baseCatalog.getClass().getName());
     }
 
-    // The retired handler kept its own (real) DurableManager separate from the catalog's swappable
-    // one. This class's own metaStoreManager field captures the real manager here (never swapped);
-    // the swap is applied to the composed polarisIcebergCatalog delegate instead, since that is the
-    // instance whose data mechanics (tableOps.commit()/createTableLike()/etc, via its own
-    // metaStoreManager field) actually need to route mutations into the in-memory transaction
-    // workspace collection during this method. The collected updates are committed as a single
-    // atomic unit after all validations, through the captured real manager.
+    // Each table's data mechanics (tableOps.commit() and friends) run through the composed
+    // polarisIcebergCatalog delegate. A collector installed on that delegate receives each table's
+    // entity update instead of persisting it, so the whole set is committed once below, after every
+    // table's changes are validated and applied. The delegate keeps its real DurableManager, which
+    // is what makes the reads performed by validation legal during this method.
     DurableManager realMetaStoreManager = metaStoreManager;
-    TransactionWorkspaceMetaStoreManager transactionMetaStoreManager =
-        new TransactionWorkspaceMetaStoreManager(diagnostics, realMetaStoreManager);
-    polarisIcebergCatalog.setMetaStoreManager(transactionMetaStoreManager);
+    TableCommitCollector tableCommitCollector = new TableCommitCollector();
+    polarisIcebergCatalog.setTableCommitCollector(tableCommitCollector);
 
     // Group all changes by table identifier to handle them atomically.
     // This prevents conflicts when multiple changes target the same table entity.
@@ -1687,8 +1683,6 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
     // table. This is subtly different from applying each UpdateTableRequest as an independent
     // commit (as if each were under a lock). Requirements are still validated sequentially
     // against the evolving metadata, so conflicts are detected correctly.
-    // See also the TODO in TransactionWorkspaceMetaStoreManager for a more general (but more
-    // complex) alternative that would intercept at the MetaStoreManager layer.
     List<TableMetadata> tableMetadataObjs = new ArrayList<>();
     changesByTable.forEach(
         (tableIdentifier, changes) -> {
@@ -1715,22 +1709,8 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
             // CatalogHandlerUtils to avoid divergence as complexity grows.
             TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(currentMetadata);
             for (MetadataUpdate singleUpdate : change.updates()) {
-              // Note: If location-overlap checking is refactored to be atomic, we could
-              // support validation within a single multi-table transaction as well, but
-              // will need to update the TransactionWorkspaceMetaStoreManager to better
-              // expose the concept of being able to read uncommitted updates.
-              if (singleUpdate instanceof MetadataUpdate.SetLocation setLocation) {
-                if (!currentMetadata.location().equals(setLocation.location())
-                    && !realmConfig.getConfig(
-                        FeatureConfiguration.ALLOW_NAMESPACE_LOCATION_OVERLAP)) {
-                  throw new BadRequestException(
-                      "Unsupported operation: commitTransaction containing SetLocation"
-                          + " for table '%s' and new location '%s'",
-                      change.identifier(), ((MetadataUpdate.SetLocation) singleUpdate).location());
-                }
-              }
-
-              // Apply updates to builder
+              // A location change is validated like any other, before the single commit below: the
+              // delegate still holds the real manager, so the overlap check's reads are legal.
               singleUpdate.applyTo(metadataBuilder);
             }
 
@@ -1747,7 +1727,7 @@ public abstract class BasePolarisIcebergCatalog<E extends ExtensionPayload & ETa
         });
 
     // Commit the collected updates in a single atomic operation
-    List<EntityWithPath> pendingUpdates = transactionMetaStoreManager.getPendingUpdates();
+    List<EntityWithPath> pendingUpdates = tableCommitCollector.staged();
     EntitiesResult result =
         realMetaStoreManager.updateEntitiesPropertiesIfNotChanged(
             callContext.getPolarisCallContext(), pendingUpdates);
