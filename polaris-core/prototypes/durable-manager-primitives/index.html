@@ -1,0 +1,469 @@
+<!doctype html>
+<!--
+  Licensed to the Apache Software Foundation (ASF) under one
+  or more contributor license agreements.  See the NOTICE file
+  distributed with this work for additional information
+  regarding copyright ownership.  The ASF licenses this file
+  to you under the Apache License, Version 2.0 (the
+  "License"); you may not use this file except in compliance
+  with the License.  You may obtain a copy of the License at
+
+   http://www.apache.org/licenses/LICENSE-2.0
+
+  Unless required by applicable law or agreed to in writing,
+  software distributed under the License is distributed on an
+  "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+  KIND, either express or implied.  See the License for the
+  specific language governing permissions and limitations
+  under the License.
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Durable Manager / Primitives prototype</title>
+  <style>
+    :root { color-scheme: light; --ink:#16383b; --muted:#536d70; --line:#d8e3e2; --accent:#087c72; --bg:#f3f7f6; }
+    * { box-sizing:border-box; }
+    body { margin:0; font:15px/1.65 system-ui,sans-serif; background:var(--bg); color:var(--ink); }
+    main { max-width:1200px; margin:32px auto 64px; padding:0 24px; }
+    h1 { font-size:30px; line-height:1.3; margin:8px 0 14px; letter-spacing:-.5px; }
+    h2 { font-size:19px; margin:0 0 8px; }
+    h3 { font-size:15px; margin:0 0 10px; }
+    p { margin:8px 0; }
+    .eyebrow { text-transform:uppercase; font-size:12px; font-weight:750; color:var(--accent); letter-spacing:1.5px; }
+    .intro { max-width:870px; }
+    .muted, small { color:var(--muted); }
+    .controls { display:flex; align-items:center; gap:12px; flex-wrap:wrap; margin:22px 0 18px; }
+    label { display:flex; align-items:center; gap:8px; }
+    select,button { font:inherit; border:1px solid var(--line); background:white; color:var(--ink); border-radius:8px; padding:9px 12px; }
+    button { cursor:pointer; }
+    button:hover { border-color:var(--accent); }
+    button:focus-visible,select:focus-visible,summary:focus-visible { outline:3px solid #71b9b2; outline-offset:3px; }
+    button:disabled { opacity:.45; cursor:default; }
+    .primary,button[aria-selected="true"] { background:var(--accent); border-color:var(--accent); color:white; }
+    .grid { display:grid; grid-template-columns:1fr 1fr 1fr; gap:14px; margin:18px 0; }
+    .panel { background:white; border:1px solid var(--line); border-radius:12px; padding:20px; min-width:0; }
+    .panel-label { color:var(--accent); font-size:12px; font-weight:750; letter-spacing:.6px; margin-bottom:6px; }
+    .state { margin:14px 0 0; display:grid; gap:9px; }
+    .item { border-top:1px solid var(--line); padding-top:9px; }
+    .item strong { display:block; font-size:14px; overflow-wrap:anywhere; }
+    .item span { font-size:13px; color:var(--muted); display:block; overflow-wrap:anywhere; }
+    .status { display:inline-block; border-radius:5px; background:#edf5f3; color:var(--accent); padding:3px 8px; font-weight:750; font-size:13px; }
+    .status.warn { background:#fff1dd; color:#875009; }
+    .status.bad { background:#ffeded; color:#a12323; }
+    .summary { display:flex; gap:24px; flex-wrap:wrap; align-items:center; padding:17px 20px; }
+    .summary p { margin:0; }
+    .notice { margin-top:14px; padding:12px 16px; border-left:4px solid var(--accent); background:#e7f2ef; min-height:51px; }
+    .actions { display:flex; gap:8px; flex-wrap:wrap; margin-top:14px; }
+    .tabs { display:flex; gap:8px; flex-wrap:wrap; margin-bottom:16px; }
+    .steps { display:flex; gap:8px; flex-wrap:wrap; margin-top:15px; }
+    .guide { margin-top:20px; }
+    .guide-text { max-width:900px; }
+    .lower { display:grid; grid-template-columns:1.15fr 1fr; gap:14px; margin-top:20px; }
+    ol { padding-left:22px; margin:10px 0; }
+    li { padding:5px 0; }
+    code,pre { font:12px/1.65 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    code { overflow-wrap:anywhere; }
+    pre { background:#f4f7f7; padding:14px; border-radius:8px; overflow:auto; }
+    summary { cursor:pointer; }
+    footer { margin-top:24px; font-size:13px; color:var(--muted); }
+    .check { padding:8px 0; border-bottom:1px solid var(--line); }
+    .check.bad { color:#a12323; font-weight:700; }
+    .scope-note { font-size:13px; margin-top:10px; }
+    a { color:var(--accent); }
+    @media(max-width:850px) { .grid,.lower { grid-template-columns:1fr; } main { padding:0 16px; } h1 { font-size:25px; } }
+  </style>
+</head>
+<body>
+<main>
+  <div class="eyebrow">Throwaway prototype · model only</div>
+  <h1>同一份 Manager，怎么安全地提交？</h1>
+  <p class="intro">要验证的问题：Manager 只表达业务读取和最终修改，换一种 Primitives 并发保护机制后，这套流程还能正确处理冲突、部分失败和 <b>Unknown</b> 吗？先点「读取并准备」，观察候选修改与已发布数据的区别。</p>
+  <p class="muted intro">这是内存中的可操作模型。没有连接数据库，没有运行 Polaris Java，也不代表 FDB、Spanner 或 JDBC 已通过验证。刷新页面会清空状态。</p>
+
+  <div class="controls">
+    <label>Primitives 模型
+      <select id="mechanism" aria-label="Primitives mechanism">
+        <option value="tracked">跟踪 point / range 读取</option>
+        <option value="scope">整个 scope 的内部 version</option>
+      </select>
+    </label>
+    <label><input type="checkbox" id="small-capacity">模拟容量不足</label>
+    <label><input type="checkbox" id="unsafe-range">故意漏掉 range 保护</label>
+    <button id="reset">重置当前场景</button>
+  </div>
+  <p class="muted scope-note">两个模型都保留一致的读取快照，并模拟一次原子提交。整个 scope 的 version 更保守，无关修改也可能让它冲突。切换选项会重置场景。</p>
+
+  <section class="panel summary" aria-label="Outcome">
+    <div><small>当前操作</small><p id="operation"></p></div>
+    <div><small>Manager 知道的结果</small><p><span id="outcome" class="status"></span></p></div>
+    <div><small>允许返回 durable success？</small><p id="success"></p></div>
+    <div><small>当前业务执行</small><p id="attempt-count"></p></div>
+  </section>
+  <div id="notice" class="notice" role="status" aria-live="polite"></div>
+
+  <div class="grid">
+    <section class="panel">
+      <div class="panel-label">1 / PROTECTED READS</div>
+      <h2>这次写入依赖什么</h2>
+      <p class="muted">Manager 看到值或 absence，内部 token 留在 Primitives。</p>
+      <div id="reads" class="state"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-label">2 / SHARED MANAGER</div>
+      <h2>准备好的最终修改</h2>
+      <p class="muted">这些仍在内存里。准备完成不等于 durable success。</p>
+      <div id="plan" class="state"></div>
+    </section>
+    <section class="panel">
+      <div class="panel-label">3 / PUBLISHED STORE</div>
+      <h2>现在实际发布了什么</h2>
+      <p class="muted">演示者能看到真相。Unknown 时 Manager 不能据此推断本次提交结果。</p>
+      <div id="store" class="state"></div>
+    </section>
+  </div>
+
+  <section class="panel">
+    <h2>自由操作</h2>
+    <p class="muted">按钮可以任意点。已结束的 attempt 不能继续提交，Unknown 也不能进入普通重试。</p>
+    <div class="actions" id="actions"></div>
+  </section>
+
+  <section class="panel guide">
+    <h2>引导场景</h2>
+    <div class="tabs" id="tabs" role="tablist" aria-label="Walkthroughs"></div>
+    <div role="tabpanel" id="guide-panel">
+      <p class="guide-text" id="guide-text"></p>
+      <div class="steps" id="steps"></div>
+    </div>
+  </section>
+
+  <div class="lower">
+    <section class="panel">
+      <h2>执行记录</h2>
+      <ol id="trace"></ol>
+    </section>
+    <section class="panel">
+      <h2>当前观察</h2>
+      <div id="checks"></div>
+      <details style="margin-top:16px">
+        <summary>查看完整状态与 backend 内部信息</summary>
+        <pre id="raw"></pre>
+      </details>
+      <details style="margin-top:16px">
+        <summary>实际执行的共享 Manager 代码</summary>
+        <pre id="manager-code"></pre>
+      </details>
+    </section>
+  </div>
+  <footer>边界：本模型抽取 catalog 初始化与 namespace 竞争。Storage integration、完整 authorization、cache、STS、分页及真实网络故障不在本轮验证范围。业务版本与内部 version 是不同的状态。<a href="README.md">范围、证据与下一步</a></footer>
+</main>
+
+<script>
+"use strict";
+
+// Pure model. No DOM, networking, clocks or persistent storage.
+const DurablePrototype = (() => {
+  const copy = value => structuredClone(value);
+  const actionLabels = {
+    prepare: "读取并准备", commit: "提交最终修改", abort: "确认未提交",
+    concurrent: "执行另一个请求", retry: "重新读取并准备", close: "关闭 attempt",
+    lostCommitted: "提交生效，但确认丢失", lostAborted: "未生效，结果仍无法确认"
+  };
+  const scenarios = {
+    catalog: {
+      title: "Catalog 初始化", command: "catalog",
+      description: "Catalog、admin role、三条 grants 和 endpoint versions 由一份 Manager 逻辑准备。提交之前右侧不变。一次提交后一起出现。",
+      steps: ["prepare", "commit"]
+    },
+    abort: {
+      title: "准备后失败", command: "catalog",
+      description: "Manager 已经算好所有修改，但提交前失败。确认未提交后，published store 保持原状，候选结果不能被当作成功返回。也可以勾选容量不足，再尝试提交。",
+      steps: ["prepare", "abort", "close"]
+    },
+    range: {
+      title: "删除与创建竞争", command: "deleteNamespace",
+      description: "删除看到 namespace 没有 children。另一个请求先创建 child。默认保护范围读取，删除必须冲突。勾选「故意漏掉 range 保护」重放，会看到 orphan，说明只检查 namespace 自己的版本不够。",
+      steps: ["prepare", "concurrent", "commit", "retry"]
+    },
+    unknown: {
+      title: "Unknown", command: "catalog",
+      description: "模拟提交响应丢失。无论数据库实际提交了还是没提交，Manager 都只得到 Unknown，不能返回 durable success，也不能当 clean conflict 重试。用自由操作切换两种隐藏结果。",
+      steps: ["prepare", "lostCommitted", "retry", "close"]
+    },
+    versions: {
+      title: "内部 version 的成本", command: "catalog",
+      description: "另一个请求只改 namespace 的备注，与 CreateCatalog 无关。跟踪实际读取的模型可以提交，整个 scope 的 version 模型会冲突。Manager 代码完全相同，冲突范围取决于实现。",
+      steps: ["prepare", "concurrent", "commit"]
+    }
+  };
+
+  // Primitives: opaque keys and prefix lookups stand in for declared bindings.
+  // Neither this object nor commit interprets catalog, role or grant semantics.
+  const Primitives = {
+    open(store, config) {
+      return { snapshot:copy(store), mechanism:config.mechanism,
+        protectRanges:!config.unsafeRange, reads:[], mutations:[], candidate:null,
+        terminal:false, closed:false, outcome:"OPEN" };
+    },
+    get(attempt, key) {
+      if (attempt.terminal || attempt.closed) throw new Error("Attempt is no longer readable");
+      const value = attempt.snapshot.rows[key] ?? null;
+      attempt.reads.push({ key, kind:"point", value:copy(value),
+        revision:attempt.snapshot.revisions[key] ?? 0 });
+      return copy(value);
+    },
+    list(attempt, prefix) {
+      if (attempt.terminal || attempt.closed) throw new Error("Attempt is no longer readable");
+      const entries = Object.entries(attempt.snapshot.rows)
+        .filter(([key]) => key.startsWith(prefix)).sort(([a],[b]) => a.localeCompare(b));
+      attempt.reads.push({ key:prefix, kind:"range", value:copy(entries),
+        signature:rangeSignature(attempt.snapshot,prefix), protected:attempt.protectRanges });
+      return copy(entries);
+    },
+    commit(store, attempt, config, delivery="received") {
+      if (attempt.terminal || attempt.closed) throw new Error("Attempt cannot commit again");
+      attempt.terminal = true;
+      if (attempt.mutations.length > config.capacity) {
+        attempt.outcome="CAPACITY";
+        return { store, reason:"超过演示中的 mutation 限制，确认没有发布任何修改。" };
+      }
+      const conflict = attempt.mechanism === "scope"
+        ? store.generation !== attempt.snapshot.generation
+        : attempt.reads.some(read => read.kind === "point"
+          ? (store.revisions[read.key] ?? 0) !== read.revision
+          : read.protected && rangeSignature(store,read.key) !== read.signature);
+      if (conflict) {
+        attempt.outcome="CONFLICT";
+        return { store, reason:"Primitives 确认冲突且未提交。可以用新的 attempt 重新读取。" };
+      }
+      if (delivery === "lostAborted") {
+        attempt.outcome="UNKNOWN";
+        return { store, reason:"演示中的数据库没有生效，但调用方没有确认信息。结果仍是 Unknown。" };
+      }
+      const next = copy(store);
+      next.generation++;
+      for (const mutation of attempt.mutations) {
+        if (mutation.remove) delete next.rows[mutation.key];
+        else next.rows[mutation.key]=copy(mutation.value);
+        // Keep tombstones so a point token is not reused after deletion.
+        next.revisions[mutation.key]=next.generation;
+      }
+      attempt.outcome=delivery === "lostCommitted" ? "UNKNOWN" : "COMMITTED";
+      return { store:next, reason:delivery === "lostCommitted"
+        ? "演示中的数据库已经生效，但确认丢失。Manager 只知道 Unknown。"
+        : "Primitives 确认完整提交。Manager 现在才能释放成功结果。" };
+    },
+    close(attempt) {
+      if (!attempt.terminal) { attempt.terminal=true; attempt.outcome="ABORTED"; }
+      attempt.closed=true;
+    }
+  };
+  function rangeSignature(store,prefix) {
+    return JSON.stringify(Object.keys(store.rows).filter(key=>key.startsWith(prefix))
+      .sort().map(key=>[key,store.revisions[key] ?? 0]));
+  }
+  const put = (key,value) => ({key,value});
+  const remove = key => ({key,remove:true});
+  function requireFact(ok, message) { if (!ok) throw new Error(message); }
+
+  // Shared Manager: only logical observations and final domain changes.
+  // No mechanism selection and no access to internal concurrency revisions.
+  function prepareCatalog(view) {
+    requireFact(!view.get("entity/catalog"), "Catalog identity 已存在，不推断先前请求成功。");
+    requireFact(!view.get("name/root/catalog/sales"), "Catalog name 已存在。");
+    const service = view.get("entity/service-admin");
+    requireFact(service, "缺少 service_admin。");
+    const catalog = { type:"catalog", name:"sales", grantVersion:3 };
+    const admin = { type:"catalog_role", name:"catalog_admin", grantVersion:4 };
+    return {
+      mutations:[
+        put("entity/catalog",catalog), put("entity/catalog-admin",admin),
+        put("entity/service-admin",{...service,grantVersion:service.grantVersion+1}),
+        put("name/root/catalog/sales",{entity:"entity/catalog"}),
+        put("name/catalog/role/catalog_admin",{entity:"entity/catalog-admin"}),
+        put("grant/catalog/catalog-admin/manage_access",{ privilege:"manage_access" }),
+        put("grant/catalog/catalog-admin/manage_metadata",{ privilege:"manage_metadata" }),
+        put("grant/catalog-admin/service-admin/usage",{ privilege:"usage" })
+      ],
+      candidate:{catalog:"sales",role:"catalog_admin"}
+    };
+  }
+  function prepareDelete(view) {
+    requireFact(view.get("entity/namespace"), "Namespace 已不存在。");
+    requireFact(view.list("name/namespace/").length === 0, "Namespace 已有 child，业务拒绝删除。");
+    return { mutations:[remove("entity/namespace"),remove("name/root/namespace/analytics")],
+      candidate:{deleted:"analytics"} };
+  }
+  function prepareChild(view) {
+    requireFact(view.get("entity/namespace"), "Parent 不存在，不能创建 child。");
+    requireFact(!view.get("entity/child"), "Child identity 已存在。");
+    requireFact(!view.get("name/namespace/table/events"), "Child name 已存在。");
+    return { mutations:[put("entity/child",{type:"table",name:"events",parent:"entity/namespace"}),
+      put("name/namespace/table/events",{entity:"entity/child"})], candidate:{created:"events"} };
+  }
+  function prepareNote(view) {
+    const namespace = view.get("entity/namespace");
+    requireFact(namespace, "Namespace 不存在。");
+    return {mutations:[put("entity/namespace",{...namespace,note:"changed by another request"})],
+      candidate:{updated:"namespace note"}};
+  }
+  const managers={catalog:prepareCatalog,deleteNamespace:prepareDelete,child:prepareChild,note:prepareNote};
+  function runManager(attempt, command) {
+    const view={get:key=>Primitives.get(attempt,key),list:prefix=>Primitives.list(attempt,prefix)};
+    const prepared = managers[command](view);
+    attempt.mutations=copy(prepared.mutations);
+    attempt.candidate=copy(prepared.candidate);
+    attempt.outcome="PREPARED";
+  }
+  function initial(scenario="catalog", config={}) {
+    const rows={
+      "entity/service-admin":{type:"principal_role",name:"service_admin",grantVersion:1},
+      "entity/namespace":{type:"namespace",name:"analytics",note:"original"},
+      "name/root/namespace/analytics":{entity:"entity/namespace"}
+    };
+    return {scenario,config:{mechanism:"tracked",capacity:100,unsafeRange:false,...config},
+      store:{rows,revisions:Object.fromEntries(Object.keys(rows).map(key=>[key,1])),generation:1},
+      attempt:null,attemptCount:0,guideStep:0,
+      notice:"点击「读取并准备」。右侧只显示已发布数据。", trace:[]};
+  }
+  function transition(previous, action) {
+    const state=copy(previous);
+    const say = text => { state.notice=text; state.trace.push(text); };
+    const attempt=state.attempt;
+    const command=scenarios[state.scenario].command;
+    try {
+      if (action === "prepare" || action === "retry") {
+        if (attempt && attempt.outcome === "UNKNOWN") { say("Unknown 不是 confirmed abort，普通重试已阻止。"); return state; }
+        if (action === "prepare" && attempt) { say("这次执行已经有 attempt。确认冲突后使用「重新读取并准备」。"); return state; }
+        if (action === "retry" && (!attempt || attempt.outcome !== "CONFLICT")) {
+          say("只有确认未提交且可恢复的冲突，才进入这个演示的自动重试路径。"); return state;
+        }
+        if (state.attemptCount >= 3) { say("已达到本演示的三次 attempt 上限，结束内部重试。"); return state; }
+        if (attempt) Primitives.close(attempt);
+        state.attempt=Primitives.open(state.store,state.config);
+        state.attemptCount++;
+        try {
+          runManager(state.attempt,command);
+          say("Manager 读取并完成业务检查，准备 "+state.attempt.mutations.length+" 项最终修改。尚未发布。");
+        } catch (error) {
+          state.attempt.terminal=true; state.attempt.outcome="REJECTED";
+          say("Manager 拒绝："+error.message+" 没有提交。");
+        }
+      } else if (action === "concurrent") {
+        const other=Primitives.open(state.store,state.config);
+        try {
+          runManager(other,state.scenario === "range" ? "child" : "note");
+          const result=Primitives.commit(state.store,other,state.config);
+          state.store=result.store;
+          say(other.outcome === "COMMITTED"
+            ? (state.scenario === "range" ? "另一个 Manager 验证 parent 后，已原子创建 child。" : "另一个 Manager 已修改 namespace 备注，CreateCatalog 不依赖这条记录。")
+            : "另一个请求未提交："+result.reason);
+        } catch (error) { say("另一个 Manager 拒绝："+error.message); }
+        finally { Primitives.close(other); }
+      } else {
+        if (!attempt) { say("还没有 attempt，先读取并准备。"); return state; }
+        if (action === "close") {
+          Primitives.close(attempt);
+          say("已关闭 attempt。没有隐式提交，保留已知结果 "+attempt.outcome+"。");
+        } else if (attempt.terminal || attempt.closed) {
+          say("Attempt 已结束，不能再次提交或把已知结果改写为 abort。");
+        } else if (action === "abort") {
+          attempt.terminal=true; attempt.outcome="ABORTED";
+          say("确认提交前取消。没有发布本 attempt 的任何修改。");
+        } else if (["commit","lostCommitted","lostAborted"].includes(action)) {
+          const result=Primitives.commit(state.store,attempt,state.config,
+            action === "commit" ? "received" : action);
+          state.store=result.store; say(result.reason);
+        }
+      }
+    } catch (error) { say(error.message); }
+    return state;
+  }
+  function observations(state) {
+    const rows=state.store.rows;
+    const hasCatalog=!!rows["entity/catalog"];
+    const catalogComplete=hasCatalog && !!rows["entity/catalog-admin"]
+      && !!rows["name/root/catalog/sales"] && !!rows["name/catalog/role/catalog_admin"]
+      && !!rows["grant/catalog/catalog-admin/manage_access"]
+      && !!rows["grant/catalog/catalog-admin/manage_metadata"]
+      && !!rows["grant/catalog-admin/service-admin/usage"]
+      && rows["entity/catalog"].grantVersion === 3
+      && rows["entity/catalog-admin"].grantVersion === 4
+      && rows["entity/service-admin"].grantVersion === 2;
+    const orphan=!!rows["entity/child"] && !rows["entity/namespace"];
+    return [
+      {ok:!hasCatalog || catalogComplete,text:!hasCatalog ? "Catalog 尚未发布。" : catalogComplete ? "Catalog、role、grants 和版本一起发布。" : "发现不完整 catalog。"},
+      {ok:!orphan,text:orphan ? "出现 orphan：child 仍在，parent 已被删除。" : "没有 orphan child。"},
+      {ok:true,text:state.attempt?.outcome === "UNKNOWN" ? "Manager 不知道本次提交结果，不能普通重试或返回 durable success。" : "候选结果只在确认提交后作为成功结果释放。"}
+    ];
+  }
+  return {initial,transition,observations,scenarios,actionLabels,prepareCatalog,prepareDelete};
+})();
+</script>
+
+<script>
+"use strict";
+// Thin UI shell. All state changes go through the portable model above.
+let state=DurablePrototype.initial();
+const byId=id=>document.getElementById(id);
+const escapeHtml=value=>String(value).replace(/[&<>"']/g,char=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[char]));
+const item=(title,detail)=>'<div class="item"><strong>'+escapeHtml(title)+'</strong><span>'+escapeHtml(detail)+'</span></div>';
+const formatValue=value=>value === null ? "不存在" : JSON.stringify(value);
+function reset(scenario=state.scenario) {
+  state=DurablePrototype.initial(scenario,{
+    mechanism:byId("mechanism").value,
+    capacity:byId("small-capacity").checked ? 2 : 100,
+    unsafeRange:byId("unsafe-range").checked
+  });
+  render();
+}
+function dispatch(action, guided=false) {
+  state=DurablePrototype.transition(state,action);
+  if (guided) state.guideStep++;
+  render();
+}
+function render() {
+  const attempt=state.attempt;
+  const scenario=DurablePrototype.scenarios[state.scenario];
+  const outcome=attempt?.outcome ?? "NOT STARTED";
+  byId("operation").textContent=scenario.command === "catalog" ? "CreateCatalog(sales)" : "DropNamespace(analytics)";
+  byId("outcome").textContent=outcome+(attempt?.closed ? " / CLOSED" : "");
+  byId("outcome").className="status"+(["UNKNOWN","CONFLICT","CAPACITY"].includes(outcome)?" warn":"");
+  byId("success").textContent=outcome === "COMMITTED" ? "可以，提交已确认" : "不可以";
+  byId("attempt-count").textContent=state.attemptCount+" / 3 attempts";
+  byId("notice").textContent=state.notice;
+  byId("reads").innerHTML=attempt?.reads.length ? attempt.reads.map(read=>item(
+    read.kind === "point" ? read.key : read.key+"*",
+    read.kind === "point" ? formatValue(read.value)
+      : read.value.length+" 个匹配项"+(read.protected ? "，range 被保护" : "，故意未保护 range")
+  )).join("") : '<p class="muted">还没有读取。</p>';
+  byId("plan").innerHTML=attempt?.mutations.length ? attempt.mutations.map(mutation=>item(
+    (mutation.remove ? "DELETE " : "PUT ")+mutation.key,
+    mutation.remove ? "在最后一次提交中删除" : formatValue(mutation.value)
+  )).join("") : '<p class="muted">还没有候选修改。</p>';
+  byId("store").innerHTML=Object.entries(state.store.rows).sort(([a],[b])=>a.localeCompare(b))
+    .map(([key,value])=>item(key,formatValue(value))).join("");
+  byId("trace").innerHTML=state.trace.length ? state.trace.map(text=>'<li>'+escapeHtml(text)+'</li>').join("") : '<li class="muted">等待第一个操作。</li>';
+  byId("checks").innerHTML=DurablePrototype.observations(state).map(check=>'<div class="check'+(check.ok?"":" bad")+'">'+(check.ok?"✓ ":"✕ ")+escapeHtml(check.text)+'</div>').join("");
+  byId("raw").textContent=JSON.stringify({published:state.store,attempt:state.attempt},null,2);
+  byId("manager-code").textContent=(scenario.command === "catalog" ? DurablePrototype.prepareCatalog : DurablePrototype.prepareDelete).toString();
+  byId("guide-text").textContent=scenario.description;
+  byId("tabs").innerHTML=Object.entries(DurablePrototype.scenarios).map(([key,value])=>'<button role="tab" aria-selected="'+(key===state.scenario)+'" aria-controls="guide-panel" data-scenario="'+key+'">'+escapeHtml(value.title)+'</button>').join("");
+  byId("steps").innerHTML=scenario.steps.map((action,index)=>'<button data-step="'+index+'" '+(index!==state.guideStep?'disabled':'class="primary"')+'>'+(index+1)+'. '+escapeHtml(DurablePrototype.actionLabels[action])+'</button>').join("")
+    +(state.guideStep>=scenario.steps.length?'<span class="muted">已走完，可以重置或继续自由操作。</span>':'');
+}
+byId("actions").innerHTML=Object.entries(DurablePrototype.actionLabels).map(([action,label])=>'<button data-action="'+action+'">'+escapeHtml(label)+'</button>').join("");
+byId("actions").addEventListener("click",event=>{ const button=event.target.closest("button[data-action]"); if(button) dispatch(button.dataset.action); });
+byId("tabs").addEventListener("click",event=>{ const button=event.target.closest("button[data-scenario]"); if(button) reset(button.dataset.scenario); });
+byId("steps").addEventListener("click",event=>{
+  const button=event.target.closest("button[data-step]");
+  if(button && !button.disabled) dispatch(DurablePrototype.scenarios[state.scenario].steps[Number(button.dataset.step)],true);
+});
+for (const id of ["mechanism","small-capacity","unsafe-range"]) byId(id).addEventListener("change",()=>reset());
+byId("reset").addEventListener("click",()=>reset());
+render();
+</script>
+</body>
+</html>

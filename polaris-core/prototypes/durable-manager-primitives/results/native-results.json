@@ -1,0 +1,3514 @@
+{
+  "scope": "Extracted Python metadata workflows; not Polaris Java or REST integration",
+  "status": "partial",
+  "aggregate_time_utc": "2026-09-23T06:59:25.784145+00:00",
+  "polaris_base": "f68699517cac761f9240f71279f26e4850b7d0c8",
+  "core_source_sha256": {
+    "adapters.py": "cdaa3e2f66633466854f94278c1b8ccc32915b3086936ea772af05e7a0e26f3d",
+    "bindings.py": "a9836ca33c0d2d1f53064514883db3cbe5a7e820396fe878936b1363ea5acdf6",
+    "manager.py": "6d43ece5df8ca1095e30709bfdd05d90ffd858d18dc3b8b86ca5b4c75c1907fe",
+    "primitives.py": "005d4df3ee7f4b66a8642e8e48a0310c5c958454f8a34382f0e6f9d46402e8a0",
+    "scenarios.py": "5ada7ae21f714ca104bb5caaa53aaf299cd95cb52afc33cd4da2f886197a147c"
+  },
+  "spanner_run_source_sha256": {
+    "adapters.py": "cdaa3e2f66633466854f94278c1b8ccc32915b3086936ea772af05e7a0e26f3d",
+    "bindings.py": "a9836ca33c0d2d1f53064514883db3cbe5a7e820396fe878936b1363ea5acdf6",
+    "fetch_native.py": "fbcbf3f66db2d9c72543c722922385d1759a467610360f6c8d77650805f52ed1",
+    "manager.py": "6d43ece5df8ca1095e30709bfdd05d90ffd858d18dc3b8b86ca5b4c75c1907fe",
+    "primitives.py": "005d4df3ee7f4b66a8642e8e48a0310c5c958454f8a34382f0e6f9d46402e8a0",
+    "run_native.py": "a91a702d187ffbc534d9fb7c8e24d441c24049801798dec2414a51a11366ae0a",
+    "scenarios.py": "5ada7ae21f714ca104bb5caaa53aaf299cd95cb52afc33cd4da2f886197a147c"
+  },
+  "packages": {
+    "foundationdb": "7.3.77",
+    "google-cloud-spanner": "3.71.0",
+    "psycopg": "3.2.10",
+    "pgserver": "0.1.4"
+  },
+  "downloads": {
+    "cockroach": {
+      "status": "ready",
+      "version": "25.4.0",
+      "url": "https://binaries.cockroachdb.com/cockroach-v25.4.0.linux-amd64.tgz",
+      "download_sha256": "c07247f245426f6d94e2f901f848946fa50d179cd8409422608805475bc95c51",
+      "verification": "TLS download, locally recorded SHA-256, no independent checksum"
+    },
+    "fdb": {
+      "status": "ready",
+      "version": "7.3.77",
+      "sha256": {
+        "fdbcli.x86_64": "c3435972a57d98f76edafe456f2c73f967b8adf9d14970edea0b7091cd86ff95",
+        "fdbserver.x86_64": "6fe47a94e623feee8706dfac4c4577710431b050901e77d10d7b66a884b5ada1",
+        "libfdb_c.x86_64.so": "617572467897d0360f76ffc33f24b58090ee691e3273750d2ff334cc71aae3fa"
+      }
+    },
+    "spanner": {
+      "status": "ready",
+      "version": "1.5.57",
+      "manifest_sha256": "4987860c9f8ecf1fffbbcdac115cb88cb9d1a42bd966c235a9ab843aea34fbd1"
+    }
+  },
+  "qualification": [
+    "PostgreSQL blocked: root-only execution environment cannot run a PostgreSQL server.",
+    "Completed worker receipts combined across executions. Full combined wrapper revalidation was interrupted by approval review because of cloud metadata discovery. This receipt does not claim an uninterrupted successful four-backend run.",
+    "Earlier aggregation incorrectly compared competing serial outcomes. Those race states are now checked through invariant/schedule evidence, not exact winner equality.",
+    "Spanner emulator only; response-loss and capacity faults are synthetic. No throughput or production certification claimed."
+  ],
+  "backends": [
+    {
+      "backend": "postgres",
+      "status": "blocked",
+      "error": "PostgreSQL requires a non-root OS user. This runner does not create users or change process credentials; run it as your ordinary development user.",
+      "execution_provenance": "completed worker in final combined run, whose wrapper was later interrupted"
+    },
+    {
+      "backend": "cockroach",
+      "status": "passed",
+      "version": "CockroachDB CCL v25.4.0 (x86_64-pc-linux-gnu, built 2025/10/28 18:45:28, go1.23.12 X:nocoverageredesign)",
+      "scenarios": [
+        {
+          "scenario": "catalog initialization",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              1
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              1
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "existing catalog identity",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              3
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              4
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "same-ID source behavior; not a generic Unknown resolver"
+        },
+        {
+          "scenario": "catalog name absence",
+          "status": "passed",
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 2
+              }
+            }
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          }
+        },
+        {
+          "scenario": "abort after native staging",
+          "status": "passed",
+          "error": "injected failure after native staging, before commit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 1
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "capacity rejection",
+          "status": "passed",
+          "error": "injected adapter capacity; not a database's real limit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "REJECTED",
+              "calls": {
+                "point_read": 4
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "grant and revoke with versions",
+          "status": "passed",
+          "granted": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                3
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "grant mutation rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "aliased grant endpoints",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "role",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "mutation": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "helper accounting edge case; does not assert a feature permits self-grants"
+        },
+        {
+          "scenario": "bounded leaf drop and rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "other-role",
+                "root",
+                "principal_role",
+                "other",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "other",
+                "other-role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "other-role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 10,
+                "commit": 1
+              }
+            }
+          ],
+          "abort_attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 3
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "namespace child-create versus delete",
+          "status": "passed",
+          "schedule": [
+            "delete reads parent and empty children range",
+            "child commits",
+            "delete aborts on dependency conflict",
+            "fresh delete attempt rejects nonempty namespace"
+          ],
+          "state": {
+            "Entities": [
+              [
+                "catalog",
+                "child",
+                "parent",
+                "namespace",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                "root",
+                "namespace",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "catalog",
+                "parent",
+                "namespace",
+                "child",
+                "child"
+              ],
+              [
+                "catalog",
+                "root",
+                "namespace",
+                "parent",
+                "parent"
+              ]
+            ],
+            "Versions": [
+              [
+                "catalog",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "delete_attempt": {
+            "state": "ABORTED",
+            "calls": {
+              "point_read": 1,
+              "range_read": 1,
+              "mutation": 3,
+              "commit": 1
+            }
+          },
+          "child_attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "native serializable transaction"
+        },
+        {
+          "scenario": "Manager retry reloads unchanged parent",
+          "status": "passed",
+          "state": {
+            "Entities": [],
+            "Names": [],
+            "Versions": [],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 3,
+                "commit": 1
+              }
+            },
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 1
+              }
+            }
+          ],
+          "competing_delete_committed": true,
+          "automatic_retry_observed": true
+        },
+        {
+          "scenario": "lost acknowledgement does not replay",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "UNKNOWN",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "commit": 1
+              }
+            }
+          ],
+          "error": "injected loss of acknowledgement after native success",
+          "fault": "synthetic suppression after native commit success; not an actual transport failure"
+        },
+        {
+          "scenario": "one composed read view",
+          "status": "passed",
+          "result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ],
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "range_read": 1,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "one scoped read; this case does not exhaustively test concurrent snapshots"
+        },
+        {
+          "scenario": "composed read overlapping grant publication",
+          "status": "passed",
+          "first_read_attempt": {
+            "state": "COMMITTED",
+            "calls": {
+              "point_read": 2,
+              "range_read": 1,
+              "commit": 1
+            }
+          },
+          "writer_outcome": "committed",
+          "fresh_result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ]
+        }
+      ],
+      "execution_provenance": "completed worker in final combined run, whose wrapper was later interrupted"
+    },
+    {
+      "backend": "fdb",
+      "status": "passed",
+      "version": "FoundationDB 7.3.77 (pinned server and client)",
+      "scenarios": [
+        {
+          "scenario": "catalog initialization",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              1
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              1
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "native_set": 14,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "existing catalog identity",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              3
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              4
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "same-ID source behavior; not a generic Unknown resolver"
+        },
+        {
+          "scenario": "catalog name absence",
+          "status": "passed",
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 2
+              }
+            }
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          }
+        },
+        {
+          "scenario": "abort after native staging",
+          "status": "passed",
+          "error": "injected failure after native staging, before commit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 1,
+                "native_set": 1
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "capacity rejection",
+          "status": "passed",
+          "error": "injected adapter capacity; not a database's real limit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "REJECTED",
+              "calls": {
+                "point_read": 4
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "grant and revoke with versions",
+          "status": "passed",
+          "granted": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                3
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "native_set": 6,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "native_clear": 2,
+                "native_set": 4,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "grant mutation rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 1,
+                "native_set": 2
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "aliased grant endpoints",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "role",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "mutation": 3,
+                "native_set": 4,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "helper accounting edge case; does not assert a feature permits self-grants"
+        },
+        {
+          "scenario": "bounded leaf drop and rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "other-role",
+                "root",
+                "principal_role",
+                "other",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "other",
+                "other-role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "other-role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 10,
+                "native_set": 4,
+                "native_clear": 9,
+                "commit": 1
+              }
+            }
+          ],
+          "abort_attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 3,
+                "native_set": 3
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "namespace child-create versus delete",
+          "status": "passed",
+          "schedule": [
+            "delete reads parent and empty children range",
+            "child commits",
+            "delete aborts on dependency conflict",
+            "fresh delete attempt rejects nonempty namespace"
+          ],
+          "state": {
+            "Entities": [
+              [
+                "catalog",
+                "child",
+                "parent",
+                "namespace",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                "root",
+                "namespace",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "catalog",
+                "parent",
+                "namespace",
+                "child",
+                "child"
+              ],
+              [
+                "catalog",
+                "root",
+                "namespace",
+                "parent",
+                "parent"
+              ]
+            ],
+            "Versions": [
+              [
+                "catalog",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "delete_attempt": {
+            "state": "ABORTED",
+            "calls": {
+              "point_read": 1,
+              "range_read": 1,
+              "mutation": 3,
+              "native_clear": 3,
+              "commit": 1
+            }
+          },
+          "child_attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 3,
+                "native_set": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "native serializable transaction"
+        },
+        {
+          "scenario": "Manager retry reloads unchanged parent",
+          "status": "passed",
+          "state": {
+            "Entities": [],
+            "Names": [],
+            "Versions": [],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 3,
+                "native_set": 3,
+                "commit": 1
+              }
+            },
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 1
+              }
+            }
+          ],
+          "competing_delete_committed": true,
+          "automatic_retry_observed": true
+        },
+        {
+          "scenario": "lost acknowledgement does not replay",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "UNKNOWN",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "native_set": 14,
+                "commit": 1
+              }
+            }
+          ],
+          "error": "injected loss of acknowledgement after native success",
+          "fault": "synthetic suppression after native commit success; not an actual transport failure"
+        },
+        {
+          "scenario": "one composed read view",
+          "status": "passed",
+          "result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ],
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "native_set": 6,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "range_read": 1,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "one scoped read; this case does not exhaustively test concurrent snapshots"
+        },
+        {
+          "scenario": "composed read overlapping grant publication",
+          "status": "passed",
+          "first_read_attempt": {
+            "state": "COMMITTED",
+            "calls": {
+              "point_read": 2,
+              "range_read": 1,
+              "commit": 1
+            }
+          },
+          "writer_outcome": "committed",
+          "fresh_result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ]
+        },
+        {
+          "scenario": "negative control: unprotected FDB range",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "catalog",
+                "child",
+                "parent",
+                "namespace",
+                "child",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "catalog",
+                "parent",
+                "namespace",
+                "child",
+                "child"
+              ]
+            ],
+            "Versions": [
+              [
+                "catalog",
+                "child",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "observation": "orphan reproduced as expected; deliberately invalid adapter mode"
+        }
+      ],
+      "execution_provenance": "completed worker in final combined run, whose wrapper was later interrupted"
+    },
+    {
+      "backend": "spanner",
+      "status": "passed",
+      "version": "Cloud Spanner emulator 1.5.57 (not production Spanner)",
+      "scenarios": [
+        {
+          "scenario": "catalog initialization",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              1
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              1
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "buffer_mutation": 11,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "existing catalog identity",
+          "status": "passed",
+          "candidate": [
+            [
+              "0",
+              "catalog-1",
+              "root",
+              "catalog",
+              "warehouse",
+              1,
+              3
+            ],
+            [
+              "catalog-1",
+              "admin-catalog-1",
+              "catalog-1",
+              "catalog_role",
+              "catalog_admin",
+              1,
+              4
+            ]
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "same-ID source behavior; not a generic Unknown resolver"
+        },
+        {
+          "scenario": "catalog name absence",
+          "status": "passed",
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 2
+              }
+            }
+          ],
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          }
+        },
+        {
+          "scenario": "abort after native staging",
+          "status": "passed",
+          "error": "injected failure after native staging, before commit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 4,
+                "mutation": 1,
+                "buffer_mutation": 1
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "capacity rejection",
+          "status": "passed",
+          "error": "injected adapter capacity; not a database's real limit",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "service-admin",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "REJECTED",
+              "calls": {
+                "point_read": 4
+              }
+            }
+          ],
+          "fault": "deterministic adapter injection; capacity is not a measured native limit"
+        },
+        {
+          "scenario": "grant and revoke with versions",
+          "status": "passed",
+          "granted": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                3
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "buffer_mutation": 5,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "buffer_mutation": 5,
+                "commit": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "grant mutation rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                1
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 1,
+                "buffer_mutation": 1
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "aliased grant endpoints",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "role",
+                "root",
+                "principal_role",
+                "analyst",
+                1,
+                3
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "principal_role",
+                "analyst",
+                "role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "role",
+                1,
+                3
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "role",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "mutation": 3,
+                "buffer_mutation": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "helper accounting edge case; does not assert a feature permits self-grants"
+        },
+        {
+          "scenario": "bounded leaf drop and rollback",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "other-role",
+                "root",
+                "principal_role",
+                "other",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                2
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "securable"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "other",
+                "other-role"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "other-role",
+                1,
+                2
+              ],
+              [
+                "0",
+                "securable",
+                1,
+                2
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 10,
+                "buffer_mutation": 10,
+                "commit": 1
+              }
+            }
+          ],
+          "abort_attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 3,
+                "range_read": 3,
+                "mutation": 3,
+                "buffer_mutation": 3
+              }
+            }
+          ]
+        },
+        {
+          "scenario": "namespace child-create versus delete",
+          "status": "passed",
+          "schedule": [
+            "delete reads parent and empty children range",
+            "child attempt aborted while delete is active",
+            "delete commits",
+            "fresh child attempt rejects missing parent"
+          ],
+          "state": {
+            "Entities": [],
+            "Names": [],
+            "Versions": [],
+            "Grants": []
+          },
+          "delete_attempt": {
+            "state": "COMMITTED",
+            "calls": {
+              "point_read": 1,
+              "range_read": 1,
+              "mutation": 3,
+              "buffer_mutation": 3,
+              "commit": 1
+            }
+          },
+          "child_attempts": [
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 1
+              }
+            },
+            {
+              "state": "ABORTED",
+              "calls": {
+                "point_read": 1
+              }
+            }
+          ],
+          "qualification": "emulator whole-database concurrency differs from production Spanner"
+        },
+        {
+          "scenario": "Manager retry reloads unchanged parent",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "catalog",
+                "child",
+                "parent",
+                "namespace",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                "root",
+                "namespace",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Names": [
+              [
+                "catalog",
+                "parent",
+                "namespace",
+                "child",
+                "child"
+              ],
+              [
+                "catalog",
+                "root",
+                "namespace",
+                "parent",
+                "parent"
+              ]
+            ],
+            "Versions": [
+              [
+                "catalog",
+                "child",
+                1,
+                1
+              ],
+              [
+                "catalog",
+                "parent",
+                1,
+                1
+              ]
+            ],
+            "Grants": []
+          },
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 3,
+                "buffer_mutation": 3,
+                "commit": 1
+              }
+            }
+          ],
+          "competing_delete_committed": false,
+          "automatic_retry_observed": false
+        },
+        {
+          "scenario": "lost acknowledgement does not replay",
+          "status": "passed",
+          "state": {
+            "Entities": [
+              [
+                "0",
+                "catalog-1",
+                "root",
+                "catalog",
+                "warehouse",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                "root",
+                "principal_role",
+                "service_admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                1,
+                4
+              ]
+            ],
+            "Names": [
+              [
+                "0",
+                "root",
+                "catalog",
+                "warehouse",
+                "catalog-1"
+              ],
+              [
+                "0",
+                "root",
+                "principal_role",
+                "service_admin",
+                "service-admin"
+              ],
+              [
+                "catalog-1",
+                "catalog-1",
+                "catalog_role",
+                "catalog_admin",
+                "admin-catalog-1"
+              ]
+            ],
+            "Versions": [
+              [
+                "0",
+                "catalog-1",
+                1,
+                3
+              ],
+              [
+                "0",
+                "service-admin",
+                1,
+                2
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                1,
+                4
+              ]
+            ],
+            "Grants": [
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_access"
+              ],
+              [
+                "0",
+                "catalog-1",
+                "catalog-1",
+                "admin-catalog-1",
+                "manage_metadata"
+              ],
+              [
+                "catalog-1",
+                "admin-catalog-1",
+                "0",
+                "service-admin",
+                "usage"
+              ]
+            ]
+          },
+          "attempts": [
+            {
+              "state": "UNKNOWN",
+              "calls": {
+                "point_read": 4,
+                "mutation": 11,
+                "buffer_mutation": 11,
+                "commit": 1
+              }
+            }
+          ],
+          "error": "injected loss of acknowledgement after native success",
+          "fault": "synthetic suppression after native commit success; not an actual transport failure"
+        },
+        {
+          "scenario": "one composed read view",
+          "status": "passed",
+          "result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ],
+          "attempts": [
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 3,
+                "mutation": 5,
+                "buffer_mutation": 5,
+                "commit": 1
+              }
+            },
+            {
+              "state": "COMMITTED",
+              "calls": {
+                "point_read": 2,
+                "range_read": 1,
+                "commit": 1
+              }
+            }
+          ],
+          "qualification": "one scoped read; this case does not exhaustively test concurrent snapshots"
+        },
+        {
+          "scenario": "composed read overlapping grant publication",
+          "status": "passed",
+          "first_read_attempt": {
+            "state": "ABORTED",
+            "calls": {
+              "point_read": 2
+            }
+          },
+          "writer_outcome": "committed",
+          "fresh_result": [
+            [
+              "0",
+              "role",
+              "root",
+              "principal_role",
+              "analyst",
+              1,
+              2
+            ],
+            [
+              "0",
+              "role",
+              1,
+              2
+            ],
+            [
+              [
+                "0",
+                "securable",
+                "0",
+                "role",
+                "usage"
+              ]
+            ]
+          ]
+        }
+      ],
+      "execution_provenance": "completed worker from prior successful per-backend execution; same core source hashes"
+    }
+  ],
+  "cross_backend_comparison": [
+    {
+      "scenario": "catalog initialization",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "existing catalog identity",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "catalog name absence",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "abort after native staging",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "capacity rejection",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "grant and revoke with versions",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "grant mutation rollback",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "aliased grant endpoints",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "bounded leaf drop and rollback",
+      "identical_published_records": true
+    },
+    {
+      "scenario": "lost acknowledgement does not replay",
+      "identical_published_records": true
+    }
+  ]
+}
