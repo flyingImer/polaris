@@ -1,0 +1,213 @@
+{
+  "SPDX-License-Identifier": "Apache-2.0",
+  "upstream_base": "a919f11e51ff76b5ef56633d8cb0429ff2b4c100",
+  "run": "fdb-final",
+  "scope": "actual Java Manager and native adapter",
+  "suites": [
+    {
+      "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "tests": 3,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "timestamp": "2026-09-23T16:23:33.551Z",
+      "testcases": [
+        {
+          "name": "terminalBatchPublishesMixedMutations()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "emptyRangeAndUnchangedParentPreventOrphan()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "closeAbortsNativeLegacyWrites()",
+          "status": "passed",
+          "failure_type": null
+        }
+      ]
+    },
+    {
+      "name": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "tests": 4,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "timestamp": "2026-09-23T16:23:33.766Z",
+      "testcases": [
+        {
+          "name": "dropFailureRollsBackCleanupAndVersions()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "lostCatalogResponseIsUnknownWithoutReplay()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "revokeFailureRollsBackGrantAndEndpointVersions()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "catalogRejectPublishesNothing()",
+          "status": "passed",
+          "failure_type": null
+        }
+      ]
+    },
+    {
+      "name": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "tests": 28,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "timestamp": "2026-09-23T16:23:34.598Z",
+      "testcases": [
+        {
+          "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testGrantRecordWriteIsIdempotent()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateTestCatalog()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadGrantsGranteeVsSecurableRecords()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testBootstrapAgainIsNoOp()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadResolvedEntitiesById()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testDropEntities()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testPolicyMappingCleanup()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "validateBootstrap()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateTestCatalogWithRetry()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testEntityCache()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testPolicyMapping()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateTasksInParallel()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testRenameAcrossCatalogsIsRejected()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadTasksInParallel()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testResetCredentialsClientIdCollision()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testBrowse()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateEntitiesWithConflict()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLookup()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testRename()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateEntitiesAlreadyExisting()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testUpdateEntities()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testCreateEntities()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testPrivileges()",
+          "status": "passed",
+          "failure_type": null
+        },
+        {
+          "name": "testLoadTasks()",
+          "status": "passed",
+          "failure_type": null
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,709 @@
+/*
+ * Licensed to the Apache Software Foundation (ASF) under one
+ * or more contributor license agreements.  See the NOTICE file
+ * distributed with this work for additional information
+ * regarding copyright ownership.  The ASF licenses this file
+ * to you under the Apache License, Version 2.0 (the
+ * "License"); you may not use this file except in compliance
+ * with the License.  You may obtain a copy of the License at
+ *
+ *   http://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing,
+ * software distributed under the License is distributed on an
+ * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+ * KIND, either express or implied.  See the License for the
+ * specific language governing permissions and limitations
+ * under the License.
+ */
+package org.apache.polaris.persistence.primitives.domain;
+
+import java.util.Comparator;
+import java.util.List;
+import java.util.Optional;
+import java.util.function.Function;
+import java.util.function.Predicate;
+import java.util.function.Supplier;
+import java.util.stream.Collectors;
+import java.util.stream.Stream;
+import org.apache.polaris.core.PolarisCallContext;
+import org.apache.polaris.core.PolarisDiagnostics;
+import org.apache.polaris.core.entity.EntityNameLookupRecord;
+import org.apache.polaris.core.entity.LocationBasedEntity;
+import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
+import org.apache.polaris.core.entity.PolarisEntitiesActiveKey;
+import org.apache.polaris.core.entity.PolarisEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
+import org.apache.polaris.core.entity.PolarisEntityCore;
+import org.apache.polaris.core.entity.PolarisEntityId;
+import org.apache.polaris.core.entity.PolarisEntitySubType;
+import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisGrantRecord;
+import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
+import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
+import org.apache.polaris.core.persistence.pagination.EntityIdToken;
+import org.apache.polaris.core.persistence.pagination.Page;
+import org.apache.polaris.core.persistence.pagination.PageToken;
+import org.apache.polaris.core.persistence.transactional.AbstractTransactionalPersistence;
+import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
+import org.apache.polaris.core.policy.PolicyEntity;
+import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
+import org.apache.polaris.core.storage.PolarisStorageIntegration;
+import org.apache.polaris.core.storage.StorageLocation;
+import org.jspecify.annotations.NonNull;
+import org.jspecify.annotations.Nullable;
+
+public class RecordTransactionalPersistence extends AbstractTransactionalPersistence {
+
+  // Shared domain mapping over an opaque native storage attempt.
+  private final DomainRecords store;
+  private final PrincipalSecretsGenerator secretsGenerator;
+
+  public RecordTransactionalPersistence(
+      @NonNull PolarisDiagnostics diagnostics,
+      @NonNull DomainRecords store,
+      @NonNull PrincipalSecretsGenerator secretsGenerator) {
+    super(diagnostics);
+    this.store = store;
+    this.secretsGenerator = secretsGenerator;
+  }
+
+  /** Retry only this side-effect-free ID reservation operation after a confirmed abort. */
+  @Override
+  public long generateNewId(PolarisCallContext callCtx) {
+    for (int attempt = 0; ; attempt++) {
+      try {
+        return super.generateNewId(callCtx);
+      } catch (org.apache.polaris.core.persistence.RetryOnConcurrencyException e) {
+        if (attempt == 31) throw e;
+        java.util.concurrent.locks.LockSupport.parkNanos((1L + attempt) * 1_000_000L);
+        if (Thread.currentThread().isInterrupted()) throw e;
+      }
+    }
+  }
+
+  @Override
+  public <T> T runInFinalBatchTransaction(PolarisCallContext callCtx, Supplier<T> code) {
+    return store.runFinalBatch(code);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public <T> T runInTransaction(
+      @NonNull PolarisCallContext callCtx, @NonNull Supplier<T> transactionCode) {
+
+    // run transaction on our underlying store
+    return store.runInTransaction(getDiagnostics(), transactionCode);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void runActionInTransaction(
+      @NonNull PolarisCallContext callCtx, @NonNull Runnable transactionCode) {
+
+    // run transaction on our underlying store
+    store.runActionInTransaction(getDiagnostics(), transactionCode);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public <T> T runInReadTransaction(
+      @NonNull PolarisCallContext callCtx, @NonNull Supplier<T> transactionCode) {
+    // run transaction on our underlying store
+    return store.runInReadTransaction(getDiagnostics(), transactionCode);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void runActionInReadTransaction(
+      @NonNull PolarisCallContext callCtx, @NonNull Runnable transactionCode) {
+
+    // run transaction on our underlying store
+    store.runActionInReadTransaction(getDiagnostics(), transactionCode);
+  }
+
+  /**
+   * @return new unique entity identifier
+   */
+  @Override
+  public long generateNewIdInCurrentTxn(@NonNull PolarisCallContext callCtx) {
+    return this.store.getNextSequence();
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void writeToEntitiesInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisBaseEntity entity) {
+    // write it
+    this.store.getSliceEntities().write(entity);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void persistStorageIntegrationIfNeededInCurrentTxn(
+      @NonNull PolarisCallContext callContext,
+      @NonNull PolarisBaseEntity entity,
+      @Nullable PolarisStorageIntegration storageIntegration) {
+    // OSS has no independently persisted storage integration record.
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void writeToEntitiesActiveInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisBaseEntity entity) {
+    // write it
+    this.store.getSliceEntitiesActive().write(entity);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void writeToEntitiesChangeTrackingInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisBaseEntity entity) {
+    // write it
+    this.store.getSliceEntitiesChangeTracking().write(entity);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void writeToGrantRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec) {
+    // write it
+    this.store.getSliceGrantRecords().write(grantRec);
+    this.store.getSliceGrantRecordsByGrantee().write(grantRec);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteFromEntitiesInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore entity) {
+
+    // delete it
+    this.store.getSliceEntities().delete(this.store.buildEntitiesKey(entity));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteFromEntitiesActiveInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore entity) {
+    // delete it
+    this.store.getSliceEntitiesActive().delete(this.store.buildEntitiesActiveKey(entity));
+  }
+
+  /**
+   * {@inheritDoc}
+   *
+   * @param callCtx
+   * @param entity entity record to delete
+   */
+  @Override
+  public void deleteFromEntitiesChangeTrackingInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisEntityCore entity) {
+    // delete it
+    this.store.getSliceEntitiesChangeTracking().delete(this.store.buildEntitiesKey(entity));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteFromGrantRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisGrantRecord grantRec) {
+
+    // delete it
+    this.store.getSliceGrantRecords().delete(grantRec);
+    this.store.getSliceGrantRecordsByGrantee().delete(grantRec);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteAllEntityGrantRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull PolarisEntityCore entity,
+      @NonNull List<PolarisGrantRecord> grantsOnGrantee,
+      @NonNull List<PolarisGrantRecord> grantsOnSecurable) {
+
+    // build composite prefix key and delete grant records on the indexed side of each grant table
+    String prefix = this.store.buildPrefixKeyComposite(entity.getCatalogId(), entity.getId());
+    this.store.getSliceGrantRecords().deleteRange(prefix);
+    this.store.getSliceGrantRecordsByGrantee().deleteRange(prefix);
+
+    // also delete the other side. We need to delete these grants one at a time versus doing a
+    // range delete
+    grantsOnGrantee.forEach(gr -> this.store.getSliceGrantRecords().delete(gr));
+    grantsOnSecurable.forEach(gr -> this.store.getSliceGrantRecordsByGrantee().delete(gr));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteAllInCurrentTxn(@NonNull PolarisCallContext callCtx) {
+    // clear all slices
+    this.store.deleteAll();
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @Nullable PolarisBaseEntity lookupEntityInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, long catalogId, long entityId, int typeCode) {
+    PolarisBaseEntity entity =
+        this.store.getSliceEntities().read(this.store.buildKeyComposite(catalogId, entityId));
+    if (entity != null && entity.getTypeCode() != typeCode) {
+      return null;
+    }
+    return entity;
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisBaseEntity> lookupEntitiesInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds) {
+    // allocate return list
+    return entityIds.stream()
+        .map(
+            id ->
+                this.store
+                    .getSliceEntities()
+                    .read(this.store.buildKeyComposite(id.catalogId(), id.id())))
+        .collect(Collectors.toList());
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisChangeTrackingVersions> lookupEntityVersionsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds) {
+    // allocate return list
+    return entityIds.stream()
+        .map(
+            id ->
+                this.store
+                    .getSliceEntitiesChangeTracking()
+                    .read(this.store.buildKeyComposite(id.catalogId(), id.id())))
+        .map(
+            entity ->
+                (entity != null)
+                    ? new PolarisChangeTrackingVersions(
+                        entity.getEntityVersion(), entity.getGrantRecordsVersion())
+                    : null)
+        .collect(Collectors.toList());
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  @Nullable
+  public EntityNameLookupRecord lookupEntityActiveInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisEntitiesActiveKey entityActiveKey) {
+    // lookup the active entity slice
+    PolarisBaseEntity entity =
+        this.store
+            .getSliceEntitiesActive()
+            .read(
+                this.store.buildKeyComposite(
+                    entityActiveKey.getCatalogId(),
+                    entityActiveKey.getParentId(),
+                    entityActiveKey.getTypeCode(),
+                    entityActiveKey.getName()));
+
+    // return record
+    return entity == null ? null : new EntityNameLookupRecord(entity);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  @NonNull
+  public List<EntityNameLookupRecord> lookupEntityActiveBatchInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<PolarisEntitiesActiveKey> entityActiveKeys) {
+    // now build a list to quickly verify that nothing has changed
+    return entityActiveKeys.stream()
+        .map(entityActiveKey -> this.lookupEntityActiveInCurrentTxn(callCtx, entityActiveKey))
+        .collect(Collectors.toList());
+  }
+
+  @Override
+  public @NonNull <T> Page<T> loadEntitiesInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long catalogId,
+      long parentId,
+      @NonNull PolarisEntityType entityType,
+      @NonNull PolarisEntitySubType entitySubType,
+      @NonNull Predicate<PolarisBaseEntity> entityFilter,
+      @NonNull Function<PolarisBaseEntity, T> transformer,
+      @NonNull PageToken pageToken) {
+    // full range scan under the parent for that type
+    Stream<PolarisBaseEntity> data =
+        this.store
+            .getSliceEntitiesActive()
+            .readRange(
+                this.store.buildPrefixKeyComposite(catalogId, parentId, entityType.getCode()))
+            .stream()
+            .map(
+                nameRecord ->
+                    this.lookupEntityInCurrentTxn(
+                        callCtx, catalogId, nameRecord.getId(), entityType.getCode()));
+
+    Predicate<PolarisBaseEntity> tokenFilter =
+        pageToken
+            .valueAs(EntityIdToken.class)
+            .map(
+                entityIdToken -> {
+                  var nextId = entityIdToken.entityId();
+                  return (Predicate<PolarisBaseEntity>) e -> e.getId() > nextId;
+                })
+            .orElse(e -> true);
+
+    data = data.sorted(Comparator.comparingLong(PolarisEntityCore::getId)).filter(tokenFilter);
+
+    if (entitySubType != PolarisEntitySubType.ANY_SUBTYPE) {
+      data = data.filter(e -> e.getSubTypeCode() == entitySubType.getCode());
+    }
+
+    data = data.filter(entityFilter);
+
+    return Page.mapped(pageToken, data, transformer, EntityIdToken::fromEntity);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public boolean hasChildrenInCurrentTxn(
+      @NonNull PolarisCallContext callContext,
+      @Nullable PolarisEntityType entityType,
+      long catalogId,
+      long parentId) {
+    // determine key prefix, add type if one is passed-in
+    String prefixKey =
+        entityType == null
+            ? this.store.buildPrefixKeyComposite(catalogId, parentId)
+            : this.store.buildPrefixKeyComposite(catalogId, parentId, entityType.getCode());
+    // check if it has children
+    return this.store.getSliceEntitiesActive().hasAny(prefixKey);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public int lookupEntityGrantRecordsVersionInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, long catalogId, long entityId) {
+    PolarisBaseEntity entity =
+        this.store
+            .getSliceEntitiesChangeTracking()
+            .read(this.store.buildKeyComposite(catalogId, entityId));
+
+    // does not exist, 0
+    return entity == null ? 0 : entity.getGrantRecordsVersion();
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @Nullable PolarisGrantRecord lookupGrantRecordInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long securableCatalogId,
+      long securableId,
+      long granteeCatalogId,
+      long granteeId,
+      int privilegeCode) {
+    // lookup the grants records slice to find the usage role
+    return this.store
+        .getSliceGrantRecords()
+        .read(
+            this.store.buildKeyComposite(
+                securableCatalogId, securableId, granteeCatalogId, granteeId, privilegeCode));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisGrantRecord> loadAllGrantRecordsOnSecurableInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, long securableCatalogId, long securableId) {
+    // now fetch all grants for this securable
+    return this.store
+        .getSliceGrantRecords()
+        .readRange(this.store.buildPrefixKeyComposite(securableCatalogId, securableId));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisGrantRecord> loadAllGrantRecordsOnGranteeInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, long granteeCatalogId, long granteeId) {
+    // now fetch all grants assigned to this grantee
+    return this.store
+        .getSliceGrantRecordsByGrantee()
+        .readRange(this.store.buildPrefixKeyComposite(granteeCatalogId, granteeId));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @Nullable PolarisPrincipalSecrets loadPrincipalSecretsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull String clientId) {
+    return this.store.getSlicePrincipalSecrets().read(clientId);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull PolarisPrincipalSecrets generateNewPrincipalSecretsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull String principalName, long principalId) {
+    // ensure principal client id is unique
+    PolarisPrincipalSecrets principalSecrets;
+    PolarisPrincipalSecrets lookupPrincipalSecrets;
+    do {
+      // generate new random client id and secrets
+      principalSecrets = secretsGenerator.produceSecrets(principalName, principalId);
+
+      // load the existing secrets
+      lookupPrincipalSecrets =
+          this.store.getSlicePrincipalSecrets().read(principalSecrets.getPrincipalClientId());
+    } while (lookupPrincipalSecrets != null);
+
+    // write new principal secrets
+    this.store.getSlicePrincipalSecrets().write(principalSecrets);
+
+    // if not found, return null
+    return principalSecrets;
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull PolarisPrincipalSecrets rotatePrincipalSecretsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull String clientId,
+      long principalId,
+      boolean reset,
+      @NonNull String oldSecretHash) {
+
+    // load the existing secrets
+    PolarisPrincipalSecrets principalSecrets = this.store.getSlicePrincipalSecrets().read(clientId);
+
+    // should be found
+    getDiagnostics()
+        .checkNotNull(
+            principalSecrets,
+            "cannot_find_secrets",
+            "client_id={} principalId={}",
+            clientId,
+            principalId);
+
+    // ensure principal id is matching
+    getDiagnostics()
+        .check(
+            principalId == principalSecrets.getPrincipalId(),
+            "principal_id_mismatch",
+            "expectedId={} id={}",
+            principalId,
+            principalSecrets.getPrincipalId());
+
+    // rotate the secrets
+    principalSecrets.rotateSecrets(oldSecretHash);
+    if (reset) {
+      principalSecrets.rotateSecrets(principalSecrets.getMainSecretHash());
+    }
+
+    // write back new secrets
+    this.store.getSlicePrincipalSecrets().write(principalSecrets);
+
+    // return those
+    return principalSecrets;
+  }
+
+  @Override
+  public @NonNull PolarisPrincipalSecrets storePrincipalSecrets(
+      @NonNull PolarisCallContext callCtx,
+      long principalId,
+      @NonNull String resolvedClientId,
+      String customClientSecret) {
+    PolarisPrincipalSecrets principalSecrets =
+        new PolarisPrincipalSecrets(principalId, resolvedClientId, customClientSecret);
+
+    // check if already exists
+    PolarisPrincipalSecrets existing = this.store.getSlicePrincipalSecrets().read(resolvedClientId);
+    if (existing != null) {
+      throw new AlreadyExistsException(
+          String.format("Client ID already in use: %s", resolvedClientId));
+    }
+
+    // write back new secrets
+    this.store.getSlicePrincipalSecrets().write(principalSecrets);
+
+    // return principal creds
+    return principalSecrets;
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deletePrincipalSecretsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull String clientId, long principalId) {
+    // load the existing secrets
+    PolarisPrincipalSecrets principalSecrets = this.store.getSlicePrincipalSecrets().read(clientId);
+
+    // should be found
+    getDiagnostics()
+        .checkNotNull(
+            principalSecrets,
+            "cannot_find_secrets",
+            "client_id={} principalId={}",
+            clientId,
+            principalId);
+
+    // ensure principal id is matching
+    getDiagnostics()
+        .check(
+            principalId == principalSecrets.getPrincipalId(),
+            "principal_id_mismatch",
+            "expectedId={} id={}",
+            principalId,
+            principalSecrets.getPrincipalId());
+
+    // delete these secrets
+    this.store.getSlicePrincipalSecrets().delete(clientId);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @Nullable PolarisStorageIntegration createStorageIntegrationInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long catalogId,
+      long entityId,
+      PolarisStorageConfigurationInfo polarisStorageConfigurationInfo) {
+    // No-op in OSS: the storage integration is resolved at credential-vending time via
+    // PolarisStorageIntegrationProvider.getStorageIntegration(resolvedEntityPath). This hook
+    // remains available for custom deployments that need to allocate/lease external state
+    // atomically with the catalog-creation transaction.
+    return null;
+  }
+
+  @Override
+  public void rollback() {
+    this.store.rollback();
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void writeToPolicyMappingRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisPolicyMappingRecord record) {
+    this.store.getSlicePolicyMappingRecords().write(record);
+    this.store.getSlicePolicyMappingRecordsByPolicy().write(record);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteFromPolicyMappingRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, @NonNull PolarisPolicyMappingRecord record) {
+    this.store.getSlicePolicyMappingRecords().delete(record);
+    this.store.getSlicePolicyMappingRecordsByPolicy().delete(record);
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public void deleteAllEntityPolicyMappingRecordsInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull PolarisBaseEntity entity,
+      @NonNull List<PolarisPolicyMappingRecord> mappingOnTarget,
+      @NonNull List<PolarisPolicyMappingRecord> mappingOnPolicy) {
+    if (entity.getType() == PolarisEntityType.POLICY) {
+      PolicyEntity policyEntity = PolicyEntity.of(entity);
+      this.store
+          .getSlicePolicyMappingRecordsByPolicy()
+          .deleteRange(
+              this.store.buildPrefixKeyComposite(
+                  policyEntity.getPolicyTypeCode(),
+                  policyEntity.getCatalogId(),
+                  policyEntity.getId()));
+      // also delete the other side. We need to delete these mapping one at a time versus doing a
+      // range delete
+      mappingOnPolicy.forEach(record -> this.store.getSlicePolicyMappingRecords().delete(record));
+    } else {
+      this.store
+          .getSlicePolicyMappingRecords()
+          .deleteRange(this.store.buildPrefixKeyComposite(entity.getCatalogId(), entity.getId()));
+      // also delete the other side. We need to delete these mapping one at a time versus doing a
+      // range delete
+      mappingOnTarget.forEach(
+          record -> this.store.getSlicePolicyMappingRecordsByPolicy().delete(record));
+    }
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @Nullable PolarisPolicyMappingRecord lookupPolicyMappingRecordInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long targetCatalogId,
+      long targetId,
+      int policyTypeCode,
+      long policyCatalogId,
+      long policyId) {
+    return this.store
+        .getSlicePolicyMappingRecords()
+        .read(
+            this.store.buildKeyComposite(
+                targetCatalogId, targetId, policyTypeCode, policyCatalogId, policyId));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisPolicyMappingRecord> loadPoliciesOnTargetByTypeInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long targetCatalogId,
+      long targetId,
+      int policyTypeCode) {
+    return this.store
+        .getSlicePolicyMappingRecords()
+        .readRange(this.store.buildPrefixKeyComposite(targetCatalogId, targetId, policyTypeCode));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisPolicyMappingRecord> loadAllPoliciesOnTargetInCurrentTxn(
+      @NonNull PolarisCallContext callCtx, long targetCatalogId, long targetId) {
+    return this.store
+        .getSlicePolicyMappingRecords()
+        .readRange(this.store.buildPrefixKeyComposite(targetCatalogId, targetId));
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public @NonNull List<PolarisPolicyMappingRecord> loadAllTargetsOnPolicyInCurrentTxn(
+      @NonNull PolarisCallContext callCtx,
+      long policyCatalogId,
+      long policyId,
+      int policyTypeCode) {
+    return this.store
+        .getSlicePolicyMappingRecordsByPolicy()
+        .readRange(this.store.buildPrefixKeyComposite(policyTypeCode, policyCatalogId, policyId));
+  }
+
+  private Optional<String> getEntityLocationWithoutScheme(PolarisBaseEntity entity) {
+    if (entity.getType() == PolarisEntityType.TABLE_LIKE) {
+      if (entity.getSubType() == PolarisEntitySubType.ICEBERG_TABLE
+          || entity.getSubType() == PolarisEntitySubType.ICEBERG_VIEW) {
+        return Optional.of(
+            StorageLocation.of(
+                    entity.getPropertiesAsMap().get(PolarisEntityConstants.ENTITY_BASE_LOCATION))
+                .withoutScheme());
+      }
+    }
+    if (entity.getType() == PolarisEntityType.NAMESPACE) {
+      return Optional.of(
+          StorageLocation.of(
+                  entity.getPropertiesAsMap().get(PolarisEntityConstants.ENTITY_BASE_LOCATION))
+              .withoutScheme());
+    }
+    return Optional.empty();
+  }
+
+  /** {@inheritDoc} */
+  @Override
+  public <T extends PolarisEntity & LocationBasedEntity>
+      Optional<Optional<String>> hasOverlappingSiblings(
+          @NonNull PolarisCallContext callContext, T entity) {
+    // TODO we could optimize this full scan
+    StorageLocation entityLocationWithoutScheme =
+        StorageLocation.of(StorageLocation.of(entity.getBaseLocation()).withoutScheme());
+    List<PolarisBaseEntity> allEntities = this.store.getSliceEntities().readRange("");
+    for (PolarisBaseEntity siblingEntity : allEntities) {
+      Optional<StorageLocation> maybeSiblingLocationWithoutScheme =
+          getEntityLocationWithoutScheme(siblingEntity).map(StorageLocation::of);
+      if (maybeSiblingLocationWithoutScheme.isPresent()) {
+        if (maybeSiblingLocationWithoutScheme.get().isChildOf(entityLocationWithoutScheme)
+            || entityLocationWithoutScheme.isChildOf(maybeSiblingLocationWithoutScheme.get())) {
+          return Optional.of(Optional.of(maybeSiblingLocationWithoutScheme.toString()));
+        }
+      }
+    }
+    return Optional.of(Optional.empty());
+  }
+}

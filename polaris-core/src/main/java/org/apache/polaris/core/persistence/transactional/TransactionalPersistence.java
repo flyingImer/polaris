@@ -68,6 +68,17 @@ public interface TransactionalPersistence
   <T> T runInTransaction(@NonNull PolarisCallContext callCtx, @NonNull Supplier<T> transactionCode);
 
   /**
+   * Migration hook for workflows that perform every read before their first write. Implementations
+   * may collect the final writes and submit them with the original read context. This is not a
+   * replay boundary; the callback is invoked once. Existing implementations can retain their native
+   * read/write transaction behavior.
+   */
+  default <T> T runInFinalBatchTransaction(
+      PolarisCallContext callCtx, Supplier<T> transactionCode) {
+    return runInTransaction(callCtx, transactionCode);
+  }
+
+  /**
    * Run the specified transaction code (a runnable lambda type) in a database read/write
    * transaction. If the code of the transaction does not throw any exception and returns normally,
    * the transaction will be committed, else the transaction will be automatically rolled-back on

@@ -472,12 +472,41 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
       return new CreateCatalogResult(BaseResult.ReturnStatus.ENTITY_ALREADY_EXISTS, null);
     }
 
-    ms.persistStorageIntegrationIfNeededInCurrentTxn(callCtx, catalog, integration);
+    // Collect existing dependencies before producing any durable mutations. Adapters need no
+    // catalog or grant semantics; these rules are shared by all persistence implementations.
+    List<PolarisBaseEntity> recipientRoles = new ArrayList<>();
+    if (principalRoles.isEmpty()) {
+      PolarisBaseEntity serviceAdminRole =
+          ms.lookupEntityByNameInCurrentTxn(
+              callCtx,
+              PolarisEntityConstants.getNullId(),
+              PolarisEntityConstants.getRootEntityId(),
+              PolarisEntityType.PRINCIPAL_ROLE.getCode(),
+              PolarisEntityConstants.getNameOfPrincipalServiceAdminRole());
+      getDiagnostics().checkNotNull(serviceAdminRole, "missing_service_admin_role");
+      recipientRoles.add(serviceAdminRole);
+    } else {
+      for (PolarisEntityCore principalRole : principalRoles) {
+        getDiagnostics().checkNotNull(principalRole, "null principal role");
+        getDiagnostics()
+            .check(
+                principalRole.getTypeCode() == PolarisEntityType.PRINCIPAL_ROLE.getCode(),
+                "not_principal_role",
+                "type={}",
+                principalRole.getType());
+        PolarisBaseEntity currentRole =
+            ms.lookupEntityInCurrentTxn(
+                callCtx,
+                principalRole.getCatalogId(),
+                principalRole.getId(),
+                principalRole.getTypeCode());
+        getDiagnostics()
+            .checkNotNull(currentRole, "grantee_not_found", "grantee={}", principalRole);
+        recipientRoles.add(currentRole);
+      }
+    }
 
-    // now create and persist new catalog entity
-    this.persistNewEntity(callCtx, ms, catalog);
-
-    // create the catalog admin role for this new catalog
+    // The allocator may read and write a sequence record. It is the last read in this workflow.
     long adminRoleId = ms.generateNewIdInCurrentTxn(callCtx);
     PolarisBaseEntity adminRole =
         new PolarisBaseEntity(
@@ -487,46 +516,46 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
             PolarisEntitySubType.NULL_SUBTYPE,
             catalog.getId(),
             PolarisEntityConstants.getNameOfCatalogAdminRole());
-    this.persistNewEntity(callCtx, ms, adminRole);
+    PolarisBaseEntity storedCatalog =
+        prepareToPersistNewEntity(callCtx, ms, catalog)
+            .withGrantRecordsVersion(catalog.getGrantRecordsVersion() + 2);
+    PolarisBaseEntity storedAdmin =
+        prepareToPersistNewEntity(callCtx, ms, adminRole)
+            .withGrantRecordsVersion(
+                adminRole.getGrantRecordsVersion() + 2 + recipientRoles.size());
+    Map<PolarisEntityId, PolarisBaseEntity> updatedRoles = new HashMap<>();
+    for (PolarisBaseEntity role : recipientRoles) {
+      PolarisEntityId id = new PolarisEntityId(role.getCatalogId(), role.getId());
+      PolarisBaseEntity previous = updatedRoles.getOrDefault(id, role);
+      updatedRoles.put(id, previous.withGrantRecordsVersion(previous.getGrantRecordsVersion() + 1));
+    }
 
-    // grant the catalog admin role access-management on the catalog
-    this.persistNewGrantRecord(
-        callCtx, ms, catalog, adminRole, PolarisPrivilege.CATALOG_MANAGE_ACCESS);
-
-    // grant the catalog admin role metadata-management on the catalog; this one
-    // is revocable
-    this.persistNewGrantRecord(
-        callCtx, ms, catalog, adminRole, PolarisPrivilege.CATALOG_MANAGE_METADATA);
-
-    // immediately assign its catalog_admin role
-    if (principalRoles.isEmpty()) {
-      // lookup service admin role, should exist
-      PolarisBaseEntity serviceAdminRole =
-          ms.lookupEntityByNameInCurrentTxn(
-              callCtx,
-              PolarisEntityConstants.getNullId(),
-              PolarisEntityConstants.getRootEntityId(),
-              PolarisEntityType.PRINCIPAL_ROLE.getCode(),
-              PolarisEntityConstants.getNameOfPrincipalServiceAdminRole());
-      getDiagnostics().checkNotNull(serviceAdminRole, "missing_service_admin_role");
-      this.persistNewGrantRecord(
-          callCtx, ms, adminRole, serviceAdminRole, PolarisPrivilege.CATALOG_ROLE_USAGE);
-    } else {
-      // grant to each principal role usage on its catalog_admin role
-      for (PolarisEntityCore principalRole : principalRoles) {
-        // validate not null and really a principal role
-        getDiagnostics().checkNotNull(principalRole, "null principal role");
-        getDiagnostics()
-            .check(
-                principalRole.getTypeCode() == PolarisEntityType.PRINCIPAL_ROLE.getCode(),
-                "not_principal_role",
-                "type={}",
-                principalRole.getType());
-
-        // grant usage on that catalog admin role to this principal
-        this.persistNewGrantRecord(
-            callCtx, ms, adminRole, principalRole, PolarisPrivilege.CATALOG_ROLE_USAGE);
-      }
+    ms.persistStorageIntegrationIfNeededInCurrentTxn(callCtx, catalog, integration);
+    ms.writeEntityInCurrentTxn(callCtx, storedCatalog, true, null);
+    ms.writeEntityInCurrentTxn(callCtx, storedAdmin, true, null);
+    for (PolarisPrivilege privilege :
+        List.of(PolarisPrivilege.CATALOG_MANAGE_ACCESS, PolarisPrivilege.CATALOG_MANAGE_METADATA)) {
+      ms.writeToGrantRecordsInCurrentTxn(
+          callCtx,
+          new PolarisGrantRecord(
+              catalog.getCatalogId(),
+              catalog.getId(),
+              adminRole.getCatalogId(),
+              adminRole.getId(),
+              privilege.getCode()));
+    }
+    for (PolarisBaseEntity role : recipientRoles) {
+      ms.writeToGrantRecordsInCurrentTxn(
+          callCtx,
+          new PolarisGrantRecord(
+              adminRole.getCatalogId(),
+              adminRole.getId(),
+              role.getCatalogId(),
+              role.getId(),
+              PolarisPrivilege.CATALOG_ROLE_USAGE.getCode()));
+    }
+    for (PolarisBaseEntity role : updatedRoles.values()) {
+      ms.writeEntityInCurrentTxn(callCtx, role, false, role);
     }
 
     // success, return the two entities
@@ -962,7 +991,7 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
       integration = null;
     }
     // need to run inside a read/write transaction
-    return ms.runInTransaction(
+    return ms.runInFinalBatchTransaction(
         callCtx, () -> this.createCatalog(callCtx, ms, catalog, integration, principalRoles));
   }
 
