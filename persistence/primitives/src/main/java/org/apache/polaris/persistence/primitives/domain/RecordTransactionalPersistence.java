@@ -21,6 +21,7 @@ package org.apache.polaris.persistence.primitives.domain;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -43,6 +44,7 @@ import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.pagination.EntityIdToken;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -76,9 +78,9 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
     for (int attempt = 0; ; attempt++) {
       try {
         return super.generateNewId(callCtx);
-      } catch (org.apache.polaris.core.persistence.RetryOnConcurrencyException e) {
+      } catch (RetryOnConcurrencyException e) {
         if (attempt == 31) throw e;
-        java.util.concurrent.locks.LockSupport.parkNanos((1L + attempt) * 1_000_000L);
+        LockSupport.parkNanos((1L + attempt) * 1_000_000L);
         if (Thread.currentThread().isInterrupted()) throw e;
       }
     }

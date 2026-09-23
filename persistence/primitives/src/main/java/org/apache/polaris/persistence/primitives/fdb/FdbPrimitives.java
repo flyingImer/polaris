@@ -58,7 +58,6 @@ public final class FdbPrimitives implements DurablePrimitives {
   private static final class Tx implements LegacyAttempt {
     private final Transaction transaction;
     private boolean finished;
-    private boolean closed;
 
     Tx(Transaction transaction) {
       this.transaction = transaction;
@@ -136,11 +135,8 @@ public final class FdbPrimitives implements DurablePrimitives {
 
     @Override
     public void close() {
-      if (!closed) {
-        closed = true;
-        finished = true;
-        transaction.close();
-      }
+      finished = true;
+      transaction.close();
     }
   }
 }

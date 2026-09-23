@@ -27,25 +27,27 @@ Executed on 2026-09-23 with JDK 21 and the upstream Gradle 9.7.1 wrapper.
 | Backend / gate | Passed | Failed | Skipped / excluded | Interpretation |
 |---|---:|---:|---|---|
 | FDB 7.3.77, final native Java run | 35 | 0 | None | 28 unchanged upstream Manager fixtures, 4 injected-failure tests, 3 primitive contract tests |
-| CockroachDB 25.4.0, final native Java run | 35 | 0 | None | Same Manager and mapping code; generic PostgreSQL JDBC adapter |
-| Spanner emulator 1.5.57, serial workflow run | 32 | 0 | 1 race skipped; 2 inherited parallel tests explicitly excluded | 26 upstream Manager fixtures, 4 fault tests, 2 primitive checks |
-| Spanner emulator, initial unfiltered run | 28 | 5 | 1 race skipped | Preserved failure evidence; see explanation below |
+| CockroachDB 25.4.0, final native Java run | 35 | 0 | None | Same Manager and mapping code with the generic PostgreSQL JDBC adapter |
+| Spanner emulator 1.5.57, serial workflow run | 32 | 0 | 1 race skipped, 2 inherited parallel tests explicitly excluded | 26 upstream Manager fixtures, 4 fault tests, 2 primitive checks |
+| Spanner emulator, initial unfiltered run | 28 | 5 | 1 race skipped | Preserved failure evidence, explained below |
 | `polaris-core:check` | 1,001 | 0 | 16 tests skipped by upstream | Core tests, checkstyle and formatting checks passed |
-| `polaris-persistence-primitives:check`, default local configuration | 34 | 0 | 28 native fixtures unconfigured; 1 H2 race skipped | H2 Java wiring and fault tests; not native isolation proof |
-| PostgreSQL server | — | — | Not executed | Adapter compiled; a CockroachDB pass is not a PostgreSQL pass |
+| `polaris-persistence-primitives:check`, default local configuration | 34 | 0 | 28 native fixtures unconfigured, 1 H2 race skipped | H2 Java wiring and fault tests. These do not prove native isolation |
+| PostgreSQL server | N/A | N/A | Not executed | Adapter compiled. CockroachDB results do not establish PostgreSQL behavior |
+| Repository `format compileAll` | N/A | N/A | Passed | Build successful, with 1,027 actionable tasks |
+| Repository `check`, admin test result | 18 | 31 | Stopped at admin tests | All 31 failures report Docker/Testcontainers startup. Downstream checks did not all execute |
 
 The Spanner client is pinned to 6.120.0 with explicit serializable isolation.
 The emulator is connected with an explicit local endpoint and project, without
 ambient credential discovery. The FDB Java client is pinned to 7.3.77.
 
 The unfiltered Spanner run failed its two parallel task tests. Creation exposed
-a confirmed abort reaching a caller without a complete operation retry loop;
-concurrent task claiming exceeded the upstream fixture's 30-second deadline.
+a confirmed abort reaching a caller without a complete operation retry loop.
+Concurrent task claiming exceeded the upstream fixture's 30-second deadline.
 Workers still active after that deadline interfered with three later setup
 transactions. The separate serial run used a fresh emulator and an explicitly
 named test filter. It does not erase the unfiltered result, establish production
 performance, or certify Spanner concurrency. The initial run predates the final
-idempotent close guard and additional drop-failure test; it remains initial-run
+idempotent close guard and additional drop-failure test. It remains initial-run
 evidence, not a claim that every final-code failure was reproduced unchanged.
 
 PostgreSQL was not executed in this workspace: no PostgreSQL service or Docker
@@ -55,7 +57,7 @@ is inferred from H2 or CockroachDB.
 
 Machine-readable native summaries are in `validation/`. They contain test names
 and results, not credentials, raw record contents or noisy server logs. Gradle can
-retain XML from earlier test filters; summaries for a native run select only the
+retain XML from earlier test filters. Summaries for a native run select only the
 native fixture class plus the explicitly selected fault/contract classes.
 
 ## What was actually exercised
@@ -73,7 +75,7 @@ native fixture class plus the explicitly selected fault/contract classes.
   does not replay, and subsequent independent reads observe the committed data.
 - FDB and CockroachDB race: deletion observes an empty child range while creation
   observes the parent. They cannot both commit and leave an orphan child.
-- Close aborts native staged changes; terminal batches combine updates/deletes.
+- Close aborts native staged changes. Terminal batches combine updates/deletes.
 - Confirmed conflicts map to the exception existing callers recognize. Explicit
   rollback followed by a business failure result does not accidentally commit.
 
@@ -85,20 +87,45 @@ and cleanup behavior, not every possible server/driver network failure class.
 | Original concern | Evidence here | Still outside this branch's claim |
 |---|---|---|
 | T1: partial catalog initialization | Real Manager catalog fixtures and rejection/response-lost injection | External storage integration effects |
-| T1: grant/version mismatch | Shared grant/revoke fixtures; failed revoke snapshot equality | Every maintenance writer and deployment-specific writer |
-| T1: interrupted drop | Inherited deletion fixtures; failure inside cleanup rolls back all records | Arbitrary-size drop completion and deferred reclamation |
+| T1: grant/version mismatch | Shared grant/revoke fixtures and failed-revoke snapshot equality | Every maintenance writer and deployment-specific writer |
+| T1: interrupted drop | Inherited deletion fixtures and rollback of all records on cleanup failure | Arbitrary-size drop completion and deferred reclamation |
 | T2: unchanged-object / absence dependencies | Native parent/empty-child-range race | Bringing every feature-level precheck into a Manager attempt |
 | T2: composed reads | Existing resolved-read fixtures use the shared transaction view | HTTP list filtering, independent calls, caches and multipage snapshots |
-| T2: retry / independent RBAC / credentials | Explicit conflict translation, no unknown replay; shared credential code | Complete bounded business-attempt retry, authorization policy and STS |
+| T2: retry / independent RBAC / credentials | Explicit conflict translation, no unknown replay, shared credential code | Complete bounded business-attempt retry, authorization policy and STS |
 | T3: staged helper versus successful publication | The wrapper returns success only after native commit | All caller contracts, protocol outcome mappings and external cleanup |
 
 ## Repository gates
 
 `polaris-core:check` and `polaris-persistence-primitives:check` have passed,
 including their formatter and checkstyle tasks. The repository-wide
-`format compileAll` and `check` gates are being evaluated separately; they are
-not covered by the module-level result above. This prototype is not declared
-merge-ready or production-ready.
+`format compileAll` gate also passed, including service-side Quarkus code
+generation and downstream Java compilation.
+
+Repository `check` failed at `polaris-admin:test`: 49 tests ran, 18 passed and
+31 failed. Inspection of all 31 failure traces found Docker/Testcontainers
+startup failures. The workspace has no working Docker runtime. No tests were
+excluded to turn this result into a pass, and downstream checks cannot be
+inferred from this interrupted root run.
+
+The separate `polaris-runtime-service:check` run also failed. Gradle reported
+23,769 completed tests, 2 failures and 43 skipped tests. The failures were:
+
+- `AwsCloudWatchEventListenerTest`: Docker/Testcontainers initialization.
+- `InMemoryBufferEventListenerIntegrationTest`: expected sampled trace flags
+  `03`, observed unsampled flags `02`.
+
+The host sets `OTEL_TRACES_SAMPLER=parentbased_traceidratio` and
+`OTEL_TRACES_SAMPLER_ARG=0.01`, which is a candidate explanation for the tracing
+assertion. This is not yet a confirmed root-cause result. A single-test rerun
+with those two variables removed did not finish and was interrupted. A control
+run on an untouched checkout of the same upstream commit also did not finish
+within its 240-second limit, including build setup. Neither diagnostic run is
+counted as passed or as proof of a baseline regression. The tracing result
+remains unresolved.
+
+The root `AGENTS.md` requires both full gates before declaring completion or
+opening a PR. This remains a reviewable WIP prototype, not a merge-ready or
+production-ready change.
 
 ## What the result supports
 

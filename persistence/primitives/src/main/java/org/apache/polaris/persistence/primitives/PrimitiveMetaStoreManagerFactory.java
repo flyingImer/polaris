@@ -24,6 +24,8 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import java.time.Clock;
 import java.util.Properties;
+import java.util.Set;
+import java.util.concurrent.ConcurrentHashMap;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.persistence.LocalPolarisMetaStoreManagerFactory;
@@ -41,8 +43,7 @@ import org.apache.polaris.persistence.primitives.spanner.SpannerPrimitives;
 @Identifier("durable-primitives-poc")
 public class PrimitiveMetaStoreManagerFactory
     extends LocalPolarisMetaStoreManagerFactory<DurablePrimitives> {
-  private final java.util.Set<DurablePrimitives> stores =
-      java.util.concurrent.ConcurrentHashMap.newKeySet();
+  private final Set<DurablePrimitives> stores = ConcurrentHashMap.newKeySet();
 
   @PreDestroy
   void closeStores() {

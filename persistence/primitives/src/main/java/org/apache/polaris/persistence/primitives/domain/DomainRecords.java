@@ -25,7 +25,9 @@ import static org.apache.polaris.persistence.primitives.api.DurablePrimitives.Mu
 import com.fasterxml.jackson.annotation.JsonAutoDetect;
 import com.fasterxml.jackson.annotation.PropertyAccessor;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import java.io.IOException;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
 import java.util.HexFormat;
 import java.util.List;
 import java.util.function.Function;
@@ -35,17 +37,21 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
+import org.apache.polaris.persistence.primitives.api.StorageFailure;
 
 /** Logical record mappings shared by every adapter; part of the Manager implementation. */
 public final class DomainRecords {
   private final DurablePrimitives backend;
   private final String realmPrefix;
 
-  // The old callback SPI has no attempt parameter. Scope this bridge to the session, not globally.
-  @SuppressWarnings("ThreadLocalUsage")
-  private final ThreadLocal<DurablePrimitives.LegacyAttempt> current = new ThreadLocal<>();
+  // The old callback SPI has no attempt parameter. Keep an owner-checked thread scope only
+  // for this migration bridge; the public Primitives API passes attempts explicitly.
+  private static final ThreadLocal<Scope> CURRENT = new ThreadLocal<>();
+
+  private record Scope(DomainRecords owner, DurablePrimitives.LegacyAttempt attempt) {}
 
   private final ObjectMapper mapper =
       new ObjectMapper()
@@ -144,28 +150,26 @@ public final class DomainRecords {
   }
 
   public <T> T runFinalBatch(Supplier<T> work) {
-    if (current.get() != null) throw new IllegalStateException("Nested transaction");
+    if (CURRENT.get() != null) throw new IllegalStateException("Nested transaction");
     try (var nativeAttempt = backend.begin()) {
       var batch = new FinalBatch(nativeAttempt);
-      current.set(batch);
+      CURRENT.set(new Scope(this, batch));
       T result = work.get();
-      if (current.get() != null) batch.commit(List.of());
+      if (CURRENT.get() != null) batch.commit(List.of());
       return result;
-    } catch (org.apache.polaris.persistence.primitives.api.StorageFailure e) {
-      if (e.outcome()
-          == org.apache.polaris.persistence.primitives.api.StorageFailure.Outcome.CONFLICT) {
-        throw new org.apache.polaris.core.persistence.RetryOnConcurrencyException(e);
+    } catch (StorageFailure e) {
+      if (e.outcome() == StorageFailure.Outcome.CONFLICT) {
+        throw new RetryOnConcurrencyException(e);
       }
       throw e;
     } finally {
-      current.remove();
+      CURRENT.remove();
     }
   }
 
   private static final class FinalBatch implements DurablePrimitives.LegacyAttempt {
     private final DurablePrimitives.Attempt nativeAttempt;
-    private final java.util.ArrayList<DurablePrimitives.Mutation> mutations =
-        new java.util.ArrayList<>();
+    private final ArrayList<DurablePrimitives.Mutation> mutations = new ArrayList<>();
 
     FinalBatch(DurablePrimitives.Attempt nativeAttempt) {
       this.nativeAttempt = nativeAttempt;
@@ -206,20 +210,19 @@ public final class DomainRecords {
   }
 
   public <T> T runInTransaction(PolarisDiagnostics diagnostics, Supplier<T> work) {
-    if (current.get() != null) throw new IllegalStateException("Nested transaction");
+    if (CURRENT.get() != null) throw new IllegalStateException("Nested transaction");
     try (var attempt = backend.beginLegacy()) {
-      current.set(attempt);
+      CURRENT.set(new Scope(this, attempt));
       T result = work.get();
-      if (current.get() != null) attempt.commit(List.of());
+      if (CURRENT.get() != null) attempt.commit(List.of());
       return result;
-    } catch (org.apache.polaris.persistence.primitives.api.StorageFailure e) {
-      if (e.outcome()
-          == org.apache.polaris.persistence.primitives.api.StorageFailure.Outcome.CONFLICT) {
-        throw new org.apache.polaris.core.persistence.RetryOnConcurrencyException(e);
+    } catch (StorageFailure e) {
+      if (e.outcome() == StorageFailure.Outcome.CONFLICT) {
+        throw new RetryOnConcurrencyException(e);
       }
       throw e;
     } finally {
-      current.remove();
+      CURRENT.remove();
     }
   }
 
@@ -241,9 +244,10 @@ public final class DomainRecords {
   }
 
   private DurablePrimitives.LegacyAttempt attempt() {
-    var result = current.get();
-    if (result == null) throw new IllegalStateException("No transaction");
-    return result;
+    Scope scope = CURRENT.get();
+    if (scope == null || scope.owner() != this)
+      throw new IllegalStateException("No transaction for this session");
+    return scope.attempt();
   }
 
   long getNextSequence() {
@@ -259,7 +263,7 @@ public final class DomainRecords {
 
   void rollback() {
     attempt().close();
-    current.remove();
+    CURRENT.remove();
   }
 
   void deleteAll() {
@@ -285,7 +289,7 @@ public final class DomainRecords {
     T decode(byte[] value) {
       try {
         return mapper.readValue(value, type);
-      } catch (java.io.IOException e) {
+      } catch (IOException e) {
         throw new IllegalStateException("Invalid durable record", e);
       }
     }
@@ -323,7 +327,7 @@ public final class DomainRecords {
             .applyForLegacyReadYourWrites(
                 List.of(
                     put(prefix + encode(key.apply(value)), mapper.writeValueAsBytes(persisted))));
-      } catch (java.io.IOException e) {
+      } catch (IOException e) {
         throw new IllegalStateException("Cannot encode durable record", e);
       }
     }

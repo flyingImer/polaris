@@ -19,6 +19,7 @@
 package org.apache.polaris.persistence.primitives.api;
 
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Experimental backend boundary. Keys and payloads have no Polaris domain meaning here. Each
@@ -41,7 +42,7 @@ public interface DurablePrimitives extends AutoCloseable {
   /** A put, point delete (null value), or half-open range delete (non-null end). */
   record Mutation(String key, byte[] value, String end) {
     public static Mutation put(String key, byte[] value) {
-      return new Mutation(key, java.util.Objects.requireNonNull(value), null);
+      return new Mutation(key, Objects.requireNonNull(value), null);
     }
 
     public static Mutation delete(String key) {
@@ -49,7 +50,7 @@ public interface DurablePrimitives extends AutoCloseable {
     }
 
     public static Mutation deleteRange(String begin, String end) {
-      return new Mutation(begin, null, java.util.Objects.requireNonNull(end));
+      return new Mutation(begin, null, Objects.requireNonNull(end));
     }
   }
 

@@ -53,8 +53,8 @@ validation, authorization, pagination or external-effect problem in those thread
 
 | Responsibility | Code | Reused / changed |
 |---|---|---|
-| Operation semantics | `TransactionalMetaStoreManagerImpl` in `polaris-core` | Reused; CreateCatalog now computes final grants/versions before writes |
-| Shared domain mapping and credential rules | `domain/RecordTransactionalPersistence`, `domain/DomainRecords` | Reuses `AbstractTransactionalPersistence`; extracts the existing domain algorithms into one implementation for all new adapters |
+| Operation semantics | `TransactionalMetaStoreManagerImpl` in `polaris-core` | Reused. CreateCatalog now computes final grants/versions before writes |
+| Shared domain mapping and credential rules | `domain/RecordTransactionalPersistence`, `domain/DomainRecords` | Reuses `AbstractTransactionalPersistence` and extracts the existing domain algorithms into one implementation for all new adapters |
 | Opaque transaction and storage contract | `api/DurablePrimitives`, `api/StorageFailure` | Experimental narrow backend replacement boundary |
 | Native mechanics | `jdbc/JdbcPrimitives`, `fdb/FdbPrimitives`, `spanner/SpannerPrimitives` | No Polaris entity, grant, policy or secret types imported |
 | Runtime selection / realm bootstrap | `PrimitiveMetaStoreManagerFactory` | Existing `MetaStoreManagerFactory` and `LocalPolarisMetaStoreManagerFactory` contracts |
@@ -62,8 +62,7 @@ validation, authorization, pagination or external-effect problem in those thread
 
 The shared domain classes belong to the Manager implementation. They are not an
 Orchestrator SPI and do not coordinate heterogeneous databases. Legacy TreeMap,
-JDBC and NoSQL implementations are not migrated by this prototype. Their existing
-shared logic is acknowledged; this branch does not claim it did not exist.
+JDBC and NoSQL implementations are not migrated by this prototype. Both already share substantial domain logic.
 
 Why introduce a narrow interface? The current transactional persistence extension
 surface includes secret rotation/reset, typed grant operations and other domain
@@ -75,15 +74,15 @@ interface remains a compatibility surface above that narrower boundary.
 ## Two explicitly different execution paths
 
 **Selected terminal-batch path:** `CreateCatalog` still enters the upstream
-Manager. Its reads resolve name absence and current recipient roles; its last
-read is ID allocation. Shared Java code computes the complete catalog, admin role,
+Manager. It checks name absence and reads current recipient roles, then allocates
+an ID as its last read. Shared Java code computes the complete catalog, admin role,
 initial grants and endpoint grant versions. The compatibility bridge then calls
 `Attempt.commit(mutations)` on the **same attempt** used for reads.
 
 `runInFinalBatchTransaction` is a small default hook on the existing
-`TransactionalPersistence`; old implementations keep their current transaction
+`TransactionalPersistence`. Existing implementations keep their current transaction
 implementation. The new bridge rejects reads after the first staged write. It
-has no read-your-writes query overlay. Spanner can use buffered mutations; FDB
+has no read-your-writes query overlay. Spanner can use buffered mutations. FDB
 uses sets/clears, JDBC executes its changes before the one native commit.
 
 **Migration path:** other upstream Manager helpers still write and then read.
@@ -99,11 +98,11 @@ has already been converted to final-batch planning.
 ## Contract and implementation limits
 
 - One homogeneous transaction scope per atomic operation. Internal versions are
-  allowed; domain entity/grant versions remain for existing Polaris consumers.
+  allowed. Domain entity/grant versions remain for existing Polaris consumers.
 - Serializable point, absence and range observations compose with writes in one
   attempt. Reads alone do not promise that each observed value remains unchanged
   until physical commit. Backend algorithms may differ.
-- Only explicit commit publishes. Close aborts; successful helper results do not
+- Only explicit commit publishes. Close aborts. Successful helper results do not
   escape the shared transaction wrapper until native commit returns.
 - No adapter replays caller code. A confirmed native conflict is translated to
   the existing `RetryOnConcurrencyException` at the compatibility boundary.
@@ -180,8 +179,8 @@ process through the normal native-library search path.
 ```
 
 Spanner: start a local emulator with a fresh instance namespace. The explicit
-initialize flag creates the named instance/database and generic record table;
-use it only for a fresh disposable emulator.
+initialize flag creates the named instance/database and generic record table.
+Use it only for a fresh disposable emulator.
 
 ```sh
 ./gradlew :polaris-persistence-primitives:test \
@@ -194,7 +193,7 @@ use it only for a fresh disposable emulator.
 
 The unfiltered Spanner suite remains the default and its failures are recorded.
 For the separately reported **serial workflow** diagnostic, add
-`-Dpoc.spanner.serial-fixtures=true`; this explicitly excludes the two inherited
+`-Dpoc.spanner.serial-fixtures=true`. This explicitly excludes the two inherited
 parallel task tests. The cross-transaction empty-range race is also explicitly
 skipped on the emulator because its database-wide locking cannot execute that
 schedule. This is not a way to certify production concurrency.
@@ -203,7 +202,7 @@ For opt-in runtime wiring, select `polaris.persistence.type=durable-primitives-p
 and provide the corresponding `poc.*` Java system properties. Use the ordinary
 Polaris realm bootstrap entry point after initializing the experimental schema.
 The service module includes the adapter through the existing runtime dependency
-mechanism; other persistence selections are unchanged.
+mechanism. Other persistence selections are unchanged.
 
 ## Evidence to review
 

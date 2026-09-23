@@ -19,6 +19,7 @@
 package org.apache.polaris.persistence.primitives;
 
 import java.util.Properties;
+import java.util.UUID;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
 import org.apache.polaris.persistence.primitives.fdb.FdbPrimitives;
 import org.apache.polaris.persistence.primitives.jdbc.JdbcPrimitives;
@@ -32,9 +33,7 @@ final class NativeBackends {
       case "jdbc", "h2" -> {
         String url =
             name.equals("h2")
-                ? "jdbc:h2:mem:"
-                    + java.util.UUID.randomUUID()
-                    + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1"
+                ? "jdbc:h2:mem:" + UUID.randomUUID() + ";MODE=PostgreSQL;DB_CLOSE_DELAY=-1"
                 : required("poc.jdbc.url");
         var properties = new Properties();
         properties.setProperty(

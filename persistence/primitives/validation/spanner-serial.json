@@ -2,7 +2,7 @@
   "SPDX-License-Identifier": "Apache-2.0",
   "upstream_base": "a919f11e51ff76b5ef56633d8cb0429ff2b4c100",
   "run": "spanner-serial",
-  "scope": "actual Java Manager, shared domain mapping and native adapter; H2 only wiring smoke",
+  "scope": "actual Java Manager and native adapter",
   "suites": [
     {
       "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
@@ -10,7 +10,7 @@
       "failures": 0,
       "errors": 0,
       "skipped": 1,
-      "timestamp": "2026-09-23T16:19:52.135Z",
+      "timestamp": "2026-09-23T16:53:49.016Z",
       "testcases": [
         {
           "name": "terminalBatchPublishesMixedMutations()",
@@ -35,7 +35,7 @@
       "failures": 0,
       "errors": 0,
       "skipped": 0,
-      "timestamp": "2026-09-23T16:19:54.594Z",
+      "timestamp": "2026-09-23T16:53:51.622Z",
       "testcases": [
         {
           "name": "dropFailureRollsBackCleanupAndVersions()",
@@ -65,7 +65,7 @@
       "failures": 0,
       "errors": 0,
       "skipped": 0,
-      "timestamp": "2026-09-23T16:19:56.629Z",
+      "timestamp": "2026-09-23T16:53:53.641Z",
       "testcases": [
         {
           "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",

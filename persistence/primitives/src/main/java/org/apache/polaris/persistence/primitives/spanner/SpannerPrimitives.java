@@ -18,6 +18,8 @@
  */
 package org.apache.polaris.persistence.primitives.spanner;
 
+import static com.google.cloud.spanner.Mutation.delete;
+import static com.google.cloud.spanner.Mutation.newInsertOrUpdateBuilder;
 import static org.apache.polaris.persistence.primitives.api.StorageFailure.Outcome.CONFLICT;
 import static org.apache.polaris.persistence.primitives.api.StorageFailure.Outcome.REJECTED;
 import static org.apache.polaris.persistence.primitives.api.StorageFailure.Outcome.UNKNOWN;
@@ -43,6 +45,7 @@ import com.google.cloud.spanner.TransactionManager;
 import com.google.spanner.v1.TransactionOptions.IsolationLevel;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.ExecutionException;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
 import org.apache.polaris.persistence.primitives.api.StorageFailure;
 
@@ -93,7 +96,7 @@ public final class SpannerPrimitives implements DurablePrimitives {
       } catch (InterruptedException e) {
         Thread.currentThread().interrupt();
         throw new IllegalStateException(e);
-      } catch (java.util.concurrent.ExecutionException e) {
+      } catch (ExecutionException e) {
         throw new IllegalStateException(e.getCause());
       }
     }
@@ -226,16 +229,14 @@ public final class SpannerPrimitives implements DurablePrimitives {
       if (legacy) applyForLegacyReadYourWrites(mutations);
       else {
         for (var m : mutations) {
-          com.google.cloud.spanner.Mutation nativeMutation =
+          var nativeMutation =
               m.end() != null
-                  ? com.google.cloud.spanner.Mutation.delete(
+                  ? delete(
                       "PolarisPocRecords",
                       KeySet.range(KeyRange.closedOpen(Key.of(m.key()), Key.of(m.end()))))
                   : m.value() == null
-                      ? com.google.cloud.spanner.Mutation.delete(
-                          "PolarisPocRecords", Key.of(m.key()))
-                      : com.google.cloud.spanner.Mutation.newInsertOrUpdateBuilder(
-                              "PolarisPocRecords")
+                      ? delete("PolarisPocRecords", Key.of(m.key()))
+                      : newInsertOrUpdateBuilder("PolarisPocRecords")
                           .set("k")
                           .to(m.key())
                           .set("v")
