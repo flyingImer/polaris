@@ -52,6 +52,22 @@ Local gate results are recorded in `validation/gates-terminal.json`. Service
 counts use the Gradle run summary. The retained XML aggregate has six additional
 cases and is recorded separately. The root gate has not passed.
 
+The isolated repository run
+[36617991766](https://github.com/flyingImer/polaris/actions/runs/36617991766)
+finished at 2026-09-29 20:32 UTC with two failed tasks. Formatting and compilation
+passed. Root `check --continue` ran for 1h 5m 41s and reported only
+`:polaris-bom:verifyBomDependencies` and
+`:polaris-server:generateLicenseReport` as failures. The new Primitives module
+was missing from the BOM, and twelve FDB/Spanner-related dependency mentions were
+missing from the server distribution LICENSE. No test task reported failure.
+This is a completed failed gate, not an ongoing run or an environment blocker.
+Its native CockroachDB and PostgreSQL jobs both passed, as recorded below.
+
+The follow-up adds those declarations without changing Java sources or dependency
+versions. CI now checks BOM and distribution licenses before the full test phase,
+so the same omissions will fail early. The repaired repository gate is pending
+until a subsequent run reports success.
+
 The earlier `durable-java-poc.yml` run executed formatting, compilation
 and complete checks for the three touched modules on a Docker-capable runner.
 A separate job ran the same native Manager and attempt suite on PostgreSQL 17.

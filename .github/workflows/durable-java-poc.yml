@@ -28,6 +28,8 @@ on:
       - 'persistence/primitives/src/**'
       - 'persistence/primitives/build.gradle.kts'
       - 'runtime/service/**'
+      - 'runtime/server/distribution/LICENSE'
+      - 'bom/build.gradle.kts'
       - 'gradle/**'
       - '*.gradle.kts'
 permissions:
@@ -56,6 +58,8 @@ jobs:
         run: ./gradlew format compileAll --max-workers=2
       - name: Verify formatting leaves sources unchanged
         run: git diff --exit-code
+      - name: Verify BOM and distribution licenses before tests
+        run: ./gradlew :polaris-bom:check :polaris-server:generateLicenseReport --max-workers=2
       - name: Complete repository checks
         run: ./gradlew check --continue --max-workers=2
       - name: Retain metadata firewall evidence

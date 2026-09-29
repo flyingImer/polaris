@@ -685,6 +685,7 @@ License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 This product bundles Google SDK Platform for Java.
 
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-common-protos
 * Maven group:artifact IDs: com.google.api.grpc:proto-google-common-protos
 * Maven group:artifact IDs: com.google.api.grpc:proto-google-iam-v1
 
@@ -747,6 +748,7 @@ This product bundles Google Cloud APIs for Java.
 * Maven group:artifact IDs: com.google.cloud:google-cloud-core-http
 * Maven group:artifact IDs: com.google.cloud:google-cloud-iamcredentials
 * Maven group:artifact IDs: com.google.cloud:google-cloud-monitoring
+* Maven group:artifact IDs: com.google.cloud:google-cloud-spanner
 * Maven group:artifact IDs: com.google.cloud:google-cloud-storage
 
 Project URL: https://github.com/googleapis/google-cloud-java
@@ -1101,6 +1103,7 @@ License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 This product bundles OpenCensus.
 
 * Maven group:artifact IDs: io.opencensus:opencensus-api
+* Maven group:artifact IDs: io.opencensus:opencensus-contrib-grpc-util
 * Maven group:artifact IDs: io.opencensus:opencensus-contrib-http-util
 
 Project URL: https://github.com/census-instrumentation/opencensus-java
@@ -2342,5 +2345,42 @@ License: BSD 3-Clause
 | THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 | (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 | OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--------------------------------------------------------------------------------
+
+This product bundles Google Cloud Spanner generated APIs.
+
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-spanner-admin-database-v1
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-spanner-admin-instance-v1
+* Maven group:artifact IDs: com.google.api.grpc:grpc-google-cloud-spanner-v1
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-spanner-admin-database-v1
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-spanner-admin-instance-v1
+* Maven group:artifact IDs: com.google.api.grpc:proto-google-cloud-spanner-v1
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles gRPC GCP extensions.
+
+* Maven group:artifact IDs: com.google.cloud:grpc-gcp
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles Tink.
+
+* Maven group:artifact IDs: com.google.crypto.tink:tink
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
+
+--------------------------------------------------------------------------------
+
+This product bundles FoundationDB Java bindings.
+
+* Maven group:artifact IDs: org.foundationdb:fdb-java
+
+License: Apache License 2.0 - https://www.apache.org/licenses/LICENSE-2.0.txt
 
 --------------------------------------------------------------------------------
