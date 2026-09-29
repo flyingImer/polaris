@@ -24,11 +24,11 @@ import io.quarkus.arc.Arc;
 import io.quarkus.arc.ManagedContext;
 import io.quarkus.test.junit.QuarkusTest;
 import jakarta.inject.Inject;
-import java.util.Map;
 import java.util.Set;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.collection.AttributeMap;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.core.context.RequestIdSupplier;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
@@ -61,7 +61,8 @@ class TaskContextLifecycleTest {
                     scope.activate();
                     try {
                       realmHolder.set(() -> "source-realm");
-                      principalHolder.set(PolarisPrincipal.of("alice", Map.of(), Set.of()));
+                      principalHolder.set(
+                          PolarisPrincipal.of("alice", AttributeMap.EMPTY, Set.of()));
                       requestIdHolder.set(requestId);
                       return propagator.capture();
                     } finally {
@@ -81,11 +82,11 @@ class TaskContextLifecycleTest {
                   try {
                     // Resolve the supplier before restoration to check that it reads the holder
                     // lazily, and that the previous worker scope did not leak its request ID.
-                    assertThat(requestIdSupplier.get()).isNull();
+                    assertThat(requestIdSupplier.getRequestId()).isNull();
                     propagator.restore(captured);
                     assertThat(realmContext.getRealmIdentifier()).isEqualTo("source-realm");
                     assertThat(principal.getName()).isEqualTo("alice");
-                    assertThat(requestIdSupplier.get()).isEqualTo(requestId);
+                    assertThat(requestIdSupplier.getRequestId()).isEqualTo(requestId);
                   } finally {
                     scope.terminate();
                   }

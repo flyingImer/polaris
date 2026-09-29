@@ -24,9 +24,9 @@ import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
 import jakarta.enterprise.context.ContextNotActiveException;
-import java.util.Map;
 import java.util.Set;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.collection.AttributeMap;
 import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
@@ -43,7 +43,7 @@ class TaskContextPropagatorTest {
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
     when(realmHolder.get()).thenReturn(realmContext);
 
-    PolarisPrincipal principal = PolarisPrincipal.of("alice", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("alice", AttributeMap.EMPTY, Set.of());
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
     when(requestIdHolder.get()).thenReturn("req-1");
 
@@ -59,7 +59,7 @@ class TaskContextPropagatorTest {
 
   @Test
   void testCapturePrincipal() {
-    PolarisPrincipal principal = PolarisPrincipal.of("bob", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("bob", AttributeMap.EMPTY, Set.of());
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
     when(realmHolder.get()).thenReturn(() -> "realm");
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
@@ -77,7 +77,7 @@ class TaskContextPropagatorTest {
   void testCaptureRequestId() {
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
     when(realmHolder.get()).thenReturn(() -> "realm");
-    PolarisPrincipal principal = PolarisPrincipal.of("carol", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("carol", AttributeMap.EMPTY, Set.of());
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
     when(requestIdHolder.get()).thenReturn("req-42");
 
@@ -92,7 +92,7 @@ class TaskContextPropagatorTest {
   @Test
   void testRestoreSetsAllHolders() {
     RealmContext realmContext = () -> "restored-realm";
-    PolarisPrincipal principal = PolarisPrincipal.of("dave", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("dave", AttributeMap.EMPTY, Set.of());
 
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
     PolarisPrincipalHolder principalHolder = mock(PolarisPrincipalHolder.class);
@@ -113,7 +113,7 @@ class TaskContextPropagatorTest {
   @Test
   void testCaptureAndRestoreRoundTrip() {
     RealmContext realmContext = () -> "round-trip-realm";
-    PolarisPrincipal principal = PolarisPrincipal.of("eve", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("eve", AttributeMap.EMPTY, Set.of());
 
     // Source holders for capture
     RealmContextHolder sourceRealmHolder = mock(RealmContextHolder.class);
@@ -150,7 +150,7 @@ class TaskContextPropagatorTest {
   @Test
   void testRestoreWithNullRequestId() {
     RealmContext realmContext = () -> "realm";
-    PolarisPrincipal principal = PolarisPrincipal.of("frank", Map.of(), Set.of());
+    PolarisPrincipal principal = PolarisPrincipal.of("frank", AttributeMap.EMPTY, Set.of());
 
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
     PolarisPrincipalHolder principalHolder = mock(PolarisPrincipalHolder.class);
