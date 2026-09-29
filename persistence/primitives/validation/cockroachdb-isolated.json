@@ -1,0 +1,285 @@
+{
+  "backend": "CockroachDB 26.3.1",
+  "commit": "f2997415de7a06f457756bb5510fa06a325f8bed",
+  "java_source_commit": "641cd2cda997eeb6dea2095a28c00715881be1d9",
+  "workflow_run": 36617991766,
+  "job": 109576332893,
+  "artifact": 11057590728,
+  "source": "GitHub Actions JUnit XML and isolation artifacts",
+  "counts": {
+    "tests": 47,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "counts": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "readViewKeepsOneSnapshotAcrossConcurrentPublication()",
+          "status": "passed"
+        },
+        {
+          "name": "failureAfterFirstWriteChunkRollsBackWholeBatch()",
+          "status": "passed"
+        },
+        {
+          "name": "terminalBatchPublishesMixedMutations()",
+          "status": "passed"
+        },
+        {
+          "name": "emptyRangeAndUnchangedParentPreventOrphan()",
+          "status": "passed"
+        },
+        {
+          "name": "batchReadPreservesMissingKeysOrderAndDuplicates()",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "counts": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "atomicResetRejectRetainsOldCredentialsAndClientId()",
+          "status": "passed"
+        },
+        {
+          "name": "concurrentLocationChecksCannotBothPublishOverlappingSiblings()",
+          "status": "passed"
+        },
+        {
+          "name": "atomicResetUpdatesPrincipalAndSecretsTogether()",
+          "status": "passed"
+        },
+        {
+          "name": "dropFailureRollsBackCleanupAndVersions()",
+          "status": "passed"
+        },
+        {
+          "name": "lostCatalogResponseIsUnknownWithoutReplay()",
+          "status": "passed"
+        },
+        {
+          "name": "batchLocationValidationRejectsItsOwnOverlappingCreates()",
+          "status": "passed"
+        },
+        {
+          "name": "changedUnmodifiedAncestorRejectsStaleValidation()",
+          "status": "passed"
+        },
+        {
+          "name": "revokeFailureRollsBackGrantAndEndpointVersions()",
+          "status": "passed"
+        },
+        {
+          "name": "viewMetadataLocationProtectsOverlapWithoutBecomingStorageRoot()",
+          "status": "passed"
+        },
+        {
+          "name": "managerNamespaceCreateDeleteRaceCannotPublishAnOrphan()",
+          "status": "passed"
+        },
+        {
+          "name": "atomicResetCannotTakeAnotherPrincipalsClientId()",
+          "status": "passed"
+        },
+        {
+          "name": "bulkCreateRejectsTwoIdsWithSameNameBeforeAnyWrites()",
+          "status": "passed"
+        },
+        {
+          "name": "locationValidationProtectsSiblingsAndIgnoresSelfOnUnrelatedUpdate()",
+          "status": "passed"
+        },
+        {
+          "name": "catalogRejectPublishesNothing()",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "counts": {
+        "tests": 28,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+          "status": "passed"
+        },
+        {
+          "name": "testGrantRecordWriteIsIdempotent()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTestCatalog()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadGrantsGranteeVsSecurableRecords()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+          "status": "passed"
+        },
+        {
+          "name": "testBootstrapAgainIsNoOp()",
+          "status": "passed"
+        },
+        {
+          "name": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitiesById()",
+          "status": "passed"
+        },
+        {
+          "name": "testDropEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testPolicyMappingCleanup()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+          "status": "passed"
+        },
+        {
+          "name": "validateBootstrap()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTestCatalogWithRetry()",
+          "status": "passed"
+        },
+        {
+          "name": "testEntityCache()",
+          "status": "passed"
+        },
+        {
+          "name": "testPolicyMapping()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTasksInParallel()",
+          "status": "passed"
+        },
+        {
+          "name": "testRenameAcrossCatalogsIsRejected()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadTasksInParallel()",
+          "status": "passed"
+        },
+        {
+          "name": "testResetCredentialsClientIdCollision()",
+          "status": "passed"
+        },
+        {
+          "name": "testBrowse()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntitiesWithConflict()",
+          "status": "passed"
+        },
+        {
+          "name": "testLookup()",
+          "status": "passed"
+        },
+        {
+          "name": "testRename()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntitiesAlreadyExisting()",
+          "status": "passed"
+        },
+        {
+          "name": "testUpdateEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testPrivileges()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadTasks()",
+          "status": "passed"
+        }
+      ]
+    }
+  ],
+  "isolation": {
+    "authorized_on": "2026-09-29",
+    "network": "Docker internal bridge without published ports or external routing",
+    "network_internal": true,
+    "ipv6_enabled": false,
+    "metadata_guard": "Independent nftables inet table with output and forward hooks before tests",
+    "blocked_ipv4": [
+      "169.254.0.0/16",
+      "100.100.100.200"
+    ],
+    "blocked_ipv6": [
+      "fc00::/7",
+      "fe80::/10"
+    ],
+    "preflight": "Three IPv4 TCP connects denied and counted from both host and default-bridge probe container. No application data sent. IPv6 probe returned no route.",
+    "final_counters": [
+      {
+        "name": "output_denied",
+        "packets": 32,
+        "bytes": 1856
+      },
+      {
+        "name": "forward_denied",
+        "packets": 3,
+        "bytes": 180
+      }
+    ],
+    "scope": "Counters are runner-wide, not attributed to CockroachDB alone. IPv6 rule presence is recorded, but IPv6 packet rejection is not empirically exercised on this IPv4-only network."
+  },
+  "server_build": [
+    "Build Tag:        v26.3.1",
+    "Build Time:       2026/08/24 17:36:57",
+    "Distribution:     CCL",
+    "Platform:         linux amd64 (x86_64-pc-linux-gnu)",
+    "Go Version:       go1.26.6",
+    "C Compiler:       gcc 8.5.0",
+    "Build Commit ID:  3a0a7b8176595bd32687c34a2210e166c5535af4",
+    "Build Type:       release",
+    "Enabled Assertions: false"
+  ],
+  "initial_startup_failure": {
+    "workflow_run": 36617583373,
+    "job": 109574647230,
+    "reason": "Official image entrypoint rejected explicit --listen-addr=0.0.0.0:26257. No Java tests ran.",
+    "correction": "Used image-default listener configuration on the same internal network, with no port publication or metadata access enabled."
+  },
+  "scope": "New generic JDBC Primitives adapter and shared Manager, not legacy relational-jdbc. Disposable single-node in-memory database. No replicated availability, crash recovery or production performance claim."
+}

@@ -3,6 +3,7 @@
   "run": "terminal-attempts",
   "scope": "Current Primitives adapter native conformance suite",
   "status": "blocked_by_automatic_approval_review",
+  "superseded_by": "cockroachdb-isolated.json records the subsequent authorized, isolated native suite: 47 passed, no failures or skips. This file preserves the earlier blocked checkpoint and reporting correction.",
   "executed_test_counts": null,
   "reason": "Local server startup triggered a cloud metadata endpoint request. No current Primitives adapter native-suite result is claimed. Further runtime validation requires an authorized isolated execution plan.",
   "previous_result": "cockroachdb-final.json describes the earlier committed baseline only.",

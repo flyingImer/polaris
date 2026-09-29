@@ -149,9 +149,13 @@ existing CockroachDB suites, with 481 passed and 11 skipped. They use the legacy
 report that CI did not start CockroachDB was incorrect. See
 [VALIDATION.md](VALIDATION.md) for the corrected execution and permission boundary.
 
-The current Primitives adapter's CockroachDB native suite and the repository-wide
-`check` gate remain unverified. Further CockroachDB execution needs an authorized
-isolated plan. The full repository gate also covers other modules not certified
-by the three-module CI run. The older CockroachDB native result applies only to
-its recorded baseline, not this checkpoint. Production Spanner concurrency,
-performance and data migration remain unverified.
+Following explicit authorization for isolated execution, the current Primitives
+adapter passes all 47 native tests on CockroachDB v26.3.1. PostgreSQL also passes
+all 47 again on the same source. The database ran on an internal Docker network,
+with verified metadata deny rules on the runner. No Java change was needed.
+See the isolated native reports linked from [VALIDATION.md](VALIDATION.md).
+
+The repository-wide `check` gate remains unverified. It also covers other modules
+not certified by the earlier three-module CI run. The older CockroachDB native
+result applies only to its recorded baseline, not this checkpoint. Production
+Spanner concurrency, performance and data migration remain unverified.

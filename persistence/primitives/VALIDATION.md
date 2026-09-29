@@ -39,7 +39,7 @@ three mailing-list problems, their implementation paths and remaining boundaries
 | `polaris-persistence-primitives:check`, local and CI default configuration | 43 | 0 | 32 | Full module check passed. 28 unconfigured native fixtures and 4 H2 isolation schedules skipped |
 | Focused Service / compatibility checks | 120 | 0 | 0 | Admin 21, metadata cleanup 10, mapper 70, allowed locations 18, tracing integration 1. Separate from the full Service gate |
 | Repository `format compileAll` | N/A | N/A | N/A | Passed locally and in clean CI. Formatting left CI sources unchanged |
-| CockroachDB, current Primitives adapter | N/A | N/A | N/A | Local native-suite execution blocked by automatic approval review. No current-adapter result |
+| CockroachDB 26.3.1, current Primitives adapter in isolated CI | 47 | 0 | 0 | Same 28 Manager, 14 failure/dependency and 5 primitive tests. All simultaneous race schedules included |
 | PostgreSQL 17, native Java suite in fork CI | 47 | 0 | 0 | Same 28 Manager, 14 failure/dependency and 5 primitives tests. All simultaneous race schedules included |
 | Full CI Service `test`, JUnit XML totals | 23,751 | 0 | 43 | CloudWatch 4/4, tracing and all 18 allowed-location tests pass |
 | Full CI Service `intTest` | 2,820 | 0 | 70 | Integration tests also passed |
@@ -52,14 +52,14 @@ Local gate results are recorded in `validation/gates-terminal.json`. Service
 counts use the Gradle run summary. The retained XML aggregate has six additional
 cases and is recorded separately. The root gate has not passed.
 
-The branch-specific `durable-java-poc.yml` workflow runs formatting, compilation
+The earlier `durable-java-poc.yml` run executed formatting, compilation
 and complete checks for the three touched modules on a Docker-capable runner.
-A separate job runs the same native Manager and attempt suite on PostgreSQL 17.
+A separate job ran the same native Manager and attempt suite on PostgreSQL 17.
 The PostgreSQL job passed on commit `641cd2cda997eeb6dea2095a28c00715881be1d9`.
 Its XML summary is `validation/postgresql-terminal.json`. The module gate job
 also passed, including Service integration tests. Counts and individual suite
 summaries are in `validation/ci-terminal.json`. These use the artifact's JUnit
-XML totals. The workflow does not run root `check` and is not a passing
+XML totals. That run did not execute root `check` and is not a passing
 repository-wide gate.
 
 A subsequent read-only audit corrected an earlier reporting error: omitting root
@@ -125,15 +125,37 @@ configuration (`02` instead of the expected `03`), and passes after removing
 are unchanged. The final gates use that isolated test environment. No repository
 sampling policy has been changed. See `validation/callers-terminal.json`.
 
-Local CockroachDB native-suite startup was blocked after the runner triggered a
-request to a cloud metadata endpoint. The new adapter's current native suite
-remains unexecuted. The later module CI nevertheless started legacy CockroachDB
+Local CockroachDB native-suite startup was initially blocked after the runner triggered a
+request to a cloud metadata endpoint. The later module CI nevertheless started legacy CockroachDB
 through Service integration tests, which the earlier report overlooked. No
 metadata-network-access audit was collected for those containers. This corrects
-the earlier claim that CI had not started CockroachDB. Further CockroachDB runtime
-validation requires an authorized isolated execution plan. The older
+the earlier claim that CI had not started CockroachDB. The older
 `cockroachdb-final.json` remains baseline evidence only.
 PostgreSQL is not inferred from H2, CockroachDB, compilation or common JDBC code.
+
+After explicit authorization for an isolated execution plan, native CockroachDB
+verification passed in [CI run 36617991766](https://github.com/flyingImer/polaris/actions/runs/36617991766)
+on commit `f2997415de7a06f457756bb5510fa06a325f8bed`. The Java sources are unchanged
+from `641cd2cda997eeb6dea2095a28c00715881be1d9`. PostgreSQL also passed all 47 tests
+again in this run. Their individual test results are in
+`validation/cockroachdb-isolated.json` and `validation/postgresql-isolated.json`.
+
+Before starting databases, every job installs a separate nftables table rejecting
+metadata-address ranges from host and forwarded container traffic. TCP-only
+probes require explicit denial and matching firewall counter increments from
+both paths. They send no application data. IPv6 rules are installed, but the
+IPv6 probe reports no route, not empirical packet rejection. The CockroachDB
+native job additionally uses an internal Docker network without external routing
+or published ports. The archived network configuration and server output confirm
+`Internal=true` and CockroachDB v26.3.1. Firewall counters are runner-wide and must
+not be interpreted as CockroachDB-specific traffic counts.
+
+The first isolated startup failed before Java tests: the official image entrypoint
+rejected an explicit `--listen-addr=0.0.0.0:26257`. Using the image's default
+listener configuration fixed startup without changing the internal network,
+metadata deny rules or adapter. The diagnostic run is retained in the native
+report. These are disposable single-node in-memory results, not replicated
+availability, crash recovery or production performance evidence.
 
 The workspace mirrored stale Spotless task outputs and temporary `.rsync-tmp`
 class paths. Local verification forced fresh Spotless computation and excluded
