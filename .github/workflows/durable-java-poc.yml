@@ -144,12 +144,17 @@ jobs:
             --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 \
             --store=type=mem,size=1GiB --cache=128MiB --max-sql-memory=128MiB
           for attempt in $(seq 1 60); do
+            if test "$(docker inspect --format '{{.State.Running}}' polaris-poc-cockroach)" != true; then
+              docker logs --tail 100 polaris-poc-cockroach
+              exit 1
+            fi
             if docker exec polaris-poc-cockroach cockroach sql --insecure \
               --execute='CREATE DATABASE IF NOT EXISTS polaris_poc'; then
               exit 0
             fi
             sleep 1
           done
+          docker logs --tail 100 polaris-poc-cockroach
           exit 1
       - name: Native CockroachDB Manager and attempt tests
         run: |
@@ -165,6 +170,7 @@ jobs:
         run: |
           sudo nft -j list table inet polaris_poc_guard > metadata-guard.json
           docker network inspect polaris-poc-isolated > isolated-network.json
+          docker logs --tail 100 polaris-poc-cockroach > cockroach-startup.log 2>&1
           docker exec polaris-poc-cockroach cockroach version > cockroach-version.txt
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
@@ -176,6 +182,7 @@ jobs:
             metadata-guard.json
             isolated-network.json
             cockroach-version.txt
+            cockroach-startup.log
           if-no-files-found: ignore
       - name: Stop disposable CockroachDB
         if: always()
