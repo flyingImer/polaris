@@ -23,6 +23,58 @@ Base: `apache/polaris main @ a919f11e51ff76b5ef56633d8cb0429ff2b4c100`.
 Validation uses JDK 21 and the upstream Gradle 9.7.1 wrapper. Native results are
 versioned per checkpoint. An older result does not certify later code.
 
+## Repaired repository gate, 2026-09-29
+
+[Run 36632123504](https://github.com/flyingImer/polaris/actions/runs/36632123504)
+completed successfully at 2026-09-29 22:26 UTC. Its tested source is
+`90af5300fbdec108e038d7b211616d269b0d0e41`. This section supersedes the
+pending root-gate status below for that source only. The evidence commit changes
+validation records only. It does not certify later Java, build or test changes.
+
+The job logs and downloaded JUnit XML were checked independently of the workflow
+summary. All three artifact SHA-256 digests match GitHub's artifact metadata.
+Machine-readable results, artifact identities and all XML task-group skip counts
+are in [validation/ci-repaired-gate.json](validation/ci-repaired-gate.json).
+
+| Gate | Actual result |
+|---|---|
+| Metadata-denial preflight, all three jobs | Passed before databases/tests. Host and container IPv4 denial counters each reached 3. IPv6 reported no route |
+| `format compileAll --max-workers=2` | BUILD SUCCESSFUL in 7m 14s. Subsequent `git diff --exit-code` passed |
+| Early `:polaris-bom:check :polaris-server:generateLicenseReport --max-workers=2` | BUILD SUCCESSFUL in 47s. Both previously failing tasks executed successfully |
+| Full `check --continue --max-workers=2` | BUILD SUCCESSFUL in 1h 1m 35s. No failed task or JUnit failure/error |
+| PostgreSQL 17, new Primitives adapter | 47 passed, 0 failed, 0 skipped |
+| CockroachDB 26.3.1, new Primitives adapter | 47 passed, 0 failed, 0 skipped. Docker network remained internal, with no published ports |
+
+The root artifact records Service unit tests as 23,751 passed / 43 skipped,
+Service integration tests as 2,820 passed / 70 skipped, and cloud tests as
+0 passed / 897 skipped. Core has 1,004 passed / 16 skipped. The default
+Primitives configuration has 43 passed / 32 skipped, including unconfigured
+native fixtures and H2 isolation schedules. The two configured native jobs
+provide separate evidence and are not inferred from those skips.
+
+Five legacy CockroachDB Service integration suites have 481 passed / 11 skipped.
+They are already included in the Service integration total and use
+`relational-jdbc`, not the new Primitives adapter.
+
+The retained nftables artifacts confirm host output and forwarded-container
+metadata rejection rules. CockroachDB's network artifact reports `Internal=true`.
+Counters cover the entire runner and do not identify which process attempted
+traffic. IPv6 rule presence is not proof of packet rejection on this IPv4-only
+execution.
+
+Earlier FDB 47/0/0 and Spanner emulator 44/0/3 evidence remains historical
+native evidence for unchanged Java sources. This run does not re-execute those
+backends. The three Spanner race skips remain. No production performance,
+production Spanner concurrency, migration or complete community-requirement
+claim follows from this gate.
+
+The fresh-authorization claim in the earlier checkpoint refers to a mock
+authorizer test. This tested source does not establish real RBAC with a warmed
+cache after revocation, the later Service table-create validation scenarios, or
+the later UNKNOWN metadata pointer/content assertions. Its concurrent worker
+tests also predate the subsequent result-collection repair. Those later changes
+need their own results.
+
 ## Terminal-attempt checkpoint, 2026-09-29
 
 This checkpoint continues `0e0cccd577122544622068e74bcf80f6f673804d` on the same
@@ -50,7 +102,7 @@ three mailing-list problems, their implementation paths and remaining boundaries
 
 Local gate results are recorded in `validation/gates-terminal.json`. Service
 counts use the Gradle run summary. The retained XML aggregate has six additional
-cases and is recorded separately. The root gate has not passed.
+cases and is recorded separately. The local root gate did not pass. The repaired CI root gate above passed.
 
 The isolated repository run
 [36617991766](https://github.com/flyingImer/polaris/actions/runs/36617991766)
@@ -65,8 +117,7 @@ Its native CockroachDB and PostgreSQL jobs both passed, as recorded below.
 
 The follow-up adds those declarations without changing Java sources or dependency
 versions. CI now checks BOM and distribution licenses before the full test phase,
-so the same omissions will fail early. The repaired repository gate is pending
-until a subsequent run reports success.
+so the same omissions will fail early. The repaired repository gate passed in run 36632123504, as recorded above.
 
 The earlier `durable-java-poc.yml` run executed formatting, compilation
 and complete checks for the three touched modules on a Docker-capable runner.

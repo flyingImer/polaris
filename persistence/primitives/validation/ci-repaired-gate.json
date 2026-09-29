@@ -1,0 +1,571 @@
+{
+  "source_sha": "90af5300fbdec108e038d7b211616d269b0d0e41",
+  "workflow_run": 36632123504,
+  "run_url": "https://github.com/flyingImer/polaris/actions/runs/36632123504",
+  "status": "completed",
+  "conclusion": "success",
+  "updated_at": "2026-09-29T22:26:28Z",
+  "applicability": "Only tested source 90af5300fbdec108e038d7b211616d269b0d0e41. This evidence-only commit does not validate later Java, build or test changes.",
+  "gates": {
+    "job": 109623679943,
+    "format_compile": {
+      "command": "./gradlew format compileAll --max-workers=2",
+      "result": "BUILD SUCCESSFUL",
+      "duration_seconds": 434,
+      "completed_at": "2026-09-29T21:23:49.9552684Z",
+      "format_diff_exit_code": 0
+    },
+    "bom_license": {
+      "command": "./gradlew :polaris-bom:check :polaris-server:generateLicenseReport --max-workers=2",
+      "result": "BUILD SUCCESSFUL",
+      "duration_seconds": 47,
+      "tasks_verified": [
+        ":polaris-bom:verifyBomDependencies",
+        ":polaris-server:generateLicenseReport"
+      ]
+    },
+    "root": {
+      "command": "./gradlew check --continue --max-workers=2",
+      "result": "BUILD SUCCESSFUL",
+      "duration_seconds": 3695,
+      "completed_at": "2026-09-29T22:26:14.7630685Z"
+    }
+  },
+  "native_jobs": [
+    {
+      "backend": "PostgreSQL 17",
+      "job": 109623679580,
+      "artifact": 11062684424,
+      "passed": 47,
+      "failed": 0,
+      "skipped": 0
+    },
+    {
+      "backend": "CockroachDB 26.3.1",
+      "job": 109623679942,
+      "artifact": 11062679694,
+      "passed": 47,
+      "failed": 0,
+      "skipped": 0
+    }
+  ],
+  "isolation": {
+    "all_jobs_preflight": "Host and container IPv4 connects denied before databases/tests, each counter increased to 3. No application data sent.",
+    "ipv6": "Rules installed. Probe returned errno 101 (no route), not empirical packet rejection.",
+    "cockroach_network_internal": true,
+    "cockroach_published_ports": false,
+    "retained_counters": {
+      "gates": {
+        "output": 299,
+        "forward": 43
+      },
+      "cockroach": {
+        "output": 35,
+        "forward": 3
+      }
+    },
+    "counter_scope": "Runner-wide, not process-specific."
+  },
+  "artifacts": {
+    "github-actions-artifact-11066450084": {
+      "sha256": "bf1c224b2ac093e2613fe84071df770c8b0c1792232a3939bf96bfae8dedba51",
+      "groups": {
+        "api/management-model/build/test-results/test": {
+          "tests": 12,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "api/openlineage-service/build/test-results/test": {
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/auth/opa/build/test-results/bearerTokenIntTest": {
+          "tests": 13,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/auth/opa/build/test-results/opaFileTokenIntTest": {
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/auth/opa/build/test-results/test": {
+          "tests": 44,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/auth/ranger/build/test-results/intTest": {
+          "tests": 15,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/auth/ranger/build/test-results/test": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/events/kafka/build/test-results/test": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/lineage/build/test-results/test": {
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/metrics-reports/persistence/relational-jdbc/build/test-results/test": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/openlineage/build/test-results/intTest": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/openlineage/build/test-results/test": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "extensions/semantic-models/build/test-results/test": {
+          "tests": 76,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "integration-tests/build/test-results/test": {
+          "tests": 46,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/async/java/build/test-results/test": {
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/async/vertx/build/test-results/test": {
+          "tests": 20,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/authz/api/build/test-results/test": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/authz/impl/build/test-results/test": {
+          "tests": 584,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/authz/store-nosql/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/idgen/impl/build/test-results/test": {
+          "tests": 34,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/nodes/impl/build/test-results/test": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/nodes/store-nosql/build/test-results/test": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/api/build/test-results/test": {
+          "tests": 183,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/cdi/quarkus/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/cdi/quarkus-distcache/build/test-results/test": {
+          "tests": 27,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/cdi/weld/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/correctness/build/test-results/correctnessInMemoryTest": {
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/correctness/build/test-results/correctnessMongoDbTest": {
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/db/inmemory/build/test-results/test": {
+          "tests": 34,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "persistence/nosql/persistence/db/mongodb/build/test-results/intTest": {
+          "tests": 33,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "persistence/nosql/persistence/impl/build/test-results/test": {
+          "tests": 290,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 3
+        },
+        "persistence/nosql/persistence/maintenance/impl/build/test-results/test": {
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/maintenance/retain-cel/build/test-results/test": {
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/metastore/build/test-results/test": {
+          "tests": 90,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "persistence/nosql/persistence/metastore-maintenance/build/test-results/test": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/metastore-types/build/test-results/test": {
+          "tests": 542,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/testextension/build/test-results/test": {
+          "tests": 9,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/persistence/varint/build/test-results/test": {
+          "tests": 17,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/realms/impl/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/nosql/realms/store-nosql/build/test-results/test": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "persistence/primitives/build/test-results/test": {
+          "tests": 75,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 32
+        },
+        "persistence/relational-jdbc/build/test-results/test": {
+          "tests": 293,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "polaris-core/build/test-results/test": {
+          "tests": 1020,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 16
+        },
+        "runtime/admin/build/test-results/test": {
+          "tests": 49,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "runtime/server/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "runtime/service/build/test-results/cloudTest": {
+          "tests": 897,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 897
+        },
+        "runtime/service/build/test-results/intTest": {
+          "tests": 2890,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 70
+        },
+        "runtime/service/build/test-results/test": {
+          "tests": 23794,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 43
+        },
+        "runtime/spark-tests/build/test-results/catalogFederationIntTest": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "runtime/spark-tests/build/test-results/hiveFederationIntTest": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "runtime/spark-tests/build/test-results/sparkIntTest": {
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "tools/config-docs/generator/build/test-results/test": {
+          "tests": 1,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "tools/container-spec-helper/build/test-results/test": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "tools/misc-types/build/test-results/test": {
+          "tests": 245,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "tools/testcontainers/floci-aws/build/test-results/intTest": {
+          "tests": 11,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "tools/testcontainers/floci-az/build/test-results/intTest": {
+          "tests": 4,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 1
+        },
+        "tools/testcontainers/floci-gcp/build/test-results/intTest": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        },
+        "tools/version/build/test-results/jarTest": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      "evidence_files": [
+        "metadata-guard.json"
+      ],
+      "legacy_cockroach_suites": [
+        {
+          "path": "runtime/service/build/test-results/intTest/TEST-org.apache.polaris.service.it.relational.cockroach.CockroachApplicationIT.xml",
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachApplicationIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "runtime/service/build/test-results/intTest/TEST-org.apache.polaris.service.it.relational.cockroach.CockroachManagementServiceIT.xml",
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachManagementServiceIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "runtime/service/build/test-results/intTest/TEST-org.apache.polaris.service.it.relational.cockroach.CockroachPolicyServiceIT.xml",
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachPolicyServiceIT",
+          "counts": {
+            "tests": 49,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "runtime/service/build/test-results/intTest/TEST-org.apache.polaris.service.it.relational.cockroach.CockroachRestCatalogIT.xml",
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachRestCatalogIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "path": "runtime/service/build/test-results/intTest/TEST-org.apache.polaris.service.it.relational.cockroach.CockroachViewFileIT.xml",
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachViewFileIT",
+          "counts": {
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        }
+      ]
+    },
+    "github-actions-artifact-11062684424": {
+      "sha256": "c9c5c30607bcce0003b6a65286ce2a0d172de7155aae7aa5b313e93ed02c1352",
+      "groups": {},
+      "suites": [
+        {
+          "path": "test-results/test/TEST-org.apache.polaris.persistence.primitives.ManagerFailureTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "test-results/test/TEST-org.apache.polaris.persistence.primitives.NativeManagerTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "test-results/test/TEST-org.apache.polaris.persistence.primitives.AttemptContractTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "evidence_files": []
+    },
+    "github-actions-artifact-11062679694": {
+      "sha256": "78fc77b91a76cacd62966180de75a0d03ebaa1f002727ff3c54ac10bf1f38d87",
+      "groups": {
+        "persistence/primitives/build/test-results/test": {
+          "tests": 47,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0
+        }
+      },
+      "suites": [
+        {
+          "path": "persistence/primitives/build/test-results/test/TEST-org.apache.polaris.persistence.primitives.AttemptContractTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "persistence/primitives/build/test-results/test/TEST-org.apache.polaris.persistence.primitives.ManagerFailureTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "path": "persistence/primitives/build/test-results/test/TEST-org.apache.polaris.persistence.primitives.NativeManagerTest.xml",
+          "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        }
+      ],
+      "evidence_files": [
+        "metadata-guard.json",
+        "isolated-network.json"
+      ]
+    }
+  },
+  "limitations": [
+    "Cloud suite: 897 skipped.",
+    "Earlier FDB and Spanner results retained, not rerun here. Spanner has three race skips.",
+    "Default Primitives root-gate configuration skips native fixtures and H2 isolation schedules. Configured native jobs are separate.",
+    "Legacy relational-jdbc Service CockroachDB totals are a subset of Service intTest, not new-adapter totals.",
+    "Does not validate later real RBAC/cache, Service create, UNKNOWN pointer/content or concurrent result-collection test changes.",
+    "No production performance, production Spanner concurrency, storage migration or complete community-question claim."
+  ]
+}
