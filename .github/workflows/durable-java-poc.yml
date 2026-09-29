@@ -23,6 +23,7 @@ on:
     branches: [ "prototype/durable-java-primitives" ]
     paths:
       - '.github/workflows/durable-java-poc.yml'
+      - '.github/scripts/poc-metadata-guard.sh'
       - 'polaris-core/**'
       - 'persistence/primitives/src/**'
       - 'persistence/primitives/build.gradle.kts'
@@ -38,7 +39,7 @@ jobs:
   gates:
     if: github.repository == 'flyingImer/polaris'
     runs-on: ubuntu-latest
-    timeout-minutes: 90
+    timeout-minutes: 120
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
         with:
@@ -48,13 +49,18 @@ jobs:
           java-version: '21'
           distribution: 'temurin'
       - uses: ./.github/actions/setup-test-env
+      - name: Block and verify metadata access before tests
+        run: bash .github/scripts/poc-metadata-guard.sh
       - uses: ./.github/actions/ci-incr-build-cache-prepare
       - name: Format and compile
         run: ./gradlew format compileAll --max-workers=2
       - name: Verify formatting leaves sources unchanged
         run: git diff --exit-code
-      - name: Complete checks for the three touched modules
-        run: ./gradlew :polaris-core:check :polaris-persistence-primitives:check :polaris-runtime-service:check --continue --max-workers=2
+      - name: Complete repository checks
+        run: ./gradlew check --continue --max-workers=2
+      - name: Retain metadata firewall evidence
+        if: always()
+        run: sudo nft -j list table inet polaris_poc_guard > metadata-guard.json
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -62,6 +68,7 @@ jobs:
           path: |
             **/build/test-results/**
             **/build/reports/tests/**
+            metadata-guard.json
           if-no-files-found: ignore
 
   postgres:
@@ -76,6 +83,8 @@ jobs:
         with:
           java-version: '21'
           distribution: 'temurin'
+      - name: Block and verify metadata access before tests
+        run: bash .github/scripts/poc-metadata-guard.sh
       - uses: ./.github/actions/ci-incr-build-cache-prepare
       - name: Start disposable PostgreSQL on loopback
         run: |
@@ -108,3 +117,68 @@ jobs:
       - name: Stop disposable PostgreSQL
         if: always()
         run: docker rm --force polaris-poc-postgres
+
+  cockroach:
+    if: github.repository == 'flyingImer/polaris'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Block and verify metadata access before tests
+        run: bash .github/scripts/poc-metadata-guard.sh
+      - uses: ./.github/actions/ci-incr-build-cache-prepare
+      - name: Start disposable CockroachDB without external routing
+        run: |
+          docker network create --internal polaris-poc-isolated
+          test "$(docker network inspect --format '{{.Internal}}' polaris-poc-isolated)" = true
+          docker run --detach --name polaris-poc-cockroach \
+            --network polaris-poc-isolated --cap-drop ALL \
+            --security-opt no-new-privileges --memory 2g \
+            cockroachdb/cockroach:v26.3.1 start-single-node --insecure \
+            --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 \
+            --store=type=mem,size=1GiB --cache=128MiB --max-sql-memory=128MiB
+          for attempt in $(seq 1 60); do
+            if docker exec polaris-poc-cockroach cockroach sql --insecure \
+              --execute='CREATE DATABASE IF NOT EXISTS polaris_poc'; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Native CockroachDB Manager and attempt tests
+        run: |
+          db_host=$(docker inspect --format '{{(index .NetworkSettings.Networks "polaris-poc-isolated").IPAddress}}' polaris-poc-cockroach)
+          test -n "$db_host"
+          ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
+            --tests '*NativeManagerTest' --tests '*ManagerFailureTest' --tests '*AttemptContractTest' \
+            -Dpoc.backend=jdbc \
+            "-Dpoc.jdbc.url=jdbc:postgresql://${db_host}:26257/polaris_poc?sslmode=disable" \
+            -Dpoc.jdbc.user=root
+      - name: Retain isolation and server evidence
+        if: always()
+        run: |
+          sudo nft -j list table inet polaris_poc_guard > metadata-guard.json
+          docker network inspect polaris-poc-isolated > isolated-network.json
+          docker exec polaris-poc-cockroach cockroach version > cockroach-version.txt
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: durable-java-poc-cockroach-results
+          path: |
+            persistence/primitives/build/test-results/**
+            persistence/primitives/build/reports/tests/**
+            metadata-guard.json
+            isolated-network.json
+            cockroach-version.txt
+          if-no-files-found: ignore
+      - name: Stop disposable CockroachDB
+        if: always()
+        run: |
+          docker rm --force polaris-poc-cockroach
+          docker network rm polaris-poc-isolated
