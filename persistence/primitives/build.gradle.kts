@@ -34,6 +34,8 @@ dependencies {
   compileOnly(libs.jakarta.inject.api)
   compileOnly(libs.jakarta.annotation.api)
   testImplementation(libs.h2)
+  testImplementation(platform(libs.iceberg.bom))
+  testImplementation("org.apache.iceberg:iceberg-api")
   testImplementation(libs.mockito.junit.jupiter)
   testImplementation(testFixtures(project(":polaris-core")))
 }

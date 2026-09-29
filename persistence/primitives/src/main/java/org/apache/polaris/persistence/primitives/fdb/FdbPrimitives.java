@@ -42,11 +42,6 @@ public final class FdbPrimitives implements DurablePrimitives {
 
   @Override
   public Attempt begin() {
-    return beginLegacy();
-  }
-
-  @Override
-  public LegacyAttempt beginLegacy() {
     return new Tx(database.createTransaction());
   }
 
@@ -55,7 +50,7 @@ public final class FdbPrimitives implements DurablePrimitives {
     database.close();
   }
 
-  private static final class Tx implements LegacyAttempt {
+  private static final class Tx implements Attempt {
     private final Transaction transaction;
     private boolean finished;
 
@@ -92,6 +87,17 @@ public final class FdbPrimitives implements DurablePrimitives {
     }
 
     @Override
+    public List<byte[]> getMany(List<String> keys) {
+      checkOpen();
+      try {
+        var reads = keys.stream().map(key -> transaction.get(key.getBytes(UTF_8))).toList();
+        return reads.stream().map(read -> read.join()).toList();
+      } catch (RuntimeException e) {
+        throw failure(e, false);
+      }
+    }
+
+    @Override
     public List<Entry> scan(String begin, String end, int limit) {
       checkOpen();
       if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
@@ -108,8 +114,7 @@ public final class FdbPrimitives implements DurablePrimitives {
       }
     }
 
-    @Override
-    public void applyForLegacyReadYourWrites(List<Mutation> mutations) {
+    private void apply(List<Mutation> mutations) {
       checkOpen();
       try {
         for (var m : mutations) {
@@ -124,7 +129,7 @@ public final class FdbPrimitives implements DurablePrimitives {
 
     @Override
     public void commit(List<Mutation> mutations) {
-      applyForLegacyReadYourWrites(mutations);
+      apply(mutations);
       finished = true;
       try {
         transaction.commit().join();

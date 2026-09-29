@@ -68,8 +68,10 @@ import org.apache.iceberg.catalog.ViewCatalog;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
+import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.io.FileIO;
 import org.apache.iceberg.metrics.ScanReport;
 import org.apache.iceberg.rest.credentials.ImmutableCredential;
@@ -110,6 +112,10 @@ import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
+import org.apache.polaris.core.exceptions.CommitConflictException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.CommitRejectedException;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.TransactionWorkspaceMetaStoreManager;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
@@ -1585,10 +1591,35 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
         });
 
     List<EntityWithPath> pendingUpdates = transactionMetaStoreManager.getPendingUpdates();
-    EntitiesResult result =
-        metaStoreManager()
-            .updateEntitiesPropertiesIfNotChanged(
-                callContext().getPolarisCallContext(), pendingUpdates);
+    List<FileToDelete> writtenMetadataFiles =
+        pendingUpdates.stream()
+            .map(ewp -> IcebergTableLikeEntity.of(ewp.entity()))
+            .filter(entity -> entity != null && entity.getMetadataLocation() != null)
+            .filter(entity -> tableFileIOs.containsKey(entity.getTableIdentifier()))
+            .map(
+                entity ->
+                    new FileToDelete(
+                        tableFileIOs.get(entity.getTableIdentifier()),
+                        entity.getMetadataLocation()))
+            .toList();
+
+    EntitiesResult result;
+    try {
+      result =
+          metaStoreManager()
+              .updateEntitiesPropertiesIfNotChanged(
+                  callContext().getPolarisCallContext(), pendingUpdates);
+    } catch (CommitOutcomeUnknownException e) {
+      // The new metadata may already be live. Keep both old and new files; do not replay here.
+      throw new CommitStateUnknownException(e);
+    } catch (ConfirmedTransactionConflictException
+        | CommitRejectedException
+        | CommitConflictException
+        | ValidationException
+        | ForbiddenException e) {
+      cleanupWrittenMetadataFiles(writtenMetadataFiles);
+      throw e;
+    }
     if (!result.isSuccess()) {
       // TODO: Retries on failure
 
@@ -1596,17 +1627,6 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
       // We derive locations from pendingUpdates (not tableOps.current()) because
       // requestRefresh() triggers doRefresh() against the store where the entity
       // hasn't been persisted yet.
-      List<FileToDelete> writtenMetadataFiles =
-          pendingUpdates.stream()
-              .map(ewp -> IcebergTableLikeEntity.of(ewp.entity()))
-              .filter(entity -> entity != null && entity.getMetadataLocation() != null)
-              .filter(entity -> tableFileIOs.containsKey(entity.getTableIdentifier()))
-              .map(
-                  entity ->
-                      new FileToDelete(
-                          tableFileIOs.get(entity.getTableIdentifier()),
-                          entity.getMetadataLocation()))
-              .toList();
       cleanupWrittenMetadataFiles(writtenMetadataFiles);
       throw new CommitFailedException(
           "Transaction commit failed with status: %s, extraInfo: %s",

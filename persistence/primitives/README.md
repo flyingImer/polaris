@@ -53,7 +53,7 @@ validation, authorization, pagination or external-effect problem in those thread
 
 | Responsibility | Code | Reused / changed |
 |---|---|---|
-| Operation semantics | `TransactionalMetaStoreManagerImpl` in `polaris-core` | Reused. CreateCatalog now computes final grants/versions before writes |
+| Operation semantics | `TransactionalMetaStoreManagerImpl` in `polaris-core` | Reused. Shared workflows now separate protected reads from final mutations |
 | Shared domain mapping and credential rules | `domain/RecordTransactionalPersistence`, `domain/DomainRecords` | Reuses `AbstractTransactionalPersistence` and extracts the existing domain algorithms into one implementation for all new adapters |
 | Opaque transaction and storage contract | `api/DurablePrimitives`, `api/StorageFailure` | Experimental narrow backend replacement boundary |
 | Native mechanics | `jdbc/JdbcPrimitives`, `fdb/FdbPrimitives`, `spanner/SpannerPrimitives` | No Polaris entity, grant, policy or secret types imported |
@@ -62,7 +62,7 @@ validation, authorization, pagination or external-effect problem in those thread
 
 The shared domain classes belong to the Manager implementation. They are not an
 Orchestrator SPI and do not coordinate heterogeneous databases. Legacy TreeMap,
-JDBC and NoSQL implementations are not migrated by this prototype. Both already share substantial domain logic.
+JDBC and NoSQL implementations are not migrated by this prototype. These existing paths already share substantial domain logic.
 
 Why introduce a narrow interface? The current transactional persistence extension
 surface includes secret rotation/reset, typed grant operations and other domain
@@ -71,29 +71,70 @@ and commit outcome translation. Adding FDB or Spanner therefore does not require
 another implementation of those business rules. The existing typed persistence
 interface remains a compatibility surface above that narrower boundary.
 
-## Two explicitly different execution paths
+## One terminal-attempt path
 
-**Selected terminal-batch path:** `CreateCatalog` still enters the upstream
-Manager. It checks name absence and reads current recipient roles, then allocates
-an ID as its last read. Shared Java code computes the complete catalog, admin role,
-initial grants and endpoint grant versions. The compatibility bridge then calls
-`Attempt.commit(mutations)` on the **same attempt** used for reads.
+Every write workflow on the opt-in adapter now uses `begin()` and terminal
+`Attempt.commit(mutations)`. There is no `beginLegacy()`, DML compatibility path,
+or read-your-writes query overlay. The shared bridge rejects reads after staging
+the first mutation. Grant/revoke, grouped catalog drop, entity batches, root
+backfill and task claiming compute their final domain state before writing.
 
-`runInFinalBatchTransaction` is a small default hook on the existing
-`TransactionalPersistence`. Existing implementations keep their current transaction
-implementation. The new bridge rejects reads after the first staged write. It
-has no read-your-writes query overlay. Spanner can use buffered mutations. FDB
-uses sets/clears, JDBC executes its changes before the one native commit.
+Reads keep the same native transaction through commit. The allocator holds its
+prospective counter in domain planning state and appends one final counter write.
+This is not a general record or query overlay. Independent ID reservations are
+separate operations and may leave unused IDs after a later operation aborts.
 
-**Migration path:** other upstream Manager helpers still write and then read.
-They explicitly use `beginLegacy()` and native read-your-writes: Spanner DML,
-FDB native transaction state, and JDBC statements. This capability has a default
-unsupported implementation and is not required by the terminal-batch interface.
-A backend lacking it cannot serve the unmigrated workflows through this bridge.
+`getMany` preserves input order, duplicates and missing-key observations. FDB
+starts independent native reads together. Spanner uses a KeySet. JDBC chunks IN
+queries on one connection. JDBC also batches adjacent statements of the same
+shape, preserving the order of overlapping mutations. A write chunk is never a
+separate commit. Spanner uses buffered mutations after all reads.
 
-This distinction is deliberate. The prototype does not silently give `write()`
-different visibility across databases, and does not pretend that every operation
-has already been converted to final-batch planning.
+Pure composed reads use `readView()`. Spanner maps this to a native read-only
+transaction. FDB and JDBC retain a snapshot in an ordinary transaction that is
+closed without writes. A read-only view cannot later be attached to a write.
+The shared domain bridge rejects mutations in read-only callbacks and retries
+only confirmed transient conflicts for these side-effect-free logical reads.
+
+Shared Manager validation now protects caller-observed ancestor entity versions
+and repeats catalog/sibling location predicates within the publishing attempt.
+It also compares all proposed entities in a batch, so two overlapping creations
+in one batch cannot evade the range check. This implements the existing sibling
+rule. The optional optimized global overlap lookup remains unsupported. The PoC
+uses protected full listings and batched current-entity fetches, not a tuned
+location index. Early Feature checks remain for feedback, not commit protection.
+Views carry their location in internal metadata for this validation. The mapping
+does not change their public storage-root restrictions.
+
+## Operation outcome and retry ownership
+
+Storage reports CONFLICT, REJECTED or UNKNOWN. The shared domain bridge translates
+confirmed abort to `ConfirmedTransactionConflictException`, definite rejection to
+`CommitRejectedException`, and uncertainty to `CommitOutcomeUnknownException`. An ordinary stale version exception is not a
+license to replay. There is no generic receipt or exactly-once layer.
+
+`ConfirmedConflictRetry` permits at most 32 attempts, with a two-second budget
+for starting retries and interruptible backoff. It is not a deadline for an
+in-flight driver call. Its outermost caller owns the budget. Nested uses execute
+once. Manager-owned write retry is limited to ID reservations and task creation/claiming.
+Pure composed reads also use this shared bounded policy.
+Selected single-operation admin workflows own retry at Feature level, rebuilding
+resolution and authorization each time. A previously authorized attempt may finish.
+A fresh retry must authorize again. Multi-phase synthetic-entity workflows are
+not automatically replayed.
+
+Atomic local credential reset is exposed through a temporary compatibility hook
+on the existing Manager. Supported implementations return principal and secrets
+from one commit. An empty result explicitly means unsupported and no effects.
+Legacy Feature behavior remains outside the replay loop. The hook does not claim
+that old JDBC or NoSQL reset behavior has become atomic.
+
+Catalog creation retains external secret references on UNKNOWN. Iceberg table,
+view and multi-table publication translate uncertainty to
+`CommitStateUnknownException` and retain potentially live metadata files. There
+is no automatic replay or abort-assuming cleanup after that result. Confirmed
+abort/rejection and stale-validation failures clean newly written multi-table
+metadata. They never clean files as if an UNKNOWN were an abort.
 
 ## Contract and implementation limits
 
@@ -105,12 +146,9 @@ has already been converted to final-batch planning.
 - Only explicit commit publishes. Close aborts. Successful helper results do not
   escape the shared transaction wrapper until native commit returns.
 - No adapter replays caller code. A confirmed native conflict is translated to
-  the existing `RetryOnConcurrencyException` at the compatibility boundary.
+  `ConfirmedTransactionConflictException` at the compatibility boundary.
   Rejection and unknown stay distinct. A lost commit response is never converted
   to a conflict or automatically replayed.
-- The ID reservation helper retries only confirmed-aborted ID reservations with
-  a bounded loop. General operation retry and authorization ownership are not
-  completed by this PoC. The Spanner parallel fixture results expose this gap.
 - Atomic work is never silently split. Oversize/backend errors abort or remain
   unknown according to the evidence. There is no arbitrary-size drop promise.
 - Protected empty-range checks use a bounded native query. Other inherited list
@@ -121,8 +159,9 @@ has already been converted to final-batch planning.
 - The JSON record layout is experimental and separate from existing JDBC/NoSQL
   tables. No data migration or schema compatibility is supplied. Secrets persist
   verification hashes rather than returned plaintext credentials.
-- External storage integrations, STS effects, event persistence, caller caches,
-  full HTTP error mapping and all maintenance writers are not certified here.
+- Event persistence is unsupported: the inherited `writeEvents` method rejects
+  it explicitly. External storage integrations, STS effects, caller caches, full
+  HTTP error mapping and production maintenance integration are not certified here.
 - Spanner currently accepts only an explicitly configured local emulator, with
   explicit project and no ambient credential discovery. Production credentials,
   IAM, driver tuning and a production isolation audit remain onboarding work.
@@ -191,10 +230,11 @@ Use it only for a fresh disposable emulator.
   -Dpoc.spanner.initialize=true
 ```
 
-The unfiltered Spanner suite remains the default and its failures are recorded.
+The unfiltered Spanner suite remains the default. The current run includes both
+inherited parallel task tests. Older failed runs are retained as evidence.
 For the separately reported **serial workflow** diagnostic, add
 `-Dpoc.spanner.serial-fixtures=true`. This explicitly excludes the two inherited
-parallel task tests. The cross-transaction empty-range race is also explicitly
+parallel task tests. Three simultaneous read/write race schedules are explicitly
 skipped on the emulator because its database-wide locking cannot execute that
 schedule. This is not a way to certify production concurrency.
 

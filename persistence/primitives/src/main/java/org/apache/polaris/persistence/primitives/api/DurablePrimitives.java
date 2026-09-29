@@ -23,15 +23,15 @@ import java.util.Objects;
 
 /**
  * Experimental backend boundary. Keys and payloads have no Polaris domain meaning here. Each
- * attempt is serializable, including missing keys and ranges, with its own writes. Close aborts;
- * only explicit commit can publish. No method retries caller code.
+ * attempt is serializable, including missing keys and ranges, together with its final writes. Close
+ * aborts; only explicit commit can publish. No method retries caller code.
  */
 public interface DurablePrimitives extends AutoCloseable {
   Attempt begin();
 
-  /** Migration-only capability for upstream helpers which interleave reads and writes. */
-  default LegacyAttempt beginLegacy() {
-    throw new UnsupportedOperationException("Legacy native read-your-writes is not supported");
+  /** One consistent snapshot for a composed read, with no mutations or later write attachment. */
+  default ReadView readView() {
+    return begin();
   }
 
   @Override
@@ -54,21 +54,28 @@ public interface DurablePrimitives extends AutoCloseable {
     }
   }
 
-  interface Attempt extends AutoCloseable {
+  interface ReadView extends AutoCloseable {
     byte[] get(String key);
 
-    /** Ordered half-open protected range; limit must be positive. Empty results are protected. */
-    List<Entry> scan(String begin, String end, int limit);
+    /**
+     * Read all keys in the same view. Results preserve input order and duplicates, with null for
+     * missing keys. When this view is an Attempt, every observation, including absence,
+     * participates in its serializability. Adapters may chunk native requests without changing the
+     * attempt or its read view.
+     */
+    List<byte[]> getMany(List<String> keys);
 
-    /** Terminal: apply final mutations and commit the SAME attempt that performed the reads. */
-    void commit(List<Mutation> mutations);
+    /**
+     * Ordered half-open range; limit must be positive. In an Attempt, empty results are protected.
+     */
+    List<Entry> scan(String begin, String end, int limit);
 
     @Override
     void close();
   }
 
-  interface LegacyAttempt extends Attempt {
-    /** Native writes visible to subsequent reads, still unpublished until commit. */
-    void applyForLegacyReadYourWrites(List<Mutation> mutations);
+  interface Attempt extends ReadView {
+    /** Terminal: apply final mutations and commit the SAME attempt that performed the reads. */
+    void commit(List<Mutation> mutations);
   }
 }

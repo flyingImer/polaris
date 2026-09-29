@@ -136,6 +136,7 @@ dependencies {
 
   testImplementation(project(":polaris-api-management-model"))
   testImplementation(project(":polaris-relational-jdbc"))
+  testImplementation(project(":polaris-persistence-primitives"))
 
   testImplementation(project(":polaris-rustfs-testcontainer"))
 

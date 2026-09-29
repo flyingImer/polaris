@@ -37,7 +37,10 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
-import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.CommitRejectedException;
+import org.apache.polaris.core.persistence.ConfirmedConflictRetry;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
 import org.apache.polaris.persistence.primitives.api.StorageFailure;
@@ -51,7 +54,7 @@ public final class DomainRecords {
   // for this migration bridge; the public Primitives API passes attempts explicitly.
   private static final ThreadLocal<Scope> CURRENT = new ThreadLocal<>();
 
-  private record Scope(DomainRecords owner, DurablePrimitives.LegacyAttempt attempt) {}
+  private record Scope(DomainRecords owner, FinalBatch attempt) {}
 
   private final ObjectMapper mapper =
       new ObjectMapper()
@@ -150,29 +153,41 @@ public final class DomainRecords {
   }
 
   public <T> T runFinalBatch(Supplier<T> work) {
+    return runScoped(work, false);
+  }
+
+  private <T> T runScoped(Supplier<T> work, boolean readOnly) {
     if (CURRENT.get() != null) throw new IllegalStateException("Nested transaction");
-    try (var nativeAttempt = backend.begin()) {
-      var batch = new FinalBatch(nativeAttempt);
+    try (var nativeAttempt = readOnly ? backend.readView() : backend.begin()) {
+      var batch = new FinalBatch(nativeAttempt, readOnly);
       CURRENT.set(new Scope(this, batch));
       T result = work.get();
-      if (CURRENT.get() != null) batch.commit(List.of());
+      if (CURRENT.get() != null && !readOnly) batch.commit(List.of());
       return result;
     } catch (StorageFailure e) {
       if (e.outcome() == StorageFailure.Outcome.CONFLICT) {
-        throw new RetryOnConcurrencyException(e);
+        throw new ConfirmedTransactionConflictException(e);
       }
-      throw e;
+      if (e.outcome() == StorageFailure.Outcome.UNKNOWN) throw new CommitOutcomeUnknownException(e);
+      throw new CommitRejectedException(e);
     } finally {
       CURRENT.remove();
     }
   }
 
-  private static final class FinalBatch implements DurablePrimitives.LegacyAttempt {
-    private final DurablePrimitives.Attempt nativeAttempt;
+  private final class FinalBatch implements DurablePrimitives.Attempt {
+    private final DurablePrimitives.ReadView nativeAttempt;
+    private final boolean readOnly;
     private final ArrayList<DurablePrimitives.Mutation> mutations = new ArrayList<>();
+    private Long nextSequence;
 
-    FinalBatch(DurablePrimitives.Attempt nativeAttempt) {
+    FinalBatch(DurablePrimitives.ReadView nativeAttempt, boolean readOnly) {
       this.nativeAttempt = nativeAttempt;
+      this.readOnly = readOnly;
+    }
+
+    private void checkWritable() {
+      if (readOnly) throw new IllegalStateException("Read-only view cannot stage mutations");
     }
 
     private void checkReading() {
@@ -187,20 +202,32 @@ public final class DomainRecords {
     }
 
     @Override
+    public List<byte[]> getMany(List<String> keys) {
+      checkReading();
+      return nativeAttempt.getMany(keys);
+    }
+
+    @Override
     public List<DurablePrimitives.Entry> scan(String begin, String end, int limit) {
       checkReading();
       return nativeAttempt.scan(begin, end, limit);
     }
 
-    @Override
-    public void applyForLegacyReadYourWrites(List<DurablePrimitives.Mutation> changes) {
+    void stage(List<DurablePrimitives.Mutation> changes) {
+      checkWritable();
       mutations.addAll(changes);
     }
 
     @Override
     public void commit(List<DurablePrimitives.Mutation> changes) {
+      checkWritable();
       mutations.addAll(changes);
-      nativeAttempt.commit(mutations);
+      if (nextSequence != null)
+        mutations.add(
+            put(
+                realmPrefix + "sequence",
+                Long.toString(nextSequence).getBytes(StandardCharsets.US_ASCII)));
+      ((DurablePrimitives.Attempt) nativeAttempt).commit(mutations);
     }
 
     @Override
@@ -210,24 +237,11 @@ public final class DomainRecords {
   }
 
   public <T> T runInTransaction(PolarisDiagnostics diagnostics, Supplier<T> work) {
-    if (CURRENT.get() != null) throw new IllegalStateException("Nested transaction");
-    try (var attempt = backend.beginLegacy()) {
-      CURRENT.set(new Scope(this, attempt));
-      T result = work.get();
-      if (CURRENT.get() != null) attempt.commit(List.of());
-      return result;
-    } catch (StorageFailure e) {
-      if (e.outcome() == StorageFailure.Outcome.CONFLICT) {
-        throw new RetryOnConcurrencyException(e);
-      }
-      throw e;
-    } finally {
-      CURRENT.remove();
-    }
+    return runFinalBatch(work);
   }
 
   public <T> T runInReadTransaction(PolarisDiagnostics d, Supplier<T> work) {
-    return runInTransaction(d, work);
+    return ConfirmedConflictRetry.run(() -> runScoped(work, true));
   }
 
   public void runActionInTransaction(PolarisDiagnostics d, Runnable work) {
@@ -240,10 +254,15 @@ public final class DomainRecords {
   }
 
   public void runActionInReadTransaction(PolarisDiagnostics d, Runnable work) {
-    runActionInTransaction(d, work);
+    runInReadTransaction(
+        d,
+        () -> {
+          work.run();
+          return null;
+        });
   }
 
-  private DurablePrimitives.LegacyAttempt attempt() {
+  private FinalBatch attempt() {
     Scope scope = CURRENT.get();
     if (scope == null || scope.owner() != this)
       throw new IllegalStateException("No transaction for this session");
@@ -251,14 +270,18 @@ public final class DomainRecords {
   }
 
   long getNextSequence() {
-    String key = realmPrefix + "sequence";
-    byte[] value = attempt().get(key);
-    long next =
-        value == null ? 1 : Long.parseLong(new String(value, StandardCharsets.US_ASCII)) + 1;
-    attempt()
-        .applyForLegacyReadYourWrites(
-            List.of(put(key, Long.toString(next).getBytes(StandardCharsets.US_ASCII))));
-    return next;
+    FinalBatch plan = attempt();
+    plan.checkWritable();
+    plan.checkReading();
+    if (plan.nextSequence == null) {
+      byte[] value = plan.get(realmPrefix + "sequence");
+      plan.nextSequence =
+          value == null ? 0L : Long.parseLong(new String(value, StandardCharsets.US_ASCII));
+    }
+    // ID reservation is domain state computed during planning. Its final counter mutation is
+    // appended at commit, so multiple allocations need no storage read-your-writes overlay.
+    plan.nextSequence++;
+    return plan.nextSequence;
   }
 
   void rollback() {
@@ -267,7 +290,7 @@ public final class DomainRecords {
   }
 
   void deleteAll() {
-    attempt().applyForLegacyReadYourWrites(List.of(deleteRange(realmPrefix, realmPrefix + "~")));
+    attempt().stage(List.of(deleteRange(realmPrefix, realmPrefix + "~")));
   }
 
   final class Slice<T> {
@@ -284,6 +307,12 @@ public final class DomainRecords {
     T read(String key) {
       byte[] value = attempt().get(prefix + encode(key));
       return value == null ? null : decode(value);
+    }
+
+    List<T> readMany(List<String> keys) {
+      return attempt().getMany(keys.stream().map(key -> prefix + encode(key)).toList()).stream()
+          .map(value -> value == null ? null : decode(value))
+          .toList();
     }
 
     T decode(byte[] value) {
@@ -324,7 +353,7 @@ public final class DomainRecords {
                   s.getSecondarySecretHash());
         }
         attempt()
-            .applyForLegacyReadYourWrites(
+            .stage(
                 List.of(
                     put(prefix + encode(key.apply(value)), mapper.writeValueAsBytes(persisted))));
       } catch (IOException e) {
@@ -333,9 +362,7 @@ public final class DomainRecords {
     }
 
     void delete(String key) {
-      attempt()
-          .applyForLegacyReadYourWrites(
-              List.of(DurablePrimitives.Mutation.delete(prefix + encode(key))));
+      attempt().stage(List.of(DurablePrimitives.Mutation.delete(prefix + encode(key))));
     }
 
     void delete(T value) {
@@ -344,7 +371,7 @@ public final class DomainRecords {
 
     void deleteRange(String keyPrefix) {
       attempt()
-          .applyForLegacyReadYourWrites(
+          .stage(
               List.of(
                   DurablePrimitives.Mutation.deleteRange(
                       prefix + encode(keyPrefix), prefix + encode(keyPrefix) + "~")));

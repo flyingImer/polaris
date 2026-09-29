@@ -183,6 +183,7 @@ public record TestServices(
     private RealmContext realmContext = TEST_REALM;
     private Map<String, Object> config = Map.of();
     private StsClient stsClient;
+    private MetaStoreManagerFactory suppliedMetaStoreManagerFactory;
     private boolean useEventDelegator = false;
     private Supplier<FileIOFactory> fileIOFactorySupplier = MeasuredFileIOFactory::new;
     private UnaryOperator<PolarisMetaStoreManager> metaStoreManagerDecorator =
@@ -246,6 +247,11 @@ public record TestServices(
       return this;
     }
 
+    public Builder metaStoreManagerFactory(MetaStoreManagerFactory factory) {
+      this.suppliedMetaStoreManagerFactory = factory;
+      return this;
+    }
+
     public TestServices build() {
       RealmConfigurationSource configurationSource = (rc, name) -> config.get(name);
       PolarisAuthorizer authorizer = Mockito.mock(PolarisAuthorizer.class);
@@ -273,9 +279,11 @@ public record TestServices(
               () -> GoogleCredentials.create(new AccessToken(GCP_ACCESS_TOKEN, new Date())),
               storageCredentialCache,
               realmConfig);
-      InMemoryPolarisMetaStoreManagerFactory metaStoreManagerFactory =
-          new InMemoryPolarisMetaStoreManagerFactory(
-              clock, diagnostics, storageIntegrationProvider, RootCredentialsSet.EMPTY);
+      MetaStoreManagerFactory metaStoreManagerFactory =
+          suppliedMetaStoreManagerFactory != null
+              ? suppliedMetaStoreManagerFactory
+              : new InMemoryPolarisMetaStoreManagerFactory(
+                  clock, diagnostics, storageIntegrationProvider, RootCredentialsSet.EMPTY);
 
       UserSecretsManagerFactory userSecretsManagerFactory =
           new UnsafeInMemorySecretsManagerFactory();

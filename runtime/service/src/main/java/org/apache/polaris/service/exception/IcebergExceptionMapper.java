@@ -57,6 +57,8 @@ import org.apache.iceberg.exceptions.UnprocessableEntityException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.iceberg.rest.responses.ErrorResponse;
 import org.apache.polaris.core.exceptions.FileIOUnknownHostException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.eclipse.microprofile.faulttolerance.exceptions.TimeoutException;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -161,6 +163,13 @@ public class IcebergExceptionMapper implements ExceptionMapper<RuntimeException>
   }
 
   static int mapExceptionToResponseCode(RuntimeException rex) {
+    // Outcome evidence has precedence over a nested transport/cloud status.
+    if (rex instanceof CommitStateUnknownException
+        || rex instanceof CommitOutcomeUnknownException) {
+      return Status.INTERNAL_SERVER_ERROR.getStatusCode();
+    }
+    if (rex instanceof ConfirmedTransactionConflictException)
+      return Status.SERVICE_UNAVAILABLE.getStatusCode();
     for (Throwable t : Throwables.getCausalChain(rex)) {
       // Cloud exceptions can be wrapped by the Iceberg SDK
       Optional<Integer> code = mapCloudExceptionToResponseCode(t);

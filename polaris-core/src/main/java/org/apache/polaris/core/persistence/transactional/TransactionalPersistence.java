@@ -55,6 +55,12 @@ public interface TransactionalPersistence
         MetricsPersistence,
         TransactionalPolicyMappingPersistence {
 
+  /** Write-only credential replacement; ownership and collision checks belong to the Manager. */
+  default void replacePrincipalSecretsInCurrentTxn(
+      PolarisCallContext context, String oldClientId, PolarisPrincipalSecrets secrets) {
+    throw new UnsupportedOperationException("Atomic credential replacement is not implemented");
+  }
+
   /**
    * Run the specified transaction code (a Supplier lambda type) in a database read/write
    * transaction. If the code of the transaction does not throw any exception and returns normally,

@@ -1,0 +1,245 @@
+[
+  {
+    "gate": "domain-check",
+    "args": [
+      ":polaris-core:check",
+      ":polaris-persistence-primitives:check"
+    ],
+    "exit_code": 0,
+    "seconds": 45,
+    "environment": "Host OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG removed after an isolated failing/passing control; assertions unchanged.",
+    "modules": [
+      {
+        "module": "polaris-core",
+        "counts": {
+          "tests": 1020,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 16
+        },
+        "failures": []
+      },
+      {
+        "module": "persistence/primitives",
+        "counts": {
+          "tests": 75,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 32
+        },
+        "failures": []
+      }
+    ]
+  },
+  {
+    "gate": "service-check",
+    "args": [
+      ":polaris-runtime-service:check"
+    ],
+    "exit_code": 1,
+    "seconds": 1078,
+    "environment": "Host OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG removed after an isolated failing/passing control; assertions unchanged.",
+    "modules": [
+      {
+        "module": "runtime/service",
+        "counts": {
+          "tests": 23785,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 43
+        },
+        "failures": [
+          {
+            "class": "org.apache.polaris.service.events.jsonEventListener.aws.cloudwatch.AwsCloudWatchEventListenerTest",
+            "test": "initializationError",
+            "message": "java.lang.IllegalStateException: Could not find a valid Docker environment. Please see logs and check configuration"
+          }
+        ],
+        "xml_aggregate_counts": {
+          "tests": 23791,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 43
+        },
+        "count_source": "Gradle service-check.log: 23785 tests completed, 1 failed, 43 skipped. Retained XML aggregates to six additional cases, so it is recorded separately rather than used as this run total."
+      }
+    ]
+  },
+  {
+    "gate": "root-check",
+    "args": [
+      "check"
+    ],
+    "exit_code": 1,
+    "seconds": 229,
+    "environment": "Host OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG removed after an isolated failing/passing control; assertions unchanged.",
+    "modules": [
+      {
+        "module": "runtime/admin",
+        "counts": {
+          "tests": 49,
+          "failures": 31,
+          "errors": 0,
+          "skipped": 0
+        },
+        "failures": [
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoPurgeCommandTest",
+            "test": "testPurge(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testPrintCredentials(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testRealmWithoutCredentialsIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromValidJsonFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testMisspelledCredentialRealmIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromValidYamlFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromCommandLineArguments(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testPrintCredentialsSystemGenerated(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+            "test": "testBootstrap(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcPurgeCommandTest",
+            "test": "testPurge(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+            "test": "run(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+            "test": "help(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+            "test": "info(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+            "test": "noArg(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+            "test": "logOfNothing(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcPurgeCommandTest",
+            "test": "testPurge(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testPrintCredentials(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testRealmWithoutCredentialsIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testBootstrapFromValidJsonFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testMisspelledCredentialRealmIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testBootstrapFromValidYamlFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testBootstrapFromCommandLineArguments(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+            "test": "testPrintCredentialsSystemGenerated(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testPrintCredentials(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testRealmWithoutCredentialsIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromValidJsonFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testMisspelledCredentialRealmIsRefused(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromValidYamlFile(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testBootstrapFromCommandLineArguments(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testPrintCredentialsSystemGenerated(LaunchResult)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          },
+          {
+            "class": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+            "test": "testBootstrap(QuarkusMainLauncher)",
+            "cause": "Docker/Testcontainers initialization failure; verified in the full failure trace."
+          }
+        ]
+      }
+    ]
+  }
+]

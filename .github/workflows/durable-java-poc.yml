@@ -1,0 +1,110 @@
+#
+# Licensed to the Apache Software Foundation (ASF) under one
+# or more contributor license agreements.  See the NOTICE file
+# distributed with this work for additional information
+# regarding copyright ownership.  The ASF licenses this file
+# to you under the Apache License, Version 2.0 (the
+# "License"); you may not use this file except in compliance
+# with the License.  You may obtain a copy of the License at
+#
+#   http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing,
+# software distributed under the License is distributed on an
+# "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+# KIND, either express or implied.  See the License for the
+# specific language governing permissions and limitations
+# under the License.
+#
+
+name: Durable Java PoC validation
+on:
+  push:
+    branches: [ "prototype/durable-java-primitives" ]
+    paths:
+      - '.github/workflows/durable-java-poc.yml'
+      - 'polaris-core/**'
+      - 'persistence/primitives/src/**'
+      - 'persistence/primitives/build.gradle.kts'
+      - 'runtime/service/**'
+      - 'gradle/**'
+      - '*.gradle.kts'
+permissions:
+  contents: read
+concurrency:
+  group: durable-java-poc-validation
+  cancel-in-progress: true
+jobs:
+  gates:
+    if: github.repository == 'flyingImer/polaris'
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: ./.github/actions/setup-test-env
+      - uses: ./.github/actions/ci-incr-build-cache-prepare
+      - name: Format and compile
+        run: ./gradlew format compileAll --max-workers=2
+      - name: Verify formatting leaves sources unchanged
+        run: git diff --exit-code
+      - name: Complete checks for the three touched modules
+        run: ./gradlew :polaris-core:check :polaris-persistence-primitives:check :polaris-runtime-service:check --continue --max-workers=2
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: durable-java-poc-validation-results
+          path: |
+            **/build/test-results/**
+            **/build/reports/tests/**
+          if-no-files-found: ignore
+
+  postgres:
+    if: github.repository == 'flyingImer/polaris'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - uses: ./.github/actions/ci-incr-build-cache-prepare
+      - name: Start disposable PostgreSQL on loopback
+        run: |
+          docker run --detach --name polaris-poc-postgres \
+            --publish 127.0.0.1:5432:5432 \
+            --env POSTGRES_USER=polaris_poc --env POSTGRES_DB=polaris_poc \
+            --env POSTGRES_HOST_AUTH_METHOD=trust postgres:17
+          for attempt in $(seq 1 60); do
+            if docker exec polaris-poc-postgres pg_isready -U polaris_poc -d polaris_poc; then
+              exit 0
+            fi
+            sleep 1
+          done
+          exit 1
+      - name: Native PostgreSQL Manager and attempt tests
+        run: |
+          ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
+            --tests '*NativeManagerTest' --tests '*ManagerFailureTest' --tests '*AttemptContractTest' \
+            -Dpoc.backend=jdbc \
+            -Dpoc.jdbc.url=jdbc:postgresql://127.0.0.1:5432/polaris_poc \
+            -Dpoc.jdbc.user=polaris_poc
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: durable-java-poc-postgres-results
+          path: |
+            persistence/primitives/build/test-results/**
+            persistence/primitives/build/reports/tests/**
+          if-no-files-found: ignore
+      - name: Stop disposable PostgreSQL
+        if: always()
+        run: docker rm --force polaris-poc-postgres

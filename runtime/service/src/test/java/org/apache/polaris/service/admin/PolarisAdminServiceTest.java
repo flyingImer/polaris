@@ -27,6 +27,7 @@ import static org.mockito.Mockito.doAnswer;
 import static org.mockito.Mockito.doThrow;
 import static org.mockito.Mockito.mock;
 import static org.mockito.Mockito.never;
+import static org.mockito.Mockito.times;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
@@ -36,6 +37,7 @@ import java.util.Optional;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
+import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NoSuchTableException;
 import org.apache.iceberg.exceptions.NotFoundException;
 import org.apache.polaris.core.PolarisCallContext;
@@ -67,10 +69,14 @@ import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
+import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.CreateCatalogResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
@@ -150,6 +156,67 @@ public class PolarisAdminServiceTest {
 
   protected static void assertSuccess(BaseResult result) {
     Assertions.assertThat(result.isSuccess()).isTrue();
+  }
+
+  @Test
+  void catalogUnknownKeepsExternalSecretAndDoesNotReplay() {
+    SecretReference secret = new SecretReference("urn:polaris-secret:test:unknown", Map.of());
+    setupExternalCatalogCreate(secret);
+    when(metaStoreManager.createCatalog(any(), any(), any()))
+        .thenThrow(new CommitOutcomeUnknownException(new IllegalStateException("Lost response")));
+    assertThatThrownBy(
+            () ->
+                adminService.createCatalog(new CreateCatalogRequest(createExternalOauthCatalog())))
+        .isInstanceOf(CommitOutcomeUnknownException.class);
+    verify(userSecretsManager, never()).deleteSecret(any());
+    verify(metaStoreManager).createCatalog(any(), any(), any());
+  }
+
+  private PolarisEntity retryRole() {
+    return new PrincipalRoleEntity.Builder().setName("retry-role").build();
+  }
+
+  @Test
+  void confirmedConflictReauthorizesBeforeNewManagerAttempt() {
+    when(metaStoreManager.generateNewEntityId(any())).thenReturn(new GenerateEntityIdResult(123L));
+    when(metaStoreManager.createEntityIfNotExists(any(), any(), any()))
+        .thenThrow(new ConfirmedTransactionConflictException(new IllegalStateException()))
+        .thenAnswer(
+            invocation -> new EntityResult(invocation.getArgument(2, PolarisBaseEntity.class)));
+    adminService.createPrincipalRole(retryRole());
+    verify(authorizer, times(2)).authorize(any(), any());
+    verify(resolutionManifestFactory, times(2)).createResolutionManifest(any(), any());
+    verify(metaStoreManager, times(2)).createEntityIfNotExists(any(), any(), any());
+  }
+
+  @Test
+  void revocationDuringConflictPreventsSecondManagerAttempt() {
+    when(metaStoreManager.generateNewEntityId(any())).thenReturn(new GenerateEntityIdResult(123L));
+    when(metaStoreManager.createEntityIfNotExists(any(), any(), any()))
+        .thenThrow(new ConfirmedTransactionConflictException(new IllegalStateException()));
+    when(authorizer.authorize(any(), any()))
+        .thenReturn(AuthorizationDecision.allow(), AuthorizationDecision.deny("Revoked"));
+    assertThatThrownBy(() -> adminService.createPrincipalRole(retryRole()))
+        .isInstanceOf(ForbiddenException.class);
+    verify(authorizer, times(2)).authorize(any(), any());
+    verify(metaStoreManager).createEntityIfNotExists(any(), any(), any());
+  }
+
+  @Test
+  void unknownAndStaleExpectationsAreNotFeatureRetries() {
+    when(metaStoreManager.generateNewEntityId(any())).thenReturn(new GenerateEntityIdResult(123L));
+    for (RuntimeException failure :
+        new RuntimeException[] {
+          new CommitOutcomeUnknownException(new IllegalStateException()),
+          new RetryOnConcurrencyException("Client version changed")
+        }) {
+      Mockito.reset(metaStoreManager);
+      when(metaStoreManager.generateNewEntityId(any()))
+          .thenReturn(new GenerateEntityIdResult(123L));
+      when(metaStoreManager.createEntityIfNotExists(any(), any(), any())).thenThrow(failure);
+      assertThatThrownBy(() -> adminService.createPrincipalRole(retryRole())).isSameAs(failure);
+      verify(metaStoreManager).createEntityIfNotExists(any(), any(), any());
+    }
   }
 
   @Test

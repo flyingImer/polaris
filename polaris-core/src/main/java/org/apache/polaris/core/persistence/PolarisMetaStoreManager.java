@@ -46,6 +46,7 @@ import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.GenerateEntityIdResult;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
+import org.apache.polaris.core.persistence.dao.entity.PrincipalCredentials;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntitiesResult;
 import org.apache.polaris.core.persistence.dao.entity.ResolvedEntityResult;
 import org.apache.polaris.core.persistence.pagination.Page;
@@ -63,6 +64,20 @@ public interface PolarisMetaStoreManager
         PolarisGrantManager,
         PolarisPolicyMappingManager,
         PolarisEventManager {
+
+  /**
+   * Experimental migration hook for atomic local credential reset. An empty result means this
+   * implementation has not migrated; it MUST have performed no work. A supported implementation
+   * checks the expected principal, replaces credentials and updates client ID atomically. Legacy
+   * callers retain their existing path until their Manager supports this operation.
+   */
+  default Optional<PrincipalCredentials> resetPrincipalCredentialsIfSupported(
+      PolarisCallContext context,
+      PrincipalEntity expected,
+      @Nullable String clientId,
+      @Nullable String clientSecret) {
+    return Optional.empty();
+  }
 
   /**
    * Bootstrap the Polaris service, creating the root catalog, root principal, and associated

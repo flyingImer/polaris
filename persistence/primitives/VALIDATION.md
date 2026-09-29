@@ -20,9 +20,108 @@
 # Java prototype validation
 
 Base: `apache/polaris main @ a919f11e51ff76b5ef56633d8cb0429ff2b4c100`.
-Executed on 2026-09-23 with JDK 21 and the upstream Gradle 9.7.1 wrapper.
+Validation uses JDK 21 and the upstream Gradle 9.7.1 wrapper. Native results are
+versioned per checkpoint. An older result does not certify later code.
 
-## Recorded runs
+## Terminal-attempt checkpoint, 2026-09-29
+
+This checkpoint continues `0e0cccd577122544622068e74bcf80f6f673804d` on the same
+upstream base. It supersedes the earlier workflow and retry limitations only
+where the new evidence below says so. The historical results remain below.
+See [TERMINAL_ATTEMPTS.md](TERMINAL_ATTEMPTS.md) for accepted decisions, the original
+three mailing-list problems, their implementation paths and remaining boundaries.
+
+| Backend / gate | Passed | Failed | Skipped | Interpretation |
+|---|---:|---:|---:|---|
+| FDB 7.3.77, current native Java suite | 47 | 0 | 0 | All 28 inherited Manager fixtures, 14 Manager failure/dependency tests and 5 primitive tests |
+| Spanner emulator 1.5.57, current unfiltered suite | 44 | 0 | 3 | Both inherited parallel task tests included. Three simultaneous read/write rendezvous races skipped because of emulator locking |
+| `polaris-core:check` | 1,004 | 0 | 16 | Full module check passed, including the bounded retry policy tests |
+| `polaris-persistence-primitives:check`, default configuration | 43 | 0 | 32 | Full module check passed. 28 unconfigured native fixtures and 4 H2 isolation schedules skipped |
+| Focused Service / compatibility checks | 120 | 0 | 0 | Admin 21, metadata cleanup 10, mapper 70, allowed locations 18, tracing integration 1. Separate from the full Service gate |
+| Repository `format compileAll` | N/A | N/A | N/A | Passed, 1,027 actionable tasks |
+| CockroachDB, current code | N/A | N/A | N/A | Execution blocked by automatic approval review. No current-code result |
+| PostgreSQL | N/A | N/A | N/A | Fork CI execution pending |
+| Full local `polaris-runtime-service:check` | 23,741 | 1 | 43 | Only failure is CloudWatch test initialization without Docker |
+| Local root `check`, admin tests | 18 | 31 | 0 | All failures are Docker/Testcontainers initialization, downstream checks did not all run |
+
+Local gate results are recorded in `validation/gates-terminal.json`. Service
+counts use the Gradle run summary. The retained XML aggregate has six additional
+cases and is recorded separately. The root gate has not passed.
+
+The branch-specific `durable-java-poc.yml` workflow runs formatting, compilation
+and complete checks for the three touched modules on a Docker-capable runner.
+A separate job runs the same native Manager and attempt suite on PostgreSQL 17.
+These CI results are pending. The workflow does not run root `check`, because
+that task also starts CockroachDB. It must not bypass the startup restriction
+described below or be reported as a passing repository-wide gate.
+
+FDB used a disposable single-node memory-engine configuration. Spanner used the
+local emulator. These runs do not measure crash recovery, replicated availability
+or production throughput.
+
+The native suites execute the same Java Manager and shared record implementation.
+All write callbacks now enforce reads-before-final-mutations. The old native
+read-your-writes compatibility path has been removed. Batch reads preserve order,
+duplicates and missing keys. JDBC writes batch adjacent statements on the same
+transaction. Failure after an executed write chunk still rolls back the whole
+operation. FDB and Spanner retain their native transaction through final commit.
+
+The new coverage includes stale unchanged ancestors, location overlap within a
+batch, protected namespace and sibling-location races, atomic local credential
+reset, and a composed read retaining one snapshot across another publication.
+The latter passes on both FDB and the Spanner emulator. H2 is only a wiring and
+rollback test, not an isolation proof.
+
+The first current-code Spanner run used a read/write context for pure reads and
+failed a contended inherited task test. Introducing an explicit read-only view
+lets Spanner use its native read-only transaction. The next run showed that the
+initial eight-attempt write retry cap was too short for emulator contention.
+The final policy permits at most 32 attempts within a two-second budget for
+starting retries. The final unfiltered suite passes both parallel task tests.
+This is compatibility evidence, not a production latency or concurrency claim.
+The initial failed result is retained in `validation/spanner-terminal-initial.json`.
+
+Actual Service tests cover fresh authorization on conflict retry, stopping when
+permission is revoked, no retry for stale expectations or UNKNOWN, retention of
+external-catalog secret references on uncertainty, and table/view/multi-table
+metadata retention when publication may have happened. Multi-table confirmed
+failures clean the newly written files. Uncertainty is injected both before and
+after actual PoC publication. This tests caller behavior for both possible states,
+not a real network partition or an automatic recovery protocol.
+
+The first full Service run was stopped after finding a real view compatibility
+regression. The prototype had persisted the view location as public
+`baseLocation`, unintentionally narrowing allowed metadata paths. The corrected
+mapping stores the validation fact in internal metadata instead. All 18 existing
+allowed-location tests pass, and both native suites pass the new test proving
+that shared Manager overlap validation still protects this internal location.
+
+The earlier tracing failure now has an isolated control on the current code:
+`InMemoryBufferEventListenerIntegrationTest` fails with the host's 1% sampling
+configuration (`02` instead of the expected `03`), and passes after removing
+`OTEL_TRACES_SAMPLER` and `OTEL_TRACES_SAMPLER_ARG`. The test and its assertions
+are unchanged. The final gates use that isolated test environment. No repository
+sampling policy has been changed. See `validation/callers-terminal.json`.
+
+CockroachDB startup was blocked after the local runner triggered a request to a
+cloud metadata endpoint. The rejected action was not retried through another
+execution route. The older `cockroachdb-final.json` is baseline evidence only.
+A permitted isolated database endpoint is needed for current-code verification.
+PostgreSQL is not inferred from H2, CockroachDB, compilation or common JDBC code.
+
+The workspace mirrored stale Spotless task outputs and temporary `.rsync-tmp`
+class paths. Local verification forced fresh Spotless computation and excluded
+only those temporary class paths from discovery. Java compilation ran without
+incremental compilation or build-cache reuse. Formatting and lint checks remained
+enabled. These workspace workarounds are not changes to the repository build.
+
+## Historical checkpoint, 2026-09-23
+
+The remainder of this document describes the previously committed baseline,
+including its failures and unfinished work. It is preserved for comparison.
+Its open retry/read-your-writes items should not be read as the current status.
+
+### Recorded runs
 
 | Backend / gate | Passed | Failed | Skipped / excluded | Interpretation |
 |---|---:|---:|---|---|
@@ -60,7 +159,7 @@ and results, not credentials, raw record contents or noisy server logs. Gradle c
 retain XML from earlier test filters. Summaries for a native run select only the
 native fixture class plus the explicitly selected fault/contract classes.
 
-## What was actually exercised
+### What was actually exercised
 
 - Real `TransactionalMetaStoreManagerImpl`, `PolarisCallContext`, domain entities,
   grant/version logic, `AbstractTransactionalPersistence`, and upstream fixtures.
@@ -82,7 +181,7 @@ native fixture class plus the explicitly selected fault/contract classes.
 Fault injection is around real native attempts. It verifies Java propagation
 and cleanup behavior, not every possible server/driver network failure class.
 
-## Coverage against the community problems
+### Coverage against the community problems
 
 | Original concern | Evidence here | Still outside this branch's claim |
 |---|---|---|
@@ -94,7 +193,7 @@ and cleanup behavior, not every possible server/driver network failure class.
 | T2: retry / independent RBAC / credentials | Explicit conflict translation, no unknown replay, shared credential code | Complete bounded business-attempt retry, authorization policy and STS |
 | T3: staged helper versus successful publication | The wrapper returns success only after native commit | All caller contracts, protocol outcome mappings and external cleanup |
 
-## Repository gates
+### Repository gates
 
 `polaris-core:check` and `polaris-persistence-primitives:check` have passed,
 including their formatter and checkstyle tasks. The repository-wide
@@ -127,7 +226,7 @@ The root `AGENTS.md` requires both full gates before declaring completion or
 opening a PR. This remains a reviewable WIP prototype, not a merge-ready or
 production-ready change.
 
-## What the result supports
+### What the result supports
 
 The narrower backend boundary is useful in the real Java implementation:
 new native adapters do not implement Polaris catalog, grant, policy or secret

@@ -1,0 +1,8 @@
+{
+  "backend": "cockroachdb",
+  "run": "terminal-attempts",
+  "status": "blocked_by_automatic_approval_review",
+  "executed_test_counts": null,
+  "reason": "Local server startup triggered a cloud metadata endpoint request. No current-code result is claimed; the blocked action was not retried through an alternate execution route.",
+  "previous_result": "cockroachdb-final.json describes the earlier committed baseline only."
+}

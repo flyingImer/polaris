@@ -21,7 +21,6 @@ package org.apache.polaris.persistence.primitives.domain;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
-import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
@@ -35,7 +34,6 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisChangeTrackingVersions;
 import org.apache.polaris.core.entity.PolarisEntitiesActiveKey;
 import org.apache.polaris.core.entity.PolarisEntity;
-import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntityId;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -43,8 +41,8 @@ import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisGrantRecord;
 import org.apache.polaris.core.entity.PolarisPrincipalSecrets;
 import org.apache.polaris.core.exceptions.AlreadyExistsException;
+import org.apache.polaris.core.persistence.ConfirmedConflictRetry;
 import org.apache.polaris.core.persistence.PrincipalSecretsGenerator;
-import org.apache.polaris.core.persistence.RetryOnConcurrencyException;
 import org.apache.polaris.core.persistence.pagination.EntityIdToken;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -53,7 +51,6 @@ import org.apache.polaris.core.policy.PolarisPolicyMappingRecord;
 import org.apache.polaris.core.policy.PolicyEntity;
 import org.apache.polaris.core.storage.PolarisStorageConfigurationInfo;
 import org.apache.polaris.core.storage.PolarisStorageIntegration;
-import org.apache.polaris.core.storage.StorageLocation;
 import org.jspecify.annotations.NonNull;
 import org.jspecify.annotations.Nullable;
 
@@ -75,15 +72,7 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
   /** Retry only this side-effect-free ID reservation operation after a confirmed abort. */
   @Override
   public long generateNewId(PolarisCallContext callCtx) {
-    for (int attempt = 0; ; attempt++) {
-      try {
-        return super.generateNewId(callCtx);
-      } catch (RetryOnConcurrencyException e) {
-        if (attempt == 31) throw e;
-        LockSupport.parkNanos((1L + attempt) * 1_000_000L);
-        if (Thread.currentThread().isInterrupted()) throw e;
-      }
-    }
+    return ConfirmedConflictRetry.run(() -> super.generateNewId(callCtx));
   }
 
   @Override
@@ -258,14 +247,12 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
   @Override
   public @NonNull List<PolarisBaseEntity> lookupEntitiesInCurrentTxn(
       @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds) {
-    // allocate return list
-    return entityIds.stream()
-        .map(
-            id ->
-                this.store
-                    .getSliceEntities()
-                    .read(this.store.buildKeyComposite(id.catalogId(), id.id())))
-        .collect(Collectors.toList());
+    return store
+        .getSliceEntities()
+        .readMany(
+            entityIds.stream()
+                .map(id -> store.buildKeyComposite(id.catalogId(), id.id()))
+                .toList());
   }
 
   /** {@inheritDoc} */
@@ -273,12 +260,11 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
   public @NonNull List<PolarisChangeTrackingVersions> lookupEntityVersionsInCurrentTxn(
       @NonNull PolarisCallContext callCtx, List<PolarisEntityId> entityIds) {
     // allocate return list
-    return entityIds.stream()
-        .map(
-            id ->
-                this.store
-                    .getSliceEntitiesChangeTracking()
-                    .read(this.store.buildKeyComposite(id.catalogId(), id.id())))
+    return store
+        .getSliceEntitiesChangeTracking()
+        .readMany(
+            entityIds.stream().map(id -> store.buildKeyComposite(id.catalogId(), id.id())).toList())
+        .stream()
         .map(
             entity ->
                 (entity != null)
@@ -315,9 +301,21 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
       @NonNull PolarisCallContext callCtx,
       @NonNull List<PolarisEntitiesActiveKey> entityActiveKeys) {
     // now build a list to quickly verify that nothing has changed
-    return entityActiveKeys.stream()
-        .map(entityActiveKey -> this.lookupEntityActiveInCurrentTxn(callCtx, entityActiveKey))
-        .collect(Collectors.toList());
+    return store
+        .getSliceEntitiesActive()
+        .readMany(
+            entityActiveKeys.stream()
+                .map(
+                    key ->
+                        store.buildKeyComposite(
+                            key.getCatalogId(),
+                            key.getParentId(),
+                            key.getTypeCode(),
+                            key.getName()))
+                .toList())
+        .stream()
+        .map(entity -> entity == null ? null : new EntityNameLookupRecord(entity))
+        .toList();
   }
 
   @Override
@@ -330,17 +328,20 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
       @NonNull Predicate<PolarisBaseEntity> entityFilter,
       @NonNull Function<PolarisBaseEntity, T> transformer,
       @NonNull PageToken pageToken) {
-    // full range scan under the parent for that type
-    Stream<PolarisBaseEntity> data =
-        this.store
+    // Read the membership range and fetch current values together in the same protected view.
+    // Name-index payloads are not current entity state after property-only updates.
+    var names =
+        store
             .getSliceEntitiesActive()
-            .readRange(
-                this.store.buildPrefixKeyComposite(catalogId, parentId, entityType.getCode()))
-            .stream()
-            .map(
-                nameRecord ->
-                    this.lookupEntityInCurrentTxn(
-                        callCtx, catalogId, nameRecord.getId(), entityType.getCode()));
+            .readRange(store.buildPrefixKeyComposite(catalogId, parentId, entityType.getCode()));
+    Stream<PolarisBaseEntity> data =
+        store
+            .getSliceEntities()
+            .readMany(
+                names.stream()
+                    .map(name -> store.buildKeyComposite(catalogId, name.getId()))
+                    .toList())
+            .stream();
 
     Predicate<PolarisBaseEntity> tokenFilter =
         pageToken
@@ -525,6 +526,15 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
     return principalSecrets;
   }
 
+  @Override
+  public void replacePrincipalSecretsInCurrentTxn(
+      PolarisCallContext context, String oldClientId, PolarisPrincipalSecrets secrets) {
+    if (!oldClientId.equals(secrets.getPrincipalClientId())) {
+      store.getSlicePrincipalSecrets().delete(oldClientId);
+    }
+    store.getSlicePrincipalSecrets().write(secrets);
+  }
+
   /** {@inheritDoc} */
   @Override
   public void deletePrincipalSecretsInCurrentTxn(
@@ -668,44 +678,11 @@ public class RecordTransactionalPersistence extends AbstractTransactionalPersist
         .readRange(this.store.buildPrefixKeyComposite(policyTypeCode, policyCatalogId, policyId));
   }
 
-  private Optional<String> getEntityLocationWithoutScheme(PolarisBaseEntity entity) {
-    if (entity.getType() == PolarisEntityType.TABLE_LIKE) {
-      if (entity.getSubType() == PolarisEntitySubType.ICEBERG_TABLE
-          || entity.getSubType() == PolarisEntitySubType.ICEBERG_VIEW) {
-        return Optional.of(
-            StorageLocation.of(
-                    entity.getPropertiesAsMap().get(PolarisEntityConstants.ENTITY_BASE_LOCATION))
-                .withoutScheme());
-      }
-    }
-    if (entity.getType() == PolarisEntityType.NAMESPACE) {
-      return Optional.of(
-          StorageLocation.of(
-                  entity.getPropertiesAsMap().get(PolarisEntityConstants.ENTITY_BASE_LOCATION))
-              .withoutScheme());
-    }
-    return Optional.empty();
-  }
-
-  /** {@inheritDoc} */
+  /** The optional early optimized check is not implemented; use the Feature fallback. */
   @Override
   public <T extends PolarisEntity & LocationBasedEntity>
       Optional<Optional<String>> hasOverlappingSiblings(
           @NonNull PolarisCallContext callContext, T entity) {
-    // TODO we could optimize this full scan
-    StorageLocation entityLocationWithoutScheme =
-        StorageLocation.of(StorageLocation.of(entity.getBaseLocation()).withoutScheme());
-    List<PolarisBaseEntity> allEntities = this.store.getSliceEntities().readRange("");
-    for (PolarisBaseEntity siblingEntity : allEntities) {
-      Optional<StorageLocation> maybeSiblingLocationWithoutScheme =
-          getEntityLocationWithoutScheme(siblingEntity).map(StorageLocation::of);
-      if (maybeSiblingLocationWithoutScheme.isPresent()) {
-        if (maybeSiblingLocationWithoutScheme.get().isChildOf(entityLocationWithoutScheme)
-            || entityLocationWithoutScheme.isChildOf(maybeSiblingLocationWithoutScheme.get())) {
-          return Optional.of(Optional.of(maybeSiblingLocationWithoutScheme.toString()));
-        }
-      }
-    }
-    return Optional.of(Optional.empty());
+    return Optional.empty();
   }
 }

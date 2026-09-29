@@ -73,6 +73,7 @@ import org.apache.iceberg.encryption.EncryptionManager;
 import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.BadRequestException;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.exceptions.NamespaceNotEmptyException;
 import org.apache.iceberg.exceptions.NoSuchNamespaceException;
@@ -119,6 +120,7 @@ import org.apache.polaris.core.entity.PolarisTaskConstants;
 import org.apache.polaris.core.entity.table.IcebergTableLikeEntity;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.exceptions.PolarisServiceUnavailableException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -2013,6 +2015,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       MetadataWriteResult writeResult = writeNewMetadataIfRequired(base == null, metadata);
       String newLocation = writeResult.location();
       boolean writeSucceeded = false;
+      boolean outcomeUnknown = false;
       try {
         Map<String, String> storedProperties = buildTableMetadataPropertiesMap(metadata);
         IcebergTableLikeEntity entity;
@@ -2051,6 +2054,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         // the metastore persistence succeeds. If we updated it before and persistence threw,
         // the finally-block cleanup would delete newLocation while this ops instance still
         // pointed at it — leaving a dangling reference until the caller refreshes.
+        writeSucceeded = true;
         if (makeMetadataCurrentOnCommit) {
           currentMetadata =
               TableMetadata.buildFrom(metadata)
@@ -2059,9 +2063,14 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
                   .build();
           currentMetadataLocation = newLocation;
         }
-        writeSucceeded = true;
+      } catch (CommitOutcomeUnknownException e) {
+        outcomeUnknown = true;
+        throw new CommitStateUnknownException(e);
+      } catch (CommitStateUnknownException e) {
+        outcomeUnknown = true;
+        throw e;
       } finally {
-        if (!writeSucceeded && writeResult.written()) {
+        if (!writeSucceeded && !outcomeUnknown && writeResult.written()) {
           IcebergCatalogHandler.cleanupWrittenMetadataFiles(
               List.of(new IcebergCatalogHandler.FileToDelete(io(), newLocation)));
         }
@@ -2440,6 +2449,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       String newLocation = writeResult.location();
       String oldLocation = base == null ? null : currentMetadataLocation;
       boolean writeSucceeded = false;
+      boolean outcomeUnknown = false;
       try {
         IcebergTableLikeEntity entity =
             IcebergTableLikeEntity.of(
@@ -2451,13 +2461,17 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
               new IcebergTableLikeEntity.Builder(
                       PolarisEntitySubType.ICEBERG_VIEW, identifier, newLocation)
                   .setCatalogId(getCatalogId())
+                  .addInternalProperty(IcebergTableLikeEntity.LOCATION, metadata.location())
                   .setId(
                       getMetaStoreManager().generateNewEntityId(getCurrentPolarisContext()).getId())
                   .build();
         } else {
           existingLocation = entity.getMetadataLocation();
           entity =
-              new IcebergTableLikeEntity.Builder(entity).setMetadataLocation(newLocation).build();
+              new IcebergTableLikeEntity.Builder(entity)
+                  .setMetadataLocation(newLocation)
+                  .addInternalProperty(IcebergTableLikeEntity.LOCATION, metadata.location())
+                  .build();
         }
         if (!Objects.equal(existingLocation, oldLocation)) {
           if (null == base) {
@@ -2480,14 +2494,20 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         } else {
           updateTableLike(identifier, entity, true);
         }
+        writeSucceeded = true;
         if (makeMetadataCurrentOnCommit) {
           currentMetadata =
               ViewMetadata.buildFrom(metadata).setMetadataLocation(newLocation).build();
           currentMetadataLocation = newLocation;
         }
-        writeSucceeded = true;
+      } catch (CommitOutcomeUnknownException e) {
+        outcomeUnknown = true;
+        throw new CommitStateUnknownException(e);
+      } catch (CommitStateUnknownException e) {
+        outcomeUnknown = true;
+        throw e;
       } finally {
-        if (!writeSucceeded && writeResult.written()) {
+        if (!writeSucceeded && !outcomeUnknown && writeResult.written()) {
           IcebergCatalogHandler.cleanupWrittenMetadataFiles(
               List.of(new IcebergCatalogHandler.FileToDelete(io(), newLocation)));
         }

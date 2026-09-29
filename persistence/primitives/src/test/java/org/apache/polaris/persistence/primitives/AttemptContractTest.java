@@ -21,7 +21,9 @@ package org.apache.polaris.persistence.primitives;
 import static org.apache.polaris.persistence.primitives.api.DurablePrimitives.Mutation.delete;
 import static org.apache.polaris.persistence.primitives.api.DurablePrimitives.Mutation.put;
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import java.util.AbstractList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
@@ -50,13 +52,63 @@ class AttemptContractTest {
   }
 
   @Test
-  void closeAbortsNativeLegacyWrites() {
-    try (var attempt = backend.beginLegacy()) {
-      attempt.applyForLegacyReadYourWrites(List.of(put(prefix + "key", new byte[] {1})));
-      assertThat(attempt.get(prefix + "key")).containsExactly((byte) 1);
+  void readViewKeepsOneSnapshotAcrossConcurrentPublication() {
+    Assumptions.assumeFalse(
+        System.getProperty("poc.backend", "h2").equals("h2"),
+        "H2 is only a wiring fixture, not a native snapshot conformance claim");
+    try (var write = backend.begin()) {
+      write.commit(List.of(put(prefix + "a", new byte[] {1}), put(prefix + "b", new byte[] {1})));
+    }
+    try (var read = backend.readView()) {
+      assertThat(read.get(prefix + "a")).containsExactly((byte) 1);
+      try (var write = backend.begin()) {
+        write.commit(List.of(put(prefix + "a", new byte[] {2}), put(prefix + "b", new byte[] {2})));
+      }
+      assertThat(read.getMany(List.of(prefix + "b")).getFirst()).containsExactly((byte) 1);
+    }
+  }
+
+  @Test
+  void failureAfterFirstWriteChunkRollsBackWholeBatch() {
+    try (var attempt = backend.begin()) {
+      assertThatThrownBy(
+              () ->
+                  attempt.commit(
+                      new AbstractList<DurablePrimitives.Mutation>() {
+                        @Override
+                        public DurablePrimitives.Mutation get(int index) {
+                          if (index == 600)
+                            throw new IllegalStateException("Injected before native commit");
+                          return put(prefix + String.format("%04d", index), new byte[] {1});
+                        }
+
+                        @Override
+                        public int size() {
+                          return 700;
+                        }
+                      }))
+          .isInstanceOf(RuntimeException.class);
     }
     try (var read = backend.begin()) {
-      assertThat(read.get(prefix + "key")).isNull();
+      assertThat(read.scan(prefix, prefix + "~", 1000)).isEmpty();
+      read.commit(List.of());
+    }
+  }
+
+  @Test
+  void batchReadPreservesMissingKeysOrderAndDuplicates() {
+    try (var attempt = backend.begin()) {
+      attempt.commit(List.of(put(prefix + "a", new byte[] {1}), put(prefix + "b", new byte[] {2})));
+    }
+    try (var read = backend.begin()) {
+      var values =
+          read.getMany(List.of(prefix + "b", prefix + "missing", prefix + "a", prefix + "b"));
+      assertThat(values).hasSize(4);
+      assertThat(values.get(0)).containsExactly((byte) 2);
+      assertThat(values.get(1)).isNull();
+      assertThat(values.get(2)).containsExactly((byte) 1);
+      assertThat(values.get(3)).containsExactly((byte) 2);
+      assertThat(read.getMany(List.of())).isEmpty();
       read.commit(List.of());
     }
   }

@@ -1,0 +1,75 @@
+{
+  "run": "focused_callers_view_fix",
+  "exit_code": 0,
+  "environment": "Host OTEL_TRACES_SAMPLER and OTEL_TRACES_SAMPLER_ARG removed; assertions unchanged.",
+  "tests": [
+    {
+      "class": "org.apache.polaris.service.admin.PolarisAdminServiceTest",
+      "counts": {
+        "tests": 21,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failures": []
+    },
+    {
+      "class": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+      "counts": {
+        "tests": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failures": []
+    },
+    {
+      "class": "org.apache.polaris.service.exception.IcebergExceptionMapperTest",
+      "counts": {
+        "tests": 70,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failures": []
+    },
+    {
+      "class": "org.apache.polaris.service.catalog.iceberg.IcebergAllowedLocationTest",
+      "counts": {
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failures": []
+    },
+    {
+      "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerIntegrationTest",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "failures": []
+    }
+  ],
+  "host_sampler_control": {
+    "run": "host_sampler",
+    "exit_code": 1,
+    "tests": [
+      {
+        "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerIntegrationTest",
+        "counts": {
+          "tests": 1,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0
+        },
+        "failures": [
+          "testCreateCatalogAndTable()"
+        ]
+      }
+    ]
+  }
+}

@@ -34,6 +34,8 @@ import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.exceptions.RuntimeIOException;
 import org.apache.iceberg.exceptions.ValidationException;
 import org.apache.polaris.core.exceptions.FileIOUnknownHostException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.Arguments;
 import org.junit.jupiter.params.provider.MethodSource;
@@ -116,6 +118,11 @@ public class IcebergExceptionMapperTest {
         // Commit state unknown means the commit may or may not have been applied; per the Iceberg
         // REST spec it must be a 5xx so clients do not mistake it for a rejected request.
         Arguments.of(new CommitStateUnknownException(new RuntimeException("db timeout")), 500),
+        Arguments.of(new CommitOutcomeUnknownException(new RuntimeException("lost response")), 500),
+        Arguments.of(
+            new ConfirmedTransactionConflictException(new RuntimeException("aborted")), 503),
+        Arguments.of(
+            new CommitStateUnknownException(new StorageException(403, "transport status")), 500),
         Arguments.of(new CommitFailedException("commit failed"), 409),
         Arguments.of(new AlreadyExistsException("already exists"), 409),
         Arguments.of(new ValidationException("invalid"), 400));

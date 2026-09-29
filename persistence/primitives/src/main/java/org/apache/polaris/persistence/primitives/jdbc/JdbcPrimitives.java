@@ -28,6 +28,8 @@ import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.Collections;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
@@ -61,11 +63,6 @@ public final class JdbcPrimitives implements DurablePrimitives {
 
   @Override
   public Attempt begin() {
-    return beginLegacy();
-  }
-
-  @Override
-  public LegacyAttempt beginLegacy() {
     try {
       return new Tx(connect());
     } catch (SQLException e) {
@@ -73,7 +70,7 @@ public final class JdbcPrimitives implements DurablePrimitives {
     }
   }
 
-  private static final class Tx implements LegacyAttempt {
+  private static final class Tx implements Attempt {
     private final Connection connection;
     private final boolean h2;
     private boolean finished;
@@ -117,6 +114,29 @@ public final class JdbcPrimitives implements DurablePrimitives {
     }
 
     @Override
+    public List<byte[]> getMany(List<String> keys) {
+      checkOpen();
+      var values = new HashMap<String, byte[]>();
+      for (int from = 0; from < keys.size(); from += 500) {
+        var chunk = keys.subList(from, Math.min(from + 500, keys.size()));
+        String sql =
+            "SELECT k, v FROM polaris_poc_records WHERE k IN ("
+                + String.join(",", Collections.nCopies(chunk.size(), "?"))
+                + ")";
+        try (var statement = connection.prepareStatement(sql)) {
+          for (int i = 0; i < chunk.size(); i++)
+            statement.setBytes(i + 1, chunk.get(i).getBytes(UTF_8));
+          try (var rows = statement.executeQuery()) {
+            while (rows.next()) values.put(new String(rows.getBytes(1), UTF_8), rows.getBytes(2));
+          }
+        } catch (SQLException e) {
+          throw failure(e, false);
+        }
+      }
+      return keys.stream().map(values::get).toList();
+    }
+
+    @Override
     public List<Entry> scan(String begin, String end, int limit) {
       checkOpen();
       if (limit <= 0) throw new IllegalArgumentException("limit must be positive");
@@ -136,35 +156,45 @@ public final class JdbcPrimitives implements DurablePrimitives {
       }
     }
 
-    @Override
-    public void applyForLegacyReadYourWrites(List<Mutation> mutations) {
+    private void apply(List<Mutation> mutations) {
       checkOpen();
       try {
-        for (var m : mutations) {
-          String sql =
-              m.end() != null
-                  ? "DELETE FROM polaris_poc_records WHERE k >= ? AND k < ?"
-                  : m.value() == null
-                      ? "DELETE FROM polaris_poc_records WHERE k = ?"
-                      : h2
-                          ? "MERGE INTO polaris_poc_records (k, v) KEY(k) VALUES (?, ?)"
-                          : "INSERT INTO polaris_poc_records (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v";
-          try (PreparedStatement s = connection.prepareStatement(sql)) {
-            s.setBytes(1, m.key().getBytes(UTF_8));
-            if (m.end() != null) s.setBytes(2, m.end().getBytes(UTF_8));
-            else if (m.value() != null) s.setBytes(2, m.value());
-            s.executeUpdate();
+        // Preserve mutation order, including overlapping point/range changes. Batch only adjacent
+        // statements of the same shape. Each batch remains on the same JDBC transaction.
+        for (int from = 0; from < mutations.size(); ) {
+          String sql = mutationSql(mutations.get(from));
+          int to = from + 1;
+          while (to < mutations.size()
+              && to - from < 500
+              && mutationSql(mutations.get(to)).equals(sql)) to++;
+          try (PreparedStatement statement = connection.prepareStatement(sql)) {
+            for (var mutation : mutations.subList(from, to)) {
+              statement.setBytes(1, mutation.key().getBytes(UTF_8));
+              if (mutation.end() != null) statement.setBytes(2, mutation.end().getBytes(UTF_8));
+              else if (mutation.value() != null) statement.setBytes(2, mutation.value());
+              statement.addBatch();
+            }
+            statement.executeBatch();
           }
+          from = to;
         }
       } catch (SQLException e) {
         throw failure(e, false);
       }
     }
 
+    private String mutationSql(Mutation mutation) {
+      if (mutation.end() != null) return "DELETE FROM polaris_poc_records WHERE k >= ? AND k < ?";
+      if (mutation.value() == null) return "DELETE FROM polaris_poc_records WHERE k = ?";
+      return h2
+          ? "MERGE INTO polaris_poc_records (k, v) KEY(k) VALUES (?, ?)"
+          : "INSERT INTO polaris_poc_records (k, v) VALUES (?, ?) ON CONFLICT (k) DO UPDATE SET v = EXCLUDED.v";
+    }
+
     @Override
     public void commit(List<Mutation> mutations) {
       checkOpen();
-      applyForLegacyReadYourWrites(mutations);
+      apply(mutations);
       finished = true;
       try {
         connection.commit();

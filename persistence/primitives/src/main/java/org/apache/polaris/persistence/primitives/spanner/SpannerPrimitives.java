@@ -35,6 +35,7 @@ import com.google.cloud.spanner.Key;
 import com.google.cloud.spanner.KeyRange;
 import com.google.cloud.spanner.KeySet;
 import com.google.cloud.spanner.Options;
+import com.google.cloud.spanner.ReadContext;
 import com.google.cloud.spanner.Spanner;
 import com.google.cloud.spanner.SpannerException;
 import com.google.cloud.spanner.SpannerOptions;
@@ -44,6 +45,7 @@ import com.google.cloud.spanner.TransactionContext;
 import com.google.cloud.spanner.TransactionManager;
 import com.google.spanner.v1.TransactionOptions.IsolationLevel;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.concurrent.ExecutionException;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
@@ -104,14 +106,19 @@ public final class SpannerPrimitives implements DurablePrimitives {
 
   @Override
   public Attempt begin() {
-    return new Tx(
-        client.transactionManager(Options.isolationLevel(IsolationLevel.SERIALIZABLE)), false);
+    TransactionManager manager =
+        client.transactionManager(Options.isolationLevel(IsolationLevel.SERIALIZABLE));
+    try {
+      return new Tx(manager);
+    } catch (SpannerException e) {
+      manager.close();
+      throw Tx.failure(e, false);
+    }
   }
 
   @Override
-  public LegacyAttempt beginLegacy() {
-    return new Tx(
-        client.transactionManager(Options.isolationLevel(IsolationLevel.SERIALIZABLE)), true);
+  public ReadView readView() {
+    return new Reads(client.readOnlyTransaction());
   }
 
   @Override
@@ -119,24 +126,19 @@ public final class SpannerPrimitives implements DurablePrimitives {
     service.close();
   }
 
-  private static final class Tx implements LegacyAttempt {
-    private final TransactionManager manager;
-    private final TransactionContext tx;
-    private final boolean legacy;
-    private boolean finished;
-    private boolean closed;
+  private static class Reads implements ReadView {
+    protected final ReadContext tx;
+    protected boolean finished;
 
-    Tx(TransactionManager manager, boolean legacy) {
-      this.manager = manager;
-      this.legacy = legacy;
-      this.tx = manager.begin();
+    Reads(ReadContext tx) {
+      this.tx = tx;
     }
 
-    private void checkOpen() {
+    protected void checkOpen() {
       if (finished) throw new IllegalStateException("Attempt finished");
     }
 
-    private StorageFailure failure(SpannerException e, boolean committing) {
+    protected static StorageFailure failure(SpannerException e, boolean committing) {
       return new StorageFailure(
           e.getErrorCode() == ErrorCode.ABORTED
               ? CONFLICT
@@ -153,6 +155,21 @@ public final class SpannerPrimitives implements DurablePrimitives {
       } catch (SpannerException e) {
         throw failure(e, false);
       }
+    }
+
+    @Override
+    public List<byte[]> getMany(List<String> keys) {
+      checkOpen();
+      if (keys.isEmpty()) return List.of();
+      var keySet = KeySet.newBuilder();
+      keys.forEach(key -> keySet.addKey(Key.of(key)));
+      var values = new HashMap<String, byte[]>();
+      try (var rows = tx.read("PolarisPocRecords", keySet.build(), List.of("k", "v"))) {
+        while (rows.next()) values.put(rows.getString(0), rows.getBytes(1).toByteArray());
+      } catch (SpannerException e) {
+        throw failure(e, false);
+      }
+      return keys.stream().map(values::get).toList();
     }
 
     @Override
@@ -179,71 +196,41 @@ public final class SpannerPrimitives implements DurablePrimitives {
     }
 
     @Override
-    public void applyForLegacyReadYourWrites(List<DurablePrimitives.Mutation> mutations) {
-      checkOpen();
-      if (!legacy)
-        throw new IllegalStateException("Terminal batch attempt cannot write before commit");
-      try {
-        for (var m : mutations) {
-          if (m.end() != null) {
-            tx.executeUpdate(
-                Statement.newBuilder("DELETE FROM PolarisPocRecords WHERE k >= @lo AND k < @hi")
-                    .bind("lo")
-                    .to(m.key())
-                    .bind("hi")
-                    .to(m.end())
-                    .build());
-          } else if (m.value() == null) {
-            tx.executeUpdate(
-                Statement.newBuilder("DELETE FROM PolarisPocRecords WHERE k = @k")
-                    .bind("k")
-                    .to(m.key())
-                    .build());
-          } else {
-            long updated =
-                tx.executeUpdate(
-                    Statement.newBuilder("UPDATE PolarisPocRecords SET v = @v WHERE k = @k")
-                        .bind("k")
-                        .to(m.key())
-                        .bind("v")
-                        .to(ByteArray.copyFrom(m.value()))
-                        .build());
-            if (updated == 0)
-              tx.executeUpdate(
-                  Statement.newBuilder("INSERT INTO PolarisPocRecords (k, v) VALUES (@k, @v)")
-                      .bind("k")
-                      .to(m.key())
-                      .bind("v")
-                      .to(ByteArray.copyFrom(m.value()))
-                      .build());
-          }
-        }
-      } catch (SpannerException e) {
-        throw failure(e, false);
+    public void close() {
+      if (!finished) {
+        finished = true;
+        tx.close();
       }
+    }
+  }
+
+  private static final class Tx extends Reads implements Attempt {
+    private final TransactionManager manager;
+    private boolean closed;
+
+    Tx(TransactionManager manager) {
+      super(manager.begin());
+      this.manager = manager;
     }
 
     @Override
     public void commit(List<DurablePrimitives.Mutation> mutations) {
       checkOpen();
-      if (legacy) applyForLegacyReadYourWrites(mutations);
-      else {
-        for (var m : mutations) {
-          var nativeMutation =
-              m.end() != null
-                  ? delete(
-                      "PolarisPocRecords",
-                      KeySet.range(KeyRange.closedOpen(Key.of(m.key()), Key.of(m.end()))))
-                  : m.value() == null
-                      ? delete("PolarisPocRecords", Key.of(m.key()))
-                      : newInsertOrUpdateBuilder("PolarisPocRecords")
-                          .set("k")
-                          .to(m.key())
-                          .set("v")
-                          .to(ByteArray.copyFrom(m.value()))
-                          .build();
-          tx.buffer(nativeMutation);
-        }
+      for (var m : mutations) {
+        var nativeMutation =
+            m.end() != null
+                ? delete(
+                    "PolarisPocRecords",
+                    KeySet.range(KeyRange.closedOpen(Key.of(m.key()), Key.of(m.end()))))
+                : m.value() == null
+                    ? delete("PolarisPocRecords", Key.of(m.key()))
+                    : newInsertOrUpdateBuilder("PolarisPocRecords")
+                        .set("k")
+                        .to(m.key())
+                        .set("v")
+                        .to(ByteArray.copyFrom(m.value()))
+                        .build();
+        ((TransactionContext) tx).buffer(nativeMutation);
       }
       finished = true;
       try {

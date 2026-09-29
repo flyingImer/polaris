@@ -19,7 +19,10 @@
 package org.apache.polaris.core.persistence.transactional;
 
 import com.google.common.base.Preconditions;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.function.Function;
 import java.util.function.Predicate;
 import org.apache.polaris.core.PolarisCallContext;
@@ -53,6 +56,8 @@ import org.jspecify.annotations.Nullable;
  * the BasePersistence methods in terms of lower-level methods that subclasses must implement.
  */
 public abstract class AbstractTransactionalPersistence implements TransactionalPersistence {
+
+  private record NameKey(long catalogId, long parentId, int typeCode, String name) {}
 
   private final PolarisDiagnostics diagnostics;
 
@@ -234,36 +239,50 @@ public abstract class AbstractTransactionalPersistence implements TransactionalP
     runActionInTransaction(
         callCtx,
         () -> {
-          // Validate and write each one independently so that we can also detect conflicting
-          // writes to the same entity id within a given batch (so that previously written
-          // ones will be seen during validation of the later item).
+          Map<PolarisEntityId, PolarisBaseEntity> planned = new HashMap<>();
+          Map<NameKey, PolarisBaseEntity> names = new HashMap<>();
+          List<Runnable> writes = new ArrayList<>();
           for (int i = 0; i < entities.size(); ++i) {
             PolarisBaseEntity entity = entities.get(i);
-            PolarisBaseEntity originalEntity =
-                originalEntities != null ? originalEntities.get(i) : null;
-            // TODO: This isn't quite correct right now, because originalEntity is only actually
-            // safe to use for entityVersion and grantRecordsVersion right now. Once we refactor
-            // the writeEntities[] methods to take something like PolarisEntityCore
-            // for originalEntity and force the callsites such as BasePolarisCatalog to actually
-            // provide the original values, this will be correct. For now, the API doesn't support
-            // bulk renames anyways.
-            boolean nameOrParentChanged =
-                originalEntity == null
-                    || !entity.getName().equals(originalEntity.getName())
-                    || entity.getParentId() != originalEntity.getParentId();
-            try {
-              this.checkConditionsForWriteEntityInCurrentTxn(callCtx, entity, originalEntity);
-            } catch (EntityAlreadyExistsException e) {
-              // If the ids are equal then it is an idempotent-create-retry error, which counts
-              // as a "success" for multi-entity commit purposes; name-collisions on different
-              // ids counts as a true error that we rethrow.
-              if (e.getExistingEntity().getId() != entity.getId()) {
-                throw e;
+            PolarisBaseEntity original = originalEntities == null ? null : originalEntities.get(i);
+            PolarisEntityId id = new PolarisEntityId(entity.getCatalogId(), entity.getId());
+            PolarisBaseEntity previous = planned.get(id);
+            if (previous != null) {
+              if (original != null
+                  && (previous.getEntityVersion() != original.getEntityVersion()
+                      || previous.getGrantRecordsVersion() != original.getGrantRecordsVersion())) {
+                throw new RetryOnConcurrencyException(
+                    "Conflicting updates for entity %s", entity.getId());
               }
-              // Else silently swallow the apparent create-retry
+            } else {
+              try {
+                checkConditionsForWriteEntityInCurrentTxn(callCtx, entity, original);
+              } catch (EntityAlreadyExistsException e) {
+                if (e.getExistingEntity().getId() != entity.getId()) throw e;
+              }
             }
-            this.writeEntityInCurrentTxn(callCtx, entity, nameOrParentChanged, originalEntity);
+            // The bulk contract does not support rename. Track creates explicitly so a name
+            // collision inside the input batch is rejected without read-your-writes.
+            if (original == null) {
+              var name =
+                  new NameKey(
+                      entity.getCatalogId(),
+                      entity.getParentId(),
+                      entity.getTypeCode(),
+                      entity.getName());
+              PolarisBaseEntity collision = names.putIfAbsent(name, entity);
+              if (collision != null && collision.getId() != entity.getId()) {
+                throw new EntityAlreadyExistsException(collision);
+              }
+            }
+            boolean changed =
+                original == null
+                    || !entity.getName().equals(original.getName())
+                    || entity.getParentId() != original.getParentId();
+            writes.add(() -> writeEntityInCurrentTxn(callCtx, entity, changed, original));
+            planned.put(id, entity);
           }
+          writes.forEach(Runnable::run);
         });
   }
 

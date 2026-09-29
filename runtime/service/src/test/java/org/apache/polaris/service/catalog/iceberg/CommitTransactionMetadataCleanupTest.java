@@ -31,27 +31,39 @@ import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
 import org.apache.iceberg.exceptions.CommitFailedException;
+import org.apache.iceberg.exceptions.CommitStateUnknownException;
 import org.apache.iceberg.rest.requests.CommitTransactionRequest;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
+import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
+import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.polaris.core.admin.model.Catalog;
 import org.apache.polaris.core.admin.model.CatalogProperties;
 import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.core.exceptions.CommitConflictException;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.CommitRejectedException;
+import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
+import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.service.TestServices;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
 
 /**
@@ -130,6 +142,251 @@ public class CommitTransactionMetadataCleanupTest {
     // After the failed transaction, no new metadata files should remain (they were cleaned up).
     Set<Path> metadataFilesAfter = metadataFiles(tempDir);
     assertThat(metadataFilesAfter).isEqualTo(metadataFilesBefore);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void unknownCommitKeepsFilesWhetherOrNotPublicationHappened(
+      boolean committed, @TempDir Path tempDir) throws Exception {
+    AtomicBoolean inject = new AtomicBoolean();
+    AtomicInteger submissions = new AtomicInteger();
+    String realm = "caller-" + UUID.randomUUID();
+    var factory = new PrimitiveServiceTestFactory();
+    factory.bootstrapRealms(List.of(realm), RootCredentialsSet.EMPTY);
+    TestServices services =
+        TestServices.builder()
+            .realmContext(() -> realm)
+            .metaStoreManagerFactory(factory)
+            .config(
+                Map.of(
+                    "ALLOW_INSECURE_STORAGE_TYPES",
+                    true,
+                    "SUPPORTED_CATALOG_STORAGE_TYPES",
+                    List.of("FILE")))
+            .metaStoreManagerDecorator(
+                manager -> {
+                  var spy = Mockito.spy(manager);
+                  Mockito.doAnswer(
+                          call -> {
+                            if (!inject.get()) return call.callRealMethod();
+                            submissions.incrementAndGet();
+                            if (committed) call.callRealMethod();
+                            throw new CommitOutcomeUnknownException(
+                                new IllegalStateException("Injected lost response"));
+                          })
+                      .when(spy)
+                      .updateEntitiesPropertiesIfNotChanged(Mockito.any(), Mockito.any());
+                  return spy;
+                })
+            .build();
+    String location = tempDir.toUri().toString().replaceAll("/+$", "");
+    createCatalogAndNamespace(services, location);
+    createTable(services, "unknown1", location);
+    createTable(services, "unknown2", location);
+    Set<Path> before = metadataFiles(tempDir);
+    inject.set(true);
+    assertThatThrownBy(
+            () ->
+                services
+                    .restApi()
+                    .commitTransaction(
+                        catalog,
+                        generateCommitTransactionRequest("unknown1", "unknown2"),
+                        IDEMPOTENCY_KEY,
+                        services.realmContext(),
+                        services.securityContext()))
+        .isInstanceOf(CommitStateUnknownException.class);
+    assertThat(submissions).hasValue(1);
+    assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 2);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void unknownSingleTableCommitRetainsNewMetadata(boolean committed, @TempDir Path tempDir)
+      throws Exception {
+    AtomicBoolean inject = new AtomicBoolean();
+    AtomicInteger submissions = new AtomicInteger();
+    String realm = "single-caller-" + UUID.randomUUID();
+    var factory = new PrimitiveServiceTestFactory();
+    factory.bootstrapRealms(List.of(realm), RootCredentialsSet.EMPTY);
+    TestServices services =
+        TestServices.builder()
+            .realmContext(() -> realm)
+            .metaStoreManagerFactory(factory)
+            .config(
+                Map.of(
+                    "ALLOW_INSECURE_STORAGE_TYPES",
+                    true,
+                    "SUPPORTED_CATALOG_STORAGE_TYPES",
+                    List.of("FILE")))
+            .metaStoreManagerDecorator(
+                manager -> {
+                  var spy = Mockito.spy(manager);
+                  Mockito.doAnswer(
+                          call -> {
+                            if (!inject.get()) return call.callRealMethod();
+                            submissions.incrementAndGet();
+                            if (committed) call.callRealMethod();
+                            throw new CommitOutcomeUnknownException(
+                                new IllegalStateException("Injected lost response"));
+                          })
+                      .when(spy)
+                      .updateEntityPropertiesIfNotChanged(
+                          Mockito.any(), Mockito.any(), Mockito.any());
+                  return spy;
+                })
+            .build();
+    String location = tempDir.toUri().toString().replaceAll("/+$", "");
+    createCatalogAndNamespace(services, location);
+    createTable(services, "single-unknown", location);
+    Set<Path> before = metadataFiles(tempDir);
+    inject.set(true);
+    var id = TableIdentifier.of(namespace, "single-unknown");
+    var update =
+        UpdateTableRequest.create(
+            id,
+            List.of(),
+            List.of(new MetadataUpdate.SetProperties(Map.of(propertyName, "new-value"))));
+    assertThatThrownBy(
+            () ->
+                services
+                    .catalogAdapter()
+                    .newHandler(services.securityContext(), catalog)
+                    .updateTable(id, update))
+        .isInstanceOf(CommitStateUnknownException.class);
+    assertThat(submissions).hasValue(1);
+    assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(booleans = {false, true})
+  void unknownViewCommitRetainsNewMetadata(boolean committed, @TempDir Path tempDir)
+      throws Exception {
+    AtomicBoolean inject = new AtomicBoolean();
+    AtomicInteger submissions = new AtomicInteger();
+    String realm = "view-caller-" + UUID.randomUUID();
+    var factory = new PrimitiveServiceTestFactory();
+    factory.bootstrapRealms(List.of(realm), RootCredentialsSet.EMPTY);
+    TestServices services =
+        TestServices.builder()
+            .realmContext(() -> realm)
+            .metaStoreManagerFactory(factory)
+            .config(
+                Map.of(
+                    "ALLOW_INSECURE_STORAGE_TYPES",
+                    true,
+                    "SUPPORTED_CATALOG_STORAGE_TYPES",
+                    List.of("FILE")))
+            .metaStoreManagerDecorator(
+                manager -> {
+                  var spy = Mockito.spy(manager);
+                  Mockito.doAnswer(
+                          call -> {
+                            if (!inject.get()) return call.callRealMethod();
+                            submissions.incrementAndGet();
+                            if (committed) call.callRealMethod();
+                            throw new CommitOutcomeUnknownException(
+                                new IllegalStateException("Injected lost response"));
+                          })
+                      .when(spy)
+                      .updateEntityPropertiesIfNotChanged(
+                          Mockito.any(), Mockito.any(), Mockito.any());
+                  return spy;
+                })
+            .build();
+    String location = tempDir.toUri().toString().replaceAll("/+$", "");
+    createCatalogAndNamespace(services, location);
+    var request =
+        ImmutableCreateViewRequest.builder()
+            .name("view-unknown")
+            .schema(SCHEMA)
+            .viewVersion(
+                ImmutableViewVersion.builder()
+                    .versionId(1)
+                    .schemaId(SCHEMA.schemaId())
+                    .timestampMillis(System.currentTimeMillis())
+                    .defaultNamespace(Namespace.of(namespace))
+                    .addRepresentations(
+                        ImmutableSQLViewRepresentation.builder()
+                            .sql("SELECT 1")
+                            .dialect("spark")
+                            .build())
+                    .build())
+            .build();
+    services
+        .catalogAdapter()
+        .newHandler(services.securityContext(), catalog)
+        .createView(Namespace.of(namespace), request);
+    Set<Path> before = metadataFiles(tempDir);
+    inject.set(true);
+    var id = TableIdentifier.of(namespace, "view-unknown");
+    var update =
+        UpdateTableRequest.create(
+            id,
+            List.of(),
+            List.of(new MetadataUpdate.SetProperties(Map.of(propertyName, "new-value"))));
+    assertThatThrownBy(
+            () ->
+                services
+                    .catalogAdapter()
+                    .newHandler(services.securityContext(), catalog)
+                    .replaceView(id, update))
+        .isInstanceOf(CommitStateUnknownException.class);
+    assertThat(submissions).hasValue(1);
+    assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 1);
+  }
+
+  @ParameterizedTest
+  @ValueSource(strings = {"conflict", "rejected", "stale"})
+  void confirmedFailureCleansNewMultiTableMetadata(String outcome, @TempDir Path tempDir)
+      throws Exception {
+    RuntimeException failure =
+        switch (outcome) {
+          case "conflict" ->
+              new ConfirmedTransactionConflictException(new IllegalStateException("aborted"));
+          case "rejected" -> new CommitRejectedException(new IllegalStateException("capacity"));
+          default -> new CommitConflictException("Ancestor metadata changed");
+        };
+    AtomicBoolean inject = new AtomicBoolean();
+    var services =
+        TestServices.builder()
+            .config(
+                Map.of(
+                    "ALLOW_INSECURE_STORAGE_TYPES",
+                    true,
+                    "SUPPORTED_CATALOG_STORAGE_TYPES",
+                    List.of("FILE")))
+            .metaStoreManagerDecorator(
+                manager -> {
+                  var spy = Mockito.spy(manager);
+                  Mockito.doAnswer(
+                          call -> {
+                            if (inject.get()) throw failure;
+                            return call.callRealMethod();
+                          })
+                      .when(spy)
+                      .updateEntitiesPropertiesIfNotChanged(Mockito.any(), Mockito.any());
+                  return spy;
+                })
+            .build();
+    String location = tempDir.toUri().toString().replaceAll("/+$", "");
+    createCatalogAndNamespace(services, location);
+    createTable(services, "abort1", location);
+    createTable(services, "abort2", location);
+    var before = metadataFiles(tempDir);
+    inject.set(true);
+    assertThatThrownBy(
+            () ->
+                services
+                    .restApi()
+                    .commitTransaction(
+                        catalog,
+                        generateCommitTransactionRequest("abort1", "abort2"),
+                        IDEMPOTENCY_KEY,
+                        services.realmContext(),
+                        services.securityContext()))
+        .isSameAs(failure);
+    assertThat(metadataFiles(tempDir)).isEqualTo(before);
   }
 
   private static Set<Path> metadataFiles(Path directory) throws Exception {

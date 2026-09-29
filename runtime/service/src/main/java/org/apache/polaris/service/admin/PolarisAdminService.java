@@ -111,6 +111,8 @@ import org.apache.polaris.core.entity.table.federated.FederatedEntities;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.identity.dpo.ServiceIdentityInfoDpo;
 import org.apache.polaris.core.identity.provider.ServiceIdentityProvider;
+import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
+import org.apache.polaris.core.persistence.ConfirmedConflictRetry;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
@@ -835,6 +837,7 @@ public class PolarisAdminService {
 
     Map<String, SecretReference> processedSecretReferences = Map.of();
     boolean catalogCreated = false;
+    boolean catalogOutcomeUnknown = false;
     try {
       if (catalog instanceof ExternalCatalog externalCatalog) {
         ConnectionConfigInfo connectionConfigInfo = externalCatalog.getConnectionConfigInfo();
@@ -905,8 +908,11 @@ public class PolarisAdminService {
       }
       catalogCreated = true;
       return PolarisEntity.of(catalogResult.getCatalog());
+    } catch (CommitOutcomeUnknownException e) {
+      catalogOutcomeUnknown = true;
+      throw e;
     } finally {
-      if (!catalogCreated) {
+      if (!catalogCreated && !catalogOutcomeUnknown) {
         deleteSecretReferencesAfterFailedCatalogCreate(processedSecretReferences);
       }
     }
@@ -1172,6 +1178,7 @@ public class PolarisAdminService {
       throw new ValidationException(
           "Cannot reset credentials for a federated principal: %s", principalName);
     }
+    // Compatibility path for Managers not migrated to the atomic operation yet.
     if (customClientId != null) {
       PolarisPrincipalSecrets collidingSecrets =
           metaStoreManager
@@ -1294,6 +1301,29 @@ public class PolarisAdminService {
       String principalName, ResetPrincipalRequest resetPrincipalRequest) {
     FeatureConfiguration.enforceFeatureEnabledOrThrow(
         realmConfig, FeatureConfiguration.ENABLE_CREDENTIAL_RESET);
+    var atomicReset =
+        ConfirmedConflictRetry.run(
+            () -> {
+              var manifest =
+                  authorizeBasicTopLevelEntityOperationOrThrow(
+                      PolarisAuthorizableOperation.RESET_CREDENTIALS,
+                      principalName,
+                      PolarisEntityType.PRINCIPAL);
+              var principal = getPrincipalByName(manifest, principalName);
+              return metaStoreManager.resetPrincipalCredentialsIfSupported(
+                  getCurrentPolarisContext(),
+                  principal,
+                  resetPrincipalRequest.getClientId(),
+                  resetPrincipalRequest.getClientSecret());
+            });
+    if (atomicReset.isPresent()) {
+      var result = atomicReset.get();
+      return new PrincipalWithCredentials(
+          result.principal().asPrincipal(),
+          new PrincipalWithCredentialsCredentials(
+              result.secrets().getPrincipalClientId(), result.secrets().getMainSecret()));
+    }
+    // Unsupported means no effects. Keep the old multi-phase path outside the replay loop.
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.RESET_CREDENTIALS;
     PolarisResolutionManifest resolutionManifest =
         authorizeBasicTopLevelEntityOperationOrThrow(
@@ -1322,6 +1352,10 @@ public class PolarisAdminService {
   }
 
   public PolarisEntity createPrincipalRole(PolarisEntity entity) {
+    return ConfirmedConflictRetry.run(() -> createPrincipalRoleOnce(entity));
+  }
+
+  private PolarisEntity createPrincipalRoleOnce(PolarisEntity entity) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.CREATE_PRINCIPAL_ROLE;
     authorizeBasicRootOperationOrThrow(op);
 
@@ -1345,6 +1379,14 @@ public class PolarisAdminService {
   }
 
   public void deletePrincipalRole(String name) {
+    ConfirmedConflictRetry.run(
+        () -> {
+          deletePrincipalRoleOnce(name);
+          return null;
+        });
+  }
+
+  private void deletePrincipalRoleOnce(String name) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.DELETE_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeBasicTopLevelEntityOperationOrThrow(op, name, PolarisEntityType.PRINCIPAL_ROLE);
@@ -1370,6 +1412,11 @@ public class PolarisAdminService {
   }
 
   public @NonNull PrincipalRoleEntity updatePrincipalRole(
+      String name, UpdatePrincipalRoleRequest updateRequest) {
+    return ConfirmedConflictRetry.run(() -> updatePrincipalRoleOnce(name, updateRequest));
+  }
+
+  private @NonNull PrincipalRoleEntity updatePrincipalRoleOnce(
       String name, UpdatePrincipalRoleRequest updateRequest) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.UPDATE_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
@@ -1423,6 +1470,10 @@ public class PolarisAdminService {
   }
 
   public PolarisEntity createCatalogRole(String catalogName, PolarisEntity entity) {
+    return ConfirmedConflictRetry.run(() -> createCatalogRoleOnce(catalogName, entity));
+  }
+
+  private PolarisEntity createCatalogRoleOnce(String catalogName, PolarisEntity entity) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.CREATE_CATALOG_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeBasicTopLevelEntityOperationOrThrow(op, catalogName, PolarisEntityType.CATALOG);
@@ -1451,6 +1502,14 @@ public class PolarisAdminService {
   }
 
   public void deleteCatalogRole(String catalogName, String name) {
+    ConfirmedConflictRetry.run(
+        () -> {
+          deleteCatalogRoleOnce(catalogName, name);
+          return null;
+        });
+  }
+
+  private void deleteCatalogRoleOnce(String catalogName, String name) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.DELETE_CATALOG_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeBasicCatalogRoleOperationOrThrow(op, catalogName, name);
@@ -1484,6 +1543,12 @@ public class PolarisAdminService {
   }
 
   public @NonNull CatalogRoleEntity updateCatalogRole(
+      String catalogName, String name, UpdateCatalogRoleRequest updateRequest) {
+    return ConfirmedConflictRetry.run(
+        () -> updateCatalogRoleOnce(catalogName, name, updateRequest));
+  }
+
+  private @NonNull CatalogRoleEntity updateCatalogRoleOnce(
       String catalogName, String name, UpdateCatalogRoleRequest updateRequest) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.UPDATE_CATALOG_ROLE;
     PolarisResolutionManifest resolutionManifest =
@@ -1542,6 +1607,11 @@ public class PolarisAdminService {
   }
 
   public PrivilegeResult assignPrincipalRole(String principalName, String principalRoleName) {
+    return ConfirmedConflictRetry.run(
+        () -> assignPrincipalRoleOnce(principalName, principalRoleName));
+  }
+
+  private PrivilegeResult assignPrincipalRoleOnce(String principalName, String principalRoleName) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.ASSIGN_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeGrantOnPrincipalRoleToPrincipalOperationOrThrow(
@@ -1561,6 +1631,11 @@ public class PolarisAdminService {
   }
 
   public PrivilegeResult revokePrincipalRole(String principalName, String principalRoleName) {
+    return ConfirmedConflictRetry.run(
+        () -> revokePrincipalRoleOnce(principalName, principalRoleName));
+  }
+
+  private PrivilegeResult revokePrincipalRoleOnce(String principalName, String principalRoleName) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.REVOKE_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeGrantOnPrincipalRoleToPrincipalOperationOrThrow(
@@ -1594,6 +1669,13 @@ public class PolarisAdminService {
 
   public PrivilegeResult assignCatalogRoleToPrincipalRole(
       String principalRoleName, String catalogName, String catalogRoleName) {
+    return ConfirmedConflictRetry.run(
+        () ->
+            assignCatalogRoleToPrincipalRoleOnce(principalRoleName, catalogName, catalogRoleName));
+  }
+
+  private PrivilegeResult assignCatalogRoleToPrincipalRoleOnce(
+      String principalRoleName, String catalogName, String catalogRoleName) {
     PolarisAuthorizableOperation op =
         PolarisAuthorizableOperation.ASSIGN_CATALOG_ROLE_TO_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
@@ -1610,6 +1692,14 @@ public class PolarisAdminService {
   }
 
   public PrivilegeResult revokeCatalogRoleFromPrincipalRole(
+      String principalRoleName, String catalogName, String catalogRoleName) {
+    return ConfirmedConflictRetry.run(
+        () ->
+            revokeCatalogRoleFromPrincipalRoleOnce(
+                principalRoleName, catalogName, catalogRoleName));
+  }
+
+  private PrivilegeResult revokeCatalogRoleFromPrincipalRoleOnce(
       String principalRoleName, String catalogName, String catalogRoleName) {
     PolarisAuthorizableOperation op =
         PolarisAuthorizableOperation.REVOKE_CATALOG_ROLE_FROM_PRINCIPAL_ROLE;
@@ -1696,6 +1786,12 @@ public class PolarisAdminService {
   /** Adds a grant on the root container of this realm to {@code principalRoleName}. */
   public PrivilegeResult grantPrivilegeOnRootContainerToPrincipalRole(
       String principalRoleName, PolarisPrivilege privilege) {
+    return ConfirmedConflictRetry.run(
+        () -> grantPrivilegeOnRootContainerToPrincipalRoleOnce(principalRoleName, privilege));
+  }
+
+  private PrivilegeResult grantPrivilegeOnRootContainerToPrincipalRoleOnce(
+      String principalRoleName, PolarisPrivilege privilege) {
     PolarisAuthorizableOperation op = PolarisAuthorizableOperation.ADD_ROOT_GRANT_TO_PRINCIPAL_ROLE;
     PolarisResolutionManifest resolutionManifest =
         authorizeGrantOnRootContainerToPrincipalRoleOperationOrThrow(op, principalRoleName);
@@ -1711,6 +1807,12 @@ public class PolarisAdminService {
 
   /** Revokes a grant on the root container of this realm from {@code principalRoleName}. */
   public PrivilegeResult revokePrivilegeOnRootContainerFromPrincipalRole(
+      String principalRoleName, PolarisPrivilege privilege) {
+    return ConfirmedConflictRetry.run(
+        () -> revokePrivilegeOnRootContainerFromPrincipalRoleOnce(principalRoleName, privilege));
+  }
+
+  private PrivilegeResult revokePrivilegeOnRootContainerFromPrincipalRoleOnce(
       String principalRoleName, PolarisPrivilege privilege) {
     PolarisAuthorizableOperation op =
         PolarisAuthorizableOperation.REVOKE_ROOT_GRANT_FROM_PRINCIPAL_ROLE;
@@ -1732,6 +1834,12 @@ public class PolarisAdminService {
    */
   public PrivilegeResult grantPrivilegeOnCatalogToRole(
       String catalogName, String catalogRoleName, PolarisPrivilege privilege) {
+    return ConfirmedConflictRetry.run(
+        () -> grantPrivilegeOnCatalogToRoleOnce(catalogName, catalogRoleName, privilege));
+  }
+
+  private PrivilegeResult grantPrivilegeOnCatalogToRoleOnce(
+      String catalogName, String catalogRoleName, PolarisPrivilege privilege) {
     PolarisAuthorizableOperation op =
         PolarisAuthorizableOperation.ADD_CATALOG_GRANT_TO_CATALOG_ROLE;
 
@@ -1751,6 +1859,12 @@ public class PolarisAdminService {
 
   /** Removes a catalog-level grant on {@code catalogName} from {@code catalogRoleName}. */
   public PrivilegeResult revokePrivilegeOnCatalogFromRole(
+      String catalogName, String catalogRoleName, PolarisPrivilege privilege) {
+    return ConfirmedConflictRetry.run(
+        () -> revokePrivilegeOnCatalogFromRoleOnce(catalogName, catalogRoleName, privilege));
+  }
+
+  private PrivilegeResult revokePrivilegeOnCatalogFromRoleOnce(
       String catalogName, String catalogRoleName, PolarisPrivilege privilege) {
     PolarisAuthorizableOperation op =
         PolarisAuthorizableOperation.REVOKE_CATALOG_GRANT_FROM_CATALOG_ROLE;

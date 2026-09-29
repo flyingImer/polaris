@@ -1,0 +1,297 @@
+{
+  "backend": "spanner",
+  "run": "terminal-attempts",
+  "exit_code": 0,
+  "counts": {
+    "passed": 44,
+    "failed": 0,
+    "skipped": 3
+  },
+  "tests": [
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "test": "readViewKeepsOneSnapshotAcrossConcurrentPublication()",
+      "status": "passed",
+      "seconds": 2.403
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "test": "failureAfterFirstWriteChunkRollsBackWholeBatch()",
+      "status": "passed",
+      "seconds": 0.129
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "test": "terminalBatchPublishesMixedMutations()",
+      "status": "passed",
+      "seconds": 0.076
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "test": "emptyRangeAndUnchangedParentPreventOrphan()",
+      "status": "skipped",
+      "seconds": 0.057,
+      "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 is not an isolation proof; Spanner emulator database-wide locks cannot run this schedule"
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "test": "batchReadPreservesMissingKeysOrderAndDuplicates()",
+      "status": "passed",
+      "seconds": 0.092
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "atomicResetRejectRetainsOldCredentialsAndClientId()",
+      "status": "passed",
+      "seconds": 0.652
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "concurrentLocationChecksCannotBothPublishOverlappingSiblings()",
+      "status": "skipped",
+      "seconds": 0.177,
+      "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 does not prove range isolation; Spanner emulator cannot rendezvous concurrent reads"
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "atomicResetUpdatesPrincipalAndSecretsTogether()",
+      "status": "passed",
+      "seconds": 0.239
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "dropFailureRollsBackCleanupAndVersions()",
+      "status": "passed",
+      "seconds": 0.295
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "lostCatalogResponseIsUnknownWithoutReplay()",
+      "status": "passed",
+      "seconds": 0.164
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "batchLocationValidationRejectsItsOwnOverlappingCreates()",
+      "status": "passed",
+      "seconds": 0.482
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "changedUnmodifiedAncestorRejectsStaleValidation()",
+      "status": "passed",
+      "seconds": 0.192
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "revokeFailureRollsBackGrantAndEndpointVersions()",
+      "status": "passed",
+      "seconds": 0.169
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "viewMetadataLocationProtectsOverlapWithoutBecomingStorageRoot()",
+      "status": "passed",
+      "seconds": 0.299
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "managerNamespaceCreateDeleteRaceCannotPublishAnOrphan()",
+      "status": "skipped",
+      "seconds": 0.13,
+      "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 does not prove range isolation; Spanner emulator cannot rendezvous concurrent reads"
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "atomicResetCannotTakeAnotherPrincipalsClientId()",
+      "status": "passed",
+      "seconds": 0.213
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "bulkCreateRejectsTwoIdsWithSameNameBeforeAnyWrites()",
+      "status": "passed",
+      "seconds": 0.166
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "locationValidationProtectsSiblingsAndIgnoresSelfOnUnrelatedUpdate()",
+      "status": "passed",
+      "seconds": 0.273
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "test": "catalogRejectPublishesNothing()",
+      "status": "passed",
+      "seconds": 0.156
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+      "status": "passed",
+      "seconds": 0.118
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testGrantRecordWriteIsIdempotent()",
+      "status": "passed",
+      "seconds": 2.041
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateTestCatalog()",
+      "status": "passed",
+      "seconds": 3.675
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadGrantsGranteeVsSecurableRecords()",
+      "status": "passed",
+      "seconds": 0.415
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+      "status": "passed",
+      "seconds": 0.363
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testBootstrapAgainIsNoOp()",
+      "status": "passed",
+      "seconds": 0.201
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+      "status": "passed",
+      "seconds": 0.142
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadResolvedEntitiesById()",
+      "status": "passed",
+      "seconds": 0.293
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testDropEntities()",
+      "status": "passed",
+      "seconds": 5.239
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testPolicyMappingCleanup()",
+      "status": "passed",
+      "seconds": 3.372
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+      "status": "passed",
+      "seconds": 0.22
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "validateBootstrap()",
+      "status": "passed",
+      "seconds": 0.24
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateTestCatalogWithRetry()",
+      "status": "passed",
+      "seconds": 7.449
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testEntityCache()",
+      "status": "passed",
+      "seconds": 6.212
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testPolicyMapping()",
+      "status": "passed",
+      "seconds": 4.861
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateTasksInParallel()",
+      "status": "passed",
+      "seconds": 1.071
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testRenameAcrossCatalogsIsRejected()",
+      "status": "passed",
+      "seconds": 5.186
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadTasksInParallel()",
+      "status": "passed",
+      "seconds": 4.334
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testResetCredentialsClientIdCollision()",
+      "status": "passed",
+      "seconds": 0.33
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testBrowse()",
+      "status": "passed",
+      "seconds": 6.811
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateEntitiesWithConflict()",
+      "status": "passed",
+      "seconds": 0.137
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLookup()",
+      "status": "passed",
+      "seconds": 0.381
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testRename()",
+      "status": "passed",
+      "seconds": 7.588
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateEntitiesAlreadyExisting()",
+      "status": "passed",
+      "seconds": 0.138
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testUpdateEntities()",
+      "status": "passed",
+      "seconds": 7.299
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testCreateEntities()",
+      "status": "passed",
+      "seconds": 0.146
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testPrivileges()",
+      "status": "passed",
+      "seconds": 10.385
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "test": "testLoadTasks()",
+      "status": "passed",
+      "seconds": 1.586
+    }
+  ]
+}
