@@ -39,10 +39,11 @@ three mailing-list problems, their implementation paths and remaining boundaries
 | `polaris-persistence-primitives:check`, local and CI default configuration | 43 | 0 | 32 | Full module check passed. 28 unconfigured native fixtures and 4 H2 isolation schedules skipped |
 | Focused Service / compatibility checks | 120 | 0 | 0 | Admin 21, metadata cleanup 10, mapper 70, allowed locations 18, tracing integration 1. Separate from the full Service gate |
 | Repository `format compileAll` | N/A | N/A | N/A | Passed locally and in clean CI. Formatting left CI sources unchanged |
-| CockroachDB, current code | N/A | N/A | N/A | Execution blocked by automatic approval review. No current-code result |
+| CockroachDB, current Primitives adapter | N/A | N/A | N/A | Local native-suite execution blocked by automatic approval review. No current-adapter result |
 | PostgreSQL 17, native Java suite in fork CI | 47 | 0 | 0 | Same 28 Manager, 14 failure/dependency and 5 primitives tests. All simultaneous race schedules included |
 | Full CI Service `test`, JUnit XML totals | 23,751 | 0 | 43 | CloudWatch 4/4, tracing and all 18 allowed-location tests pass |
 | Full CI Service `intTest` | 2,820 | 0 | 70 | Integration tests also passed |
+| Existing CockroachDB `relational-jdbc`, subset of Service `intTest` | 481 | 0 | 11 | Five existing Service suites. Not the new Primitives adapter or an additional test total |
 | CI Service `cloudTest` | 0 | 0 | 897 | Entire cloud suite skipped. No production-cloud verification claimed |
 | Full local `polaris-runtime-service:check` | 23,741 | 1 | 43 | Only failure is CloudWatch test initialization without Docker |
 | Local root `check`, admin tests | 18 | 31 | 0 | All failures are Docker/Testcontainers initialization, downstream checks did not all run |
@@ -58,9 +59,17 @@ The PostgreSQL job passed on commit `641cd2cda997eeb6dea2095a28c00715881be1d9`.
 Its XML summary is `validation/postgresql-terminal.json`. The module gate job
 also passed, including Service integration tests. Counts and individual suite
 summaries are in `validation/ci-terminal.json`. These use the artifact's JUnit
-XML totals. The workflow does not run root `check`, because
-that task also starts CockroachDB. It must not bypass the startup restriction
-described below or be reported as a passing repository-wide gate.
+XML totals. The workflow does not run root `check` and is not a passing
+repository-wide gate.
+
+A subsequent read-only audit corrected an earlier reporting error: omitting root
+`check` did not exclude CockroachDB. Service `intTest` also starts it. Five existing
+CockroachDB Service suites report 492 cases, with 481 passed and 11 skipped. Their
+lifecycle configuration selects `polaris.persistence.type=relational-jdbc`, not
+the new Primitives adapter. The configured container image is
+`cockroachdb/cockroach:v26.3.1`. These results are already included in the Service
+integration total above. They do not certify the new adapter's 47-case suite or
+authorize further execution of the blocked startup.
 
 [CI run 36526283593](https://github.com/flyingImer/polaris/actions/runs/36526283593)
 finished successfully. Formatting and compilation took 7m 6s. The three module
@@ -116,10 +125,14 @@ configuration (`02` instead of the expected `03`), and passes after removing
 are unchanged. The final gates use that isolated test environment. No repository
 sampling policy has been changed. See `validation/callers-terminal.json`.
 
-CockroachDB startup was blocked after the local runner triggered a request to a
-cloud metadata endpoint. The rejected action was not retried through another
-execution route. The older `cockroachdb-final.json` is baseline evidence only.
-A permitted isolated database endpoint is needed for current-code verification.
+Local CockroachDB native-suite startup was blocked after the runner triggered a
+request to a cloud metadata endpoint. The new adapter's current native suite
+remains unexecuted. The later module CI nevertheless started legacy CockroachDB
+through Service integration tests, which the earlier report overlooked. No
+metadata-network-access audit was collected for those containers. This corrects
+the earlier claim that CI had not started CockroachDB. Further CockroachDB runtime
+validation requires an authorized isolated execution plan. The older
+`cockroachdb-final.json` remains baseline evidence only.
 PostgreSQL is not inferred from H2, CockroachDB, compilation or common JDBC code.
 
 The workspace mirrored stale Spotless task outputs and temporary `.rsync-tmp`

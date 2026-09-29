@@ -1,8 +1,26 @@
 {
   "backend": "cockroachdb",
   "run": "terminal-attempts",
+  "scope": "Current Primitives adapter native conformance suite",
   "status": "blocked_by_automatic_approval_review",
   "executed_test_counts": null,
-  "reason": "Local server startup triggered a cloud metadata endpoint request. No current-code result is claimed; the blocked action was not retried through an alternate execution route.",
-  "previous_result": "cockroachdb-final.json describes the earlier committed baseline only."
+  "reason": "Local server startup triggered a cloud metadata endpoint request. No current Primitives adapter native-suite result is claimed. Further runtime validation requires an authorized isolated execution plan.",
+  "previous_result": "cockroachdb-final.json describes the earlier committed baseline only.",
+  "reporting_correction": "The later module CI did start legacy CockroachDB through Service intTest. The earlier claim that CI had not started CockroachDB was incorrect. No metadata-network-access audit was collected for those containers.",
+  "legacy_service_ci": {
+    "source_commit": "641cd2cda997eeb6dea2095a28c00715881be1d9",
+    "run_id": "36526283593",
+    "job_id": "109269943842",
+    "persistence_type": "relational-jdbc",
+    "configured_container_image": "cockroachdb/cockroach:v26.3.1",
+    "result_group": "runtime/service/build/test-results/intTest",
+    "suite_count": 5,
+    "tests": 492,
+    "passed": 481,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 11,
+    "source_report": "ci-terminal.json",
+    "scope": "Existing Service integration suites, already included in the Service intTest totals. Not the new Primitives adapter's native conformance suite. Not a new execution or authorization to rerun the blocked startup."
+  }
 }

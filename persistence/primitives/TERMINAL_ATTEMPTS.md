@@ -63,8 +63,8 @@ The source problems remain the starting point:
 | Drop stops during cleanup | Read grants/policy mappings and surviving endpoints, then publish all deletions and version updates together | Inherited deletion fixtures. Injected cleanup failure leaves the entire snapshot unchanged | Large-set loading/capacity and production reclamation remain onboarding work |
 | Validation uses unchanged objects | Manager revalidates caller-observed ancestor entity versions inside the publishing attempt | Stale unmodified ancestor rejects child creation with no writes | Only supplied observations are covered. The SPI cannot infer an arbitrary Feature precheck |
 | Empty namespace becomes nonempty during deletion | Parent existence and child range belong to opposing protected attempts | Actual Manager create/delete race plus primitive race on FDB and PostgreSQL | Emulator cannot execute the simultaneous read/write rendezvous |
-| Location range changes after early validation | Shared Manager rereads catalog/sibling range and current values. Validates the proposed batch against itself | Overlapping batch and sequential rejection tests. Concurrent sibling-location race on FDB | Optional optimized global lookup remains unsupported. Full scans are not a tuned schema |
-| Composed entity/grant observation is inconsistent | Existing resolved-read workflows share a read view. Batch fetches preserve the same context | Inherited resolved-read fixtures. Snapshot retained across another commit on FDB and Spanner emulator | Arbitrary Feature call sequences, caller caches and multiple pages are not one snapshot |
+| Location range changes after early validation | Shared Manager rereads catalog/sibling range and current values. Validates the proposed batch against itself | Overlapping batch and sequential rejection tests. Concurrent sibling-location race on FDB and PostgreSQL | Optional optimized global lookup remains unsupported. Full scans are not a tuned schema |
+| Composed entity/grant observation is inconsistent | Existing resolved-read workflows share a read view. Batch fetches preserve the same context | Inherited resolved-read fixtures. Snapshot retained across another commit on FDB, PostgreSQL and Spanner emulator | Arbitrary Feature call sequences, caller caches and multiple pages are not one snapshot |
 | Conflict reaches the wrong retry boundary | Only confirmed abort enters bounded replay. Feature retry creates a fresh manifest and authorizes again | Actual admin Service tests: reauthorization, revoked permission stops the second submission, stale/UNKNOWN are not replayed | No automatic replay added to multi-phase synthetic-entity or external-effect flows |
 | Helper success is confused with durable publication | Native commit precedes return from the shared wrapper. Multi-table Feature workspace still has explicit final publication | Real Manager failures and actual Service calls using the PoC persistence | Existing workspace staging remains staging, not an independent durable success |
 | Failure cleanup assumes abort after response loss | Table, view, multi-table and external-catalog callers retain potentially live metadata/secrets on UNKNOWN | Service tests inject uncertainty both before and after actual publication. Confirmed failures clean new multi-table files | No recovery receipt or automatic uncertainty resolver. Production failure injection still needed |
@@ -143,7 +143,15 @@ Clean CI also passes formatting, compilation and all three touched-module checks
 including Service integration tests. Cloud tests remain skipped.
 
 The PoC implementation and selected native evidence are now recorded on the branch.
-The remaining repository gate needs a permitted CockroachDB test environment.
-Production Spanner concurrency, performance and data migration remain unverified.
-The earlier CockroachDB result applies only to its recorded baseline. It must not be reused
-as evidence for this checkpoint.
+A read-only audit found that the passing Service integration gate includes five
+existing CockroachDB suites, with 481 passed and 11 skipped. They use the legacy
+`relational-jdbc` implementation, not the new Primitives adapter. The earlier
+report that CI did not start CockroachDB was incorrect. See
+[VALIDATION.md](VALIDATION.md) for the corrected execution and permission boundary.
+
+The current Primitives adapter's CockroachDB native suite and the repository-wide
+`check` gate remain unverified. Further CockroachDB execution needs an authorized
+isolated plan. The full repository gate also covers other modules not certified
+by the three-module CI run. The older CockroachDB native result applies only to
+its recorded baseline, not this checkpoint. Production Spanner concurrency,
+performance and data migration remain unverified.
