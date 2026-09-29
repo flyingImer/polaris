@@ -68,6 +68,7 @@ jobs:
           path: |
             **/build/test-results/**
             **/build/reports/tests/**
+            **/build/reports/rat/**
             metadata-guard.json
           if-no-files-found: ignore
 
@@ -141,7 +142,6 @@ jobs:
             --network polaris-poc-isolated --cap-drop ALL \
             --security-opt no-new-privileges --memory 2g \
             cockroachdb/cockroach:v26.3.1 start-single-node --insecure \
-            --listen-addr=0.0.0.0:26257 --http-addr=0.0.0.0:8080 \
             --store=type=mem,size=1GiB --cache=128MiB --max-sql-memory=128MiB
           for attempt in $(seq 1 60); do
             if test "$(docker inspect --format '{{.State.Running}}' polaris-poc-cockroach)" != true; then
