@@ -21,10 +21,17 @@ package org.apache.polaris.service.task;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.assertj.core.api.Assertions.assertThatCode;
 import static org.assertj.core.api.Assertions.assertThatThrownBy;
+import static org.mockito.Mockito.mock;
+import static org.mockito.Mockito.times;
+import static org.mockito.Mockito.verify;
+import static org.mockito.Mockito.when;
 
 import java.time.Duration;
 import java.util.Map;
+import java.util.concurrent.BlockingQueue;
 import java.util.concurrent.CompletionException;
+import java.util.concurrent.LinkedBlockingQueue;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicInteger;
 import org.apache.polaris.core.PolarisCallContext;
@@ -42,8 +49,6 @@ import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
 import org.apache.polaris.core.persistence.dao.entity.PrincipalSecretsResult;
 import org.apache.polaris.service.TestServices;
-import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
-import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.events.EventAttributes;
 import org.apache.polaris.service.events.PolarisEvent;
 import org.apache.polaris.service.events.PolarisEventMetadata;
@@ -109,12 +114,10 @@ public class TaskExecutorImplTest {
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     executor.addTaskHandler(
@@ -181,12 +184,10 @@ public class TaskExecutorImplTest {
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     // No handlers registered
@@ -231,12 +232,10 @@ public class TaskExecutorImplTest {
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     executor.addTaskHandler(
@@ -295,12 +294,10 @@ public class TaskExecutorImplTest {
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     executor.addTaskHandler(
@@ -404,12 +401,10 @@ public class TaskExecutorImplTest {
             failingFactory,
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     executor.addTaskHandler(
@@ -474,12 +469,10 @@ public class TaskExecutorImplTest {
             testServices.metaStoreManagerFactory(),
             new TaskFileIOSupplier(
                 testServices.fileIOFactory(), testServices.storageAccessConfigProvider()),
-            new RealmContextHolder(),
             testServices.polarisEventDispatcher(),
             testServices.eventMetadataFactory(),
             null,
-            new PolarisPrincipalHolder(),
-            testServices.principal(),
+            mock(TaskContextPropagator.class),
             taskHandlerConfiguration());
 
     executor.addTaskHandler(
@@ -523,5 +516,51 @@ public class TaskExecutorImplTest {
                 new CompletionException(
                     new FileDeletionTimeoutException("timed out", new TimeoutException()))))
         .isFalse();
+  }
+
+  @Test
+  void testRetriesReuseContextCapturedAtSubmission() throws InterruptedException {
+    TestServices testServices = TestServices.builder().build();
+    BlockingQueue<Runnable> pending = new LinkedBlockingQueue<>();
+    TaskContextPropagator propagator = mock(TaskContextPropagator.class);
+    CapturedTaskContext captured =
+        new CapturedTaskContext(() -> "source-realm", testServices.principal(), "request-123");
+    when(propagator.capture()).thenReturn(captured);
+    AtomicInteger attempts = new AtomicInteger();
+
+    TaskExecutorImpl executor =
+        new TaskExecutorImpl(
+            pending::add,
+            null,
+            testServices.clock(),
+            testServices.metaStoreManagerFactory(),
+            null,
+            testServices.polarisEventDispatcher(),
+            testServices.eventMetadataFactory(),
+            null,
+            propagator,
+            taskHandlerConfiguration()) {
+          @Override
+          protected void handleTask(
+              long taskEntityId, CallContext ctx, PolarisEventMetadata metadata, int attempt) {
+            if (attempts.incrementAndGet() == 1) {
+              throw new IllegalStateException("transient task failure");
+            }
+          }
+        };
+
+    executor.addTaskHandlerContext(123L, testServices.newCallContext());
+    // Any recapture on a retry would access an expired source request scope.
+    when(propagator.capture()).thenThrow(new IllegalStateException("source scope ended"));
+
+    while (attempts.get() < 2) {
+      Runnable next = pending.poll(10, TimeUnit.SECONDS);
+      assertThat(next).isNotNull();
+      next.run();
+    }
+
+    assertThat(attempts).hasValue(2);
+    verify(propagator).capture();
+    verify(propagator, times(2)).restore(captured);
   }
 }
