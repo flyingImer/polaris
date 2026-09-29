@@ -41,7 +41,6 @@ class TaskContextPropagatorTest {
     RealmContext realmContext = mock(RealmContext.class);
     when(realmContext.getRealmIdentifier()).thenReturn("test-realm");
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
-    when(realmHolder.get()).thenReturn(realmContext);
 
     PolarisPrincipal principal = PolarisPrincipal.of("alice", AttributeMap.EMPTY, Set.of());
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
@@ -49,7 +48,11 @@ class TaskContextPropagatorTest {
 
     TaskContextPropagator propagator =
         new TaskContextPropagator(
-            realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
+            realmHolder,
+            mock(PolarisPrincipalHolder.class),
+            requestIdHolder,
+            realmContext,
+            principal);
 
     CapturedTaskContext captured = propagator.capture();
     when(realmContext.getRealmIdentifier()).thenThrow(new ContextNotActiveException());
@@ -61,12 +64,16 @@ class TaskContextPropagatorTest {
   void testCapturePrincipal() {
     PolarisPrincipal principal = PolarisPrincipal.of("bob", AttributeMap.EMPTY, Set.of());
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
-    when(realmHolder.get()).thenReturn(() -> "realm");
+    RealmContext realmContext = () -> "realm";
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
 
     TaskContextPropagator propagator =
         new TaskContextPropagator(
-            realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
+            realmHolder,
+            mock(PolarisPrincipalHolder.class),
+            requestIdHolder,
+            realmContext,
+            principal);
 
     CapturedTaskContext captured = propagator.capture();
     assertThat(captured.principal()).isNotSameAs(principal);
@@ -76,14 +83,18 @@ class TaskContextPropagatorTest {
   @Test
   void testCaptureRequestId() {
     RealmContextHolder realmHolder = mock(RealmContextHolder.class);
-    when(realmHolder.get()).thenReturn(() -> "realm");
+    RealmContext realmContext = () -> "realm";
     PolarisPrincipal principal = PolarisPrincipal.of("carol", AttributeMap.EMPTY, Set.of());
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
     when(requestIdHolder.get()).thenReturn("req-42");
 
     TaskContextPropagator propagator =
         new TaskContextPropagator(
-            realmHolder, mock(PolarisPrincipalHolder.class), requestIdHolder, principal);
+            realmHolder,
+            mock(PolarisPrincipalHolder.class),
+            requestIdHolder,
+            realmContext,
+            principal);
 
     CapturedTaskContext captured = propagator.capture();
     assertThat(captured.requestId()).isEqualTo("req-42");
@@ -99,7 +110,8 @@ class TaskContextPropagatorTest {
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
 
     TaskContextPropagator propagator =
-        new TaskContextPropagator(realmHolder, principalHolder, requestIdHolder, principal);
+        new TaskContextPropagator(
+            realmHolder, principalHolder, requestIdHolder, realmContext, principal);
 
     CapturedTaskContext captured = new CapturedTaskContext(realmContext, principal, "req-99");
 
@@ -117,7 +129,6 @@ class TaskContextPropagatorTest {
 
     // Source holders for capture
     RealmContextHolder sourceRealmHolder = mock(RealmContextHolder.class);
-    when(sourceRealmHolder.get()).thenReturn(realmContext);
     RequestIdHolder sourceRequestIdHolder = mock(RequestIdHolder.class);
     when(sourceRequestIdHolder.get()).thenReturn("req-rt");
 
@@ -126,6 +137,7 @@ class TaskContextPropagatorTest {
             sourceRealmHolder,
             mock(PolarisPrincipalHolder.class),
             sourceRequestIdHolder,
+            realmContext,
             principal);
 
     CapturedTaskContext captured = propagator.capture();
@@ -137,7 +149,11 @@ class TaskContextPropagatorTest {
 
     TaskContextPropagator targetPropagator =
         new TaskContextPropagator(
-            targetRealmHolder, targetPrincipalHolder, targetRequestIdHolder, principal);
+            targetRealmHolder,
+            targetPrincipalHolder,
+            targetRequestIdHolder,
+            realmContext,
+            principal);
 
     targetPropagator.restore(captured);
 
@@ -157,7 +173,8 @@ class TaskContextPropagatorTest {
     RequestIdHolder requestIdHolder = mock(RequestIdHolder.class);
 
     TaskContextPropagator propagator =
-        new TaskContextPropagator(realmHolder, principalHolder, requestIdHolder, principal);
+        new TaskContextPropagator(
+            realmHolder, principalHolder, requestIdHolder, realmContext, principal);
 
     CapturedTaskContext captured = new CapturedTaskContext(realmContext, principal, null);
 

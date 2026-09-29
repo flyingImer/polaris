@@ -22,6 +22,7 @@ import jakarta.enterprise.context.ApplicationScoped;
 import jakarta.inject.Inject;
 import org.apache.polaris.core.auth.ImmutablePolarisPrincipal;
 import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.context.RealmContext;
 import org.apache.polaris.service.context.catalog.PolarisPrincipalHolder;
 import org.apache.polaris.service.context.catalog.RealmContextHolder;
 import org.apache.polaris.service.context.catalog.RequestIdHolder;
@@ -44,11 +45,12 @@ class TaskContextPropagator {
   private final RealmContextHolder realmContextHolder;
   private final PolarisPrincipalHolder polarisPrincipalHolder;
   private final RequestIdHolder requestIdHolder;
+  private final RealmContext realmContext;
   private final PolarisPrincipal polarisPrincipal;
 
   @SuppressWarnings("unused") // Required by CDI
   protected TaskContextPropagator() {
-    this(null, null, null, null);
+    this(null, null, null, null, null);
   }
 
   @Inject
@@ -56,10 +58,12 @@ class TaskContextPropagator {
       RealmContextHolder realmContextHolder,
       PolarisPrincipalHolder polarisPrincipalHolder,
       RequestIdHolder requestIdHolder,
+      RealmContext realmContext,
       PolarisPrincipal polarisPrincipal) {
     this.realmContextHolder = realmContextHolder;
     this.polarisPrincipalHolder = polarisPrincipalHolder;
     this.requestIdHolder = requestIdHolder;
+    this.realmContext = realmContext;
     this.polarisPrincipal = polarisPrincipal;
   }
 
@@ -71,7 +75,7 @@ class TaskContextPropagator {
    * captured context is independent of the originating scope's lifecycle.
    */
   CapturedTaskContext capture() {
-    String realmId = realmContextHolder.get().getRealmIdentifier();
+    String realmId = realmContext.getRealmIdentifier();
     return new CapturedTaskContext(
         () -> realmId,
         ImmutablePolarisPrincipal.builder().from(polarisPrincipal).build(),
