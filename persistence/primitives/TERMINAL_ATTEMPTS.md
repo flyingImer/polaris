@@ -62,7 +62,7 @@ The source problems remain the starting point:
 | Catalog creation stops partway | Catalog, admin role, grants and recipient versions form one final batch | Inherited catalog fixtures. Rejection leaves no changes. Response-lost reports UNKNOWN without replay | External integration/service-identity lifecycle is separate |
 | Drop stops during cleanup | Read grants/policy mappings and surviving endpoints, then publish all deletions and version updates together | Inherited deletion fixtures. Injected cleanup failure leaves the entire snapshot unchanged | Large-set loading/capacity and production reclamation remain onboarding work |
 | Validation uses unchanged objects | Manager revalidates caller-observed ancestor entity versions inside the publishing attempt | Stale unmodified ancestor rejects child creation with no writes | Only supplied observations are covered. The SPI cannot infer an arbitrary Feature precheck |
-| Empty namespace becomes nonempty during deletion | Parent existence and child range belong to opposing protected attempts | Actual Manager create/delete race plus primitive race on FDB | Emulator cannot execute the simultaneous read/write rendezvous. PostgreSQL awaits execution |
+| Empty namespace becomes nonempty during deletion | Parent existence and child range belong to opposing protected attempts | Actual Manager create/delete race plus primitive race on FDB and PostgreSQL | Emulator cannot execute the simultaneous read/write rendezvous |
 | Location range changes after early validation | Shared Manager rereads catalog/sibling range and current values. Validates the proposed batch against itself | Overlapping batch and sequential rejection tests. Concurrent sibling-location race on FDB | Optional optimized global lookup remains unsupported. Full scans are not a tuned schema |
 | Composed entity/grant observation is inconsistent | Existing resolved-read workflows share a read view. Batch fetches preserve the same context | Inherited resolved-read fixtures. Snapshot retained across another commit on FDB and Spanner emulator | Arbitrary Feature call sequences, caller caches and multiple pages are not one snapshot |
 | Conflict reaches the wrong retry boundary | Only confirmed abort enters bounded replay. Feature retry creates a fresh manifest and authorizes again | Actual admin Service tests: reauthorization, revoked permission stops the second submission, stale/UNKNOWN are not replayed | No automatic replay added to multi-phase synthetic-entity or external-effect flows |
@@ -137,8 +137,9 @@ per-key calls but does not by itself prove native RPC parity or production speed
 ## Completion boundary
 
 The selected Java workflows and caller outcomes can now be reviewed against a
-single terminal-attempt model. Production readiness still requires PostgreSQL
-execution, a permitted current-code CockroachDB run, production Spanner concurrency
-validation, and the repository's environment-dependent checks. The earlier
+single terminal-attempt model. PostgreSQL now passes all 47 native tests on
+commit `641cd2cda997eeb6dea2095a28c00715881be1d9`, including the simultaneous races.
+Production readiness still requires a permitted current-code CockroachDB run,
+production Spanner concurrency validation, and the repository's environment-dependent checks. The earlier
 CockroachDB result applies only to its recorded baseline. It must not be reused
 as evidence for this checkpoint.

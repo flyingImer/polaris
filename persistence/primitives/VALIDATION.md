@@ -40,7 +40,7 @@ three mailing-list problems, their implementation paths and remaining boundaries
 | Focused Service / compatibility checks | 120 | 0 | 0 | Admin 21, metadata cleanup 10, mapper 70, allowed locations 18, tracing integration 1. Separate from the full Service gate |
 | Repository `format compileAll` | N/A | N/A | N/A | Passed, 1,027 actionable tasks |
 | CockroachDB, current code | N/A | N/A | N/A | Execution blocked by automatic approval review. No current-code result |
-| PostgreSQL | N/A | N/A | N/A | Fork CI execution pending |
+| PostgreSQL 17, native Java suite in fork CI | 47 | 0 | 0 | Same 28 Manager, 14 failure/dependency and 5 primitives tests. All simultaneous race schedules included |
 | Full local `polaris-runtime-service:check` | 23,741 | 1 | 43 | Only failure is CloudWatch test initialization without Docker |
 | Local root `check`, admin tests | 18 | 31 | 0 | All failures are Docker/Testcontainers initialization, downstream checks did not all run |
 
@@ -51,7 +51,9 @@ cases and is recorded separately. The root gate has not passed.
 The branch-specific `durable-java-poc.yml` workflow runs formatting, compilation
 and complete checks for the three touched modules on a Docker-capable runner.
 A separate job runs the same native Manager and attempt suite on PostgreSQL 17.
-These CI results are pending. The workflow does not run root `check`, because
+The PostgreSQL job passed on commit `641cd2cda997eeb6dea2095a28c00715881be1d9`.
+Its XML summary is `validation/postgresql-terminal.json`. The module gate job
+is still running. The workflow does not run root `check`, because
 that task also starts CockroachDB. It must not bypass the startup restriction
 described below or be reported as a passing repository-wide gate.
 

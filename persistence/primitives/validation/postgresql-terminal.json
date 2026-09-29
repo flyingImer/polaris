@@ -1,0 +1,237 @@
+{
+  "backend": "PostgreSQL 17",
+  "commit": "641cd2cda997eeb6dea2095a28c00715881be1d9",
+  "workflow_run": 36526283593,
+  "job": 109269943904,
+  "artifact": 11014916123,
+  "source": "GitHub Actions XML artifact",
+  "counts": {
+    "tests": 47,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0
+  },
+  "suites": [
+    {
+      "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+      "counts": {
+        "tests": 5,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "readViewKeepsOneSnapshotAcrossConcurrentPublication()",
+          "status": "passed"
+        },
+        {
+          "name": "failureAfterFirstWriteChunkRollsBackWholeBatch()",
+          "status": "passed"
+        },
+        {
+          "name": "terminalBatchPublishesMixedMutations()",
+          "status": "passed"
+        },
+        {
+          "name": "emptyRangeAndUnchangedParentPreventOrphan()",
+          "status": "passed"
+        },
+        {
+          "name": "batchReadPreservesMissingKeysOrderAndDuplicates()",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+      "counts": {
+        "tests": 14,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "atomicResetRejectRetainsOldCredentialsAndClientId()",
+          "status": "passed"
+        },
+        {
+          "name": "concurrentLocationChecksCannotBothPublishOverlappingSiblings()",
+          "status": "passed"
+        },
+        {
+          "name": "atomicResetUpdatesPrincipalAndSecretsTogether()",
+          "status": "passed"
+        },
+        {
+          "name": "dropFailureRollsBackCleanupAndVersions()",
+          "status": "passed"
+        },
+        {
+          "name": "lostCatalogResponseIsUnknownWithoutReplay()",
+          "status": "passed"
+        },
+        {
+          "name": "batchLocationValidationRejectsItsOwnOverlappingCreates()",
+          "status": "passed"
+        },
+        {
+          "name": "changedUnmodifiedAncestorRejectsStaleValidation()",
+          "status": "passed"
+        },
+        {
+          "name": "revokeFailureRollsBackGrantAndEndpointVersions()",
+          "status": "passed"
+        },
+        {
+          "name": "viewMetadataLocationProtectsOverlapWithoutBecomingStorageRoot()",
+          "status": "passed"
+        },
+        {
+          "name": "managerNamespaceCreateDeleteRaceCannotPublishAnOrphan()",
+          "status": "passed"
+        },
+        {
+          "name": "atomicResetCannotTakeAnotherPrincipalsClientId()",
+          "status": "passed"
+        },
+        {
+          "name": "bulkCreateRejectsTwoIdsWithSameNameBeforeAnyWrites()",
+          "status": "passed"
+        },
+        {
+          "name": "locationValidationProtectsSiblingsAndIgnoresSelfOnUnrelatedUpdate()",
+          "status": "passed"
+        },
+        {
+          "name": "catalogRejectPublishesNothing()",
+          "status": "passed"
+        }
+      ]
+    },
+    {
+      "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+      "counts": {
+        "tests": 28,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "tests": [
+        {
+          "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+          "status": "passed"
+        },
+        {
+          "name": "testGrantRecordWriteIsIdempotent()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTestCatalog()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadGrantsGranteeVsSecurableRecords()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+          "status": "passed"
+        },
+        {
+          "name": "testBootstrapAgainIsNoOp()",
+          "status": "passed"
+        },
+        {
+          "name": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitiesById()",
+          "status": "passed"
+        },
+        {
+          "name": "testDropEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testPolicyMappingCleanup()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+          "status": "passed"
+        },
+        {
+          "name": "validateBootstrap()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTestCatalogWithRetry()",
+          "status": "passed"
+        },
+        {
+          "name": "testEntityCache()",
+          "status": "passed"
+        },
+        {
+          "name": "testPolicyMapping()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateTasksInParallel()",
+          "status": "passed"
+        },
+        {
+          "name": "testRenameAcrossCatalogsIsRejected()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadTasksInParallel()",
+          "status": "passed"
+        },
+        {
+          "name": "testResetCredentialsClientIdCollision()",
+          "status": "passed"
+        },
+        {
+          "name": "testBrowse()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntitiesWithConflict()",
+          "status": "passed"
+        },
+        {
+          "name": "testLookup()",
+          "status": "passed"
+        },
+        {
+          "name": "testRename()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntitiesAlreadyExisting()",
+          "status": "passed"
+        },
+        {
+          "name": "testUpdateEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testCreateEntities()",
+          "status": "passed"
+        },
+        {
+          "name": "testPrivileges()",
+          "status": "passed"
+        },
+        {
+          "name": "testLoadTasks()",
+          "status": "passed"
+        }
+      ]
+    }
+  ]
+}
