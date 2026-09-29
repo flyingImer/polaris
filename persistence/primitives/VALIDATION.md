@@ -35,12 +35,15 @@ three mailing-list problems, their implementation paths and remaining boundaries
 |---|---:|---:|---:|---|
 | FDB 7.3.77, current native Java suite | 47 | 0 | 0 | All 28 inherited Manager fixtures, 14 Manager failure/dependency tests and 5 primitive tests |
 | Spanner emulator 1.5.57, current unfiltered suite | 44 | 0 | 3 | Both inherited parallel task tests included. Three simultaneous read/write rendezvous races skipped because of emulator locking |
-| `polaris-core:check` | 1,004 | 0 | 16 | Full module check passed, including the bounded retry policy tests |
-| `polaris-persistence-primitives:check`, default configuration | 43 | 0 | 32 | Full module check passed. 28 unconfigured native fixtures and 4 H2 isolation schedules skipped |
+| `polaris-core:check`, local and CI | 1,004 | 0 | 16 | Full module check passed, including the bounded retry policy tests |
+| `polaris-persistence-primitives:check`, local and CI default configuration | 43 | 0 | 32 | Full module check passed. 28 unconfigured native fixtures and 4 H2 isolation schedules skipped |
 | Focused Service / compatibility checks | 120 | 0 | 0 | Admin 21, metadata cleanup 10, mapper 70, allowed locations 18, tracing integration 1. Separate from the full Service gate |
-| Repository `format compileAll` | N/A | N/A | N/A | Passed, 1,027 actionable tasks |
+| Repository `format compileAll` | N/A | N/A | N/A | Passed locally and in clean CI. Formatting left CI sources unchanged |
 | CockroachDB, current code | N/A | N/A | N/A | Execution blocked by automatic approval review. No current-code result |
 | PostgreSQL 17, native Java suite in fork CI | 47 | 0 | 0 | Same 28 Manager, 14 failure/dependency and 5 primitives tests. All simultaneous race schedules included |
+| Full CI Service `test`, JUnit XML totals | 23,751 | 0 | 43 | CloudWatch 4/4, tracing and all 18 allowed-location tests pass |
+| Full CI Service `intTest` | 2,820 | 0 | 70 | Integration tests also passed |
+| CI Service `cloudTest` | 0 | 0 | 897 | Entire cloud suite skipped. No production-cloud verification claimed |
 | Full local `polaris-runtime-service:check` | 23,741 | 1 | 43 | Only failure is CloudWatch test initialization without Docker |
 | Local root `check`, admin tests | 18 | 31 | 0 | All failures are Docker/Testcontainers initialization, downstream checks did not all run |
 
@@ -53,9 +56,17 @@ and complete checks for the three touched modules on a Docker-capable runner.
 A separate job runs the same native Manager and attempt suite on PostgreSQL 17.
 The PostgreSQL job passed on commit `641cd2cda997eeb6dea2095a28c00715881be1d9`.
 Its XML summary is `validation/postgresql-terminal.json`. The module gate job
-is still running. The workflow does not run root `check`, because
+also passed, including Service integration tests. Counts and individual suite
+summaries are in `validation/ci-terminal.json`. These use the artifact's JUnit
+XML totals. The workflow does not run root `check`, because
 that task also starts CockroachDB. It must not bypass the startup restriction
 described below or be reported as a passing repository-wide gate.
+
+[CI run 36526283593](https://github.com/flyingImer/polaris/actions/runs/36526283593)
+finished successfully. Formatting and compilation took 7m 6s. The three module
+checks took 43m 46s, including roughly 20 additional minutes of Service integration
+tests after the unit tests. Local failure had prevented those later tasks from
+running. This is a test-run duration, not a backend performance measurement.
 
 FDB used a disposable single-node memory-engine configuration. Spanner used the
 local emulator. These runs do not measure crash recovery, replicated availability
@@ -71,8 +82,8 @@ operation. FDB and Spanner retain their native transaction through final commit.
 The new coverage includes stale unchanged ancestors, location overlap within a
 batch, protected namespace and sibling-location races, atomic local credential
 reset, and a composed read retaining one snapshot across another publication.
-The latter passes on both FDB and the Spanner emulator. H2 is only a wiring and
-rollback test, not an isolation proof.
+The latter passes on FDB, PostgreSQL and the Spanner emulator. H2 is only a wiring
+and rollback test, not an isolation proof.
 
 The first current-code Spanner run used a read/write context for pure reads and
 failed a contended inherited task test. Introducing an explicit read-only view
@@ -131,7 +142,7 @@ Its open retry/read-your-writes items should not be read as the current status.
 | CockroachDB 25.4.0, final native Java run | 35 | 0 | None | Same Manager and mapping code with the generic PostgreSQL JDBC adapter |
 | Spanner emulator 1.5.57, serial workflow run | 32 | 0 | 1 race skipped, 2 inherited parallel tests explicitly excluded | 26 upstream Manager fixtures, 4 fault tests, 2 primitive checks |
 | Spanner emulator, initial unfiltered run | 28 | 5 | 1 race skipped | Preserved failure evidence, explained below |
-| `polaris-core:check` | 1,001 | 0 | 16 tests skipped by upstream | Core tests, checkstyle and formatting checks passed |
+| `polaris-core:check`, local and CI | 1,001 | 0 | 16 tests skipped by upstream | Core tests, checkstyle and formatting checks passed |
 | `polaris-persistence-primitives:check`, default local configuration | 34 | 0 | 28 native fixtures unconfigured, 1 H2 race skipped | H2 Java wiring and fault tests. These do not prove native isolation |
 | PostgreSQL server | N/A | N/A | Not executed | Adapter compiled. CockroachDB results do not establish PostgreSQL behavior |
 | Repository `format compileAll` | N/A | N/A | Passed | Build successful, with 1,027 actionable tasks |

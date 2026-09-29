@@ -139,7 +139,11 @@ per-key calls but does not by itself prove native RPC parity or production speed
 The selected Java workflows and caller outcomes can now be reviewed against a
 single terminal-attempt model. PostgreSQL now passes all 47 native tests on
 commit `641cd2cda997eeb6dea2095a28c00715881be1d9`, including the simultaneous races.
-Production readiness still requires a permitted current-code CockroachDB run,
-production Spanner concurrency validation, and the repository's environment-dependent checks. The earlier
-CockroachDB result applies only to its recorded baseline. It must not be reused
+Clean CI also passes formatting, compilation and all three touched-module checks,
+including Service integration tests. Cloud tests remain skipped.
+
+The PoC implementation and selected native evidence are now recorded on the branch.
+The remaining repository gate needs a permitted CockroachDB test environment.
+Production Spanner concurrency, performance and data migration remain unverified.
+The earlier CockroachDB result applies only to its recorded baseline. It must not be reused
 as evidence for this checkpoint.

@@ -1,0 +1,2272 @@
+{
+  "commit": "641cd2cda997eeb6dea2095a28c00715881be1d9",
+  "workflow_run": 36526283593,
+  "job": 109269943842,
+  "artifact": 11016047962,
+  "conclusion": "success",
+  "format_compile": "success",
+  "format_leaves_sources_unchanged": true,
+  "source": "GitHub Actions JUnit XML artifact",
+  "scope": "Three touched module checks, including Service test and intTest. Root check is not covered.",
+  "groups": {
+    "persistence/primitives/build/test-results/test": {
+      "counts": {
+        "tests": 75,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 32
+      },
+      "suites": [
+        {
+          "class": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 2
+          }
+        },
+        {
+          "class": "org.apache.polaris.persistence.primitives.H2ManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 2
+          }
+        },
+        {
+          "class": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 28
+          }
+        }
+      ]
+    },
+    "polaris-core/build/test-results/test": {
+      "counts": {
+        "tests": 1020,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 16
+      },
+      "suites": [
+        {
+          "class": "org.apache.polaris.core.PolarisDefaultDiagServiceImplTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.DigestUtilsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.AuthorizationIntentResolverTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.AuthorizationPreConditionsTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.AuthorizationRequestTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.PolarisAuthorizerImplTest",
+          "counts": {
+            "tests": 122,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.PathSegmentTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.PolarisPrincipalTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.PolarisSecurableTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.auth.RbacOperationSemanticsTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.collection.ImmutableAttributeMapTest",
+          "counts": {
+            "tests": 26,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.collection.MutableAttributeMapTest",
+          "counts": {
+            "tests": 27,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.config.PolarisConfigurationTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.config.RealmConfigImplTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.connection.ConnectionConfigInfoDpoTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.connection.GcpAuthenticationParametersDpoTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.connection.iceberg.IcebergRestConnectionConfigInfoDpoTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.credentials.connection.ConnectionCredentialsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.entity.PolarisEntityTypeTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.entity.PolarisEntityUtilsTest",
+          "counts": {
+            "tests": 36,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.entity.PolarisPrivilegeTest",
+          "counts": {
+            "tests": 111,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.identity.credential.AwsIamServiceIdentityCredentialTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.AtomicOperationMetaStoreManagerCreateConflictTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.AtomicOperationMetaStoreManagerTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.ConfirmedConflictRetryTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.LocalPolarisMetaStoreManagerFactoryTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PolarisObjectMapperUtilTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PolarisResolutionManifestLookupKeyTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PolarisResolvedPathWrapperTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PolarisTreeMapAtomicOperationMetaStoreManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PolarisTreeMapMetaStoreManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.PrincipalSecretsGeneratorTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.ResolverTest",
+          "counts": {
+            "tests": 22,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.bootstrap.RootCredentialsSetTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.cache.EntityWeigherTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.cache.InMemoryEntityCacheTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.dao.entity.ReturnStatusTest",
+          "counts": {
+            "tests": 18,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.pagination.MalformedPageTokenTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.pagination.PageTokenTest",
+          "counts": {
+            "tests": 15,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.persistence.transactional.TreeMapMetaStoreTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.policy.MaintenancePolicyContentTest",
+          "counts": {
+            "tests": 38,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.policy.PolicyEntityTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.policy.PolicyMappingUtilTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.policy.PolicyTypeTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.policy.PolicyValidatorsTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.rest.NamespaceUtilsTest",
+          "counts": {
+            "tests": 91,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.rest.PolarisResourcePathsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.secrets.SecretReferenceTest",
+          "counts": {
+            "tests": 16,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.secrets.UnsafeInMemorySecretsManagerTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.PolarisConfigurationStoreTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.PolarisStorageConfigurationInfoTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.StorageAccessConfigTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.StorageLocationTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.StorageLocationValidatorTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.StorageUriTest",
+          "counts": {
+            "tests": 17,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.StorageUtilTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.AwsRoleSessionNameSanitizerTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 45,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.AwsSessionNameBuilderTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfoTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.S3LocationTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.aws.SessionNameFieldTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.azure.AzureCredentialStorageIntegrationTest",
+          "counts": {
+            "tests": 13,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 12
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.azure.AzureCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.azure.AzureLocationTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.cache.StorageCredentialCacheTest",
+          "counts": {
+            "tests": 16,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.gcp.GcpAttributionSubjectBuilderTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.gcp.GcpCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 46,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 3
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.gcp.GcpFederatedCredentialsExchangerTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.core.storage.gcp.GcpStorageCredentialCacheKeyTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        }
+      ]
+    },
+    "runtime/service/build/test-results/cloudTest": {
+      "counts": {
+        "tests": 897,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 897
+      },
+      "suites": [
+        {
+          "class": "org.apache.polaris.service.it.GcpCatalogFederationIntegrationIT",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogAdlsCredentialVendingIT",
+          "counts": {
+            "tests": 173,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 173
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogAdlsIT",
+          "counts": {
+            "tests": 173,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 173
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogGcsIT",
+          "counts": {
+            "tests": 173,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 173
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewAdlsCredentialVendingIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 51
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogS3IT",
+          "counts": {
+            "tests": 173,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 173
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewAdlsIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 51
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewGcsIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 51
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewS3IT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 51
+          }
+        }
+      ]
+    },
+    "runtime/service/build/test-results/intTest": {
+      "counts": {
+        "tests": 2890,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 70
+      },
+      "suites": [
+        {
+          "class": "org.apache.polaris.service.it.ApplicationIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.ManagementServiceIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolarisRestCatalogFlociAdlsIT",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolarisRestCatalogFlociS3IT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 9
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolarisRestCatalogFlociGcpIT",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolarisRestCatalogRustFSIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 9
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolicyServiceIT",
+          "counts": {
+            "tests": 49,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogFlociS3SpecialIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogFileIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogKeycloakFileIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogFlociS3SpecialKmsIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogRustFSSpecialIT",
+          "counts": {
+            "tests": 20,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewFileIT",
+          "counts": {
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.nosql.NoSqlApplicationIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.nosql.NoSqlCatalogIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 9
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.nosql.NoSqlManagementServiceIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachApplicationIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachManagementServiceIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachPolicyServiceIT",
+          "counts": {
+            "tests": 49,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachRestCatalogIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.cockroach.CockroachViewFileIT",
+          "counts": {
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.jdbc.JdbcApplicationIT",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.jdbc.JdbcPolicyServiceIT",
+          "counts": {
+            "tests": 49,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.jdbc.JdbcRestCatalogIT",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.jdbc.JdbcManagementServiceIT",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.relational.jdbc.JdbcViewFileIT",
+          "counts": {
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        }
+      ]
+    },
+    "runtime/service/build/test-results/test": {
+      "counts": {
+        "tests": 23794,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 43
+      },
+      "suites": [
+        {
+          "class": "org.apache.polaris.service.admin.DropEntityFailureMapperTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.ManagementServiceTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.PolarisAdminServiceTest",
+          "counts": {
+            "tests": 21,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.PolarisOverlappingCatalogTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.PolarisAdminServiceAuthzTest",
+          "counts": {
+            "tests": 4499,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.PolarisS3InteroperabilityTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.PolarisServiceImplTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.admin.SemanticModelGrantAuthzTest",
+          "counts": {
+            "tests": 257,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.AuthenticatingAugmentorTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.AuthenticationConfigurationTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.DefaultAuthenticatorTest",
+          "counts": {
+            "tests": 22,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.OidcPolarisCredentialAugmentorTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.OidcTenantResolvingAugmentorTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.mapping.ClaimsLocatorTest",
+          "counts": {
+            "tests": 25,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.mapping.DefaultPrincipalMapperTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.tenant.DefaultOidcTenantResolverTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.InternalAuthenticationMechanismTest",
+          "counts": {
+            "tests": 13,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.external.mapping.DefaultPrincipalRolesMapperTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.InternalAuthenticationServiceUnavailableTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.InternalIdentityProviderTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.JWTBrokerCredentialsBindingTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.JWTSymmetricKeyGeneratorTest",
+          "counts": {
+            "tests": 9,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.LocalRSAKeyProviderTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.PemUtilsTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.RSAKeyPairJWTBrokerTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.broker.TokenRequestValidatorTest",
+          "counts": {
+            "tests": 17,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.auth.internal.service.DefaultOAuth2ApiServiceTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.AccessDelegationModeTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.common.LocationUtilsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.AccessDelegationModeResolverTest",
+          "counts": {
+            "tests": 18,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.common.PolarisSecurableMapperTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalogHandlerAuthzTest",
+          "counts": {
+            "tests": 573,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalogRelationalTest",
+          "counts": {
+            "tests": 25,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.generic.PolarisGenericTableCatalogNoSqlInMemTest",
+          "counts": {
+            "tests": 25,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.CommitTransactionTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.GetConfigTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.EntityIdempotencyUpdateTableTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergAllowedLocationTest",
+          "counts": {
+            "tests": 18,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogAdapterTest",
+          "counts": {
+            "tests": 24,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerAuthzTest",
+          "counts": {
+            "tests": 7362,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerFineGrainedDisabledTest",
+          "counts": {
+            "tests": 114,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerNoSqlAuthzTest",
+          "counts": {
+            "tests": 7362,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerTest",
+          "counts": {
+            "tests": 29,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergOverlappingTableTest",
+          "counts": {
+            "tests": 17,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.IcebergTableLocationTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogNoSqlInMemTest",
+          "counts": {
+            "tests": 211,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 15
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogNoSqlOverlapTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogOverlapTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogRelationalOverlapTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogRelationalTest",
+          "counts": {
+            "tests": 211,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 15
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergViewCatalogNoSqlInMemTest",
+          "counts": {
+            "tests": 53,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.iceberg.LocalIcebergViewCatalogRelationalTest",
+          "counts": {
+            "tests": 53,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.io.ExceptionMappingFileIOTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.io.FileIOExceptionsTest",
+          "counts": {
+            "tests": 9,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.io.FileIOFactoryTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.io.WasbTranslatingFileIOTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.policy.PolicyCatalogHandlerAuthzTest",
+          "counts": {
+            "tests": 1616,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.policy.PolicyCatalogNoSqlInMemTest",
+          "counts": {
+            "tests": 26,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.policy.PolicyCatalogRelationalTest",
+          "counts": {
+            "tests": 26,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.policy.PolicyCatalogUtilsTest",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.catalog.validation.EntityNameValidatorTest",
+          "counts": {
+            "tests": 103,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.config.DefaultConfigurationStoreTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.config.ProductionReadinessChecksAddTrailingSlashTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.config.ProductionReadinessChecksTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.config.ProductionReadinessChecksGcsAttributionTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.config.ReservedPropertiesTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.context.DefaultRealmContextResolverTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.context.RealmContextFilterTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.credentials.connection.BearerConnectionCredentialVendorTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.credentials.DefaultPolarisCredentialManagerTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.credentials.connection.ImplicitConnectionCredentialVendorTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.credentials.connection.OAuthClientCredentialVendorTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.credentials.connection.SigV4ConnectionCredentialVendorTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.distcache.TestPersistenceDistCacheInvalidationsIntegration",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.entity.CatalogEntityTest",
+          "counts": {
+            "tests": 38,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.DefaultEventSanitizerTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.EventAttributesTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.GlobalEventSanitizationTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventListenerOldConfigurationTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventListenersHasListenersTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventListenersOrderedDeliveryTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventListenersTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventTypeTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.PolarisEventTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.RawEventAccessTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.jsonEventListener.aws.cloudwatch.AwsCloudWatchEventListenerTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.PolarisPersistenceEventListenerTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.TestPolarisEventListenerTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerBufferSizeTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerBufferTimeTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerIntegrationTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.events.listeners.opentelemetry.OpenTelemetryEventListenerTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.exception.ExceptionMapperTest",
+          "counts": {
+            "tests": 26,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.exception.IcebergExceptionMapperTest",
+          "counts": {
+            "tests": 70,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.http.IfNoneMatchTest",
+          "counts": {
+            "tests": 27,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.http.NumericParamConverterProviderTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.http.NumericQueryParameterTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.idempotency.EntityIdempotencyCreateTableTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.idempotency.IdempotencyKeyFilterTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.idempotency.EntityIdempotencyTest",
+          "counts": {
+            "tests": 15,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.identity.provider.DefaultServiceIdentityProviderTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.ApplicationIntegrationTest",
+          "counts": {
+            "tests": 22,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.PolicyServiceIntegrationTest",
+          "counts": {
+            "tests": 49,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.ManagementServiceIntegrationTest",
+          "counts": {
+            "tests": 51,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogFileIntegrationTest",
+          "counts": {
+            "tests": 321,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 10
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.it.RestCatalogViewFileIntegrationTest",
+          "counts": {
+            "tests": 52,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.LoggingMetricsReporterTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.RealmIdTagDisabledMetricsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.MeterFilterProducerTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.RealmIdTagEnabledMetricsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.UserPrincipalTagDisabledMetricsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.metrics.UserPrincipalTagEnabledMetricsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.ratelimiter.RateLimiterFilterTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.storage.StorageConfigurationTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.task.BatchFileCleanupTaskHandlerTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.task.FileCleanupTaskHandlerTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.task.ManifestFileCleanupTaskHandlerTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.task.TableCleanupTaskHandlerTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.task.TaskExecutorImplTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.tracing.DefaultRequestIdGeneratorTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.tracing.RequestIdFilterTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.tracing.RequestIdHeaderTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        },
+        {
+          "class": "org.apache.polaris.service.tracing.TracingFilterTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0
+          }
+        }
+      ]
+    }
+  },
+  "regression_controls": [
+    {
+      "class": "org.apache.polaris.service.catalog.iceberg.IcebergAllowedLocationTest",
+      "group": "runtime/service/build/test-results/test",
+      "counts": {
+        "tests": 18,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "class": "org.apache.polaris.service.events.jsonEventListener.aws.cloudwatch.AwsCloudWatchEventListenerTest",
+      "group": "runtime/service/build/test-results/test",
+      "counts": {
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerBufferSizeTest",
+      "group": "runtime/service/build/test-results/test",
+      "counts": {
+        "tests": 4,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerBufferTimeTest",
+      "group": "runtime/service/build/test-results/test",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    },
+    {
+      "class": "org.apache.polaris.service.events.listeners.inmemory.InMemoryBufferEventListenerIntegrationTest",
+      "group": "runtime/service/build/test-results/test",
+      "counts": {
+        "tests": 1,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      }
+    }
+  ],
+  "workflow_details": {
+    "run_url": "https://github.com/flyingImer/polaris/actions/runs/36526283593",
+    "jobs": [
+      {
+        "id": 109269943842,
+        "name": "gates",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Format and compile",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-09-29T05:28:20Z",
+            "completed_at": "2026-09-29T05:35:27Z"
+          },
+          {
+            "name": "Verify formatting leaves sources unchanged",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 7,
+            "started_at": "2026-09-29T05:35:27Z",
+            "completed_at": "2026-09-29T05:35:27Z"
+          },
+          {
+            "name": "Complete checks for the three touched modules",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 8,
+            "started_at": "2026-09-29T05:35:27Z",
+            "completed_at": "2026-09-29T06:19:14Z"
+          }
+        ]
+      },
+      {
+        "id": 109269943904,
+        "name": "postgres",
+        "conclusion": "success",
+        "steps": [
+          {
+            "name": "Native PostgreSQL Manager and attempt tests",
+            "status": "completed",
+            "conclusion": "success",
+            "number": 6,
+            "started_at": "2026-09-29T05:28:28Z",
+            "completed_at": "2026-09-29T05:31:04Z"
+          }
+        ]
+      }
+    ]
+  }
+}
