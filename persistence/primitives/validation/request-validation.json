@@ -2,7 +2,7 @@
   "date": "2026-09-30",
   "source_commit": "725d7b8870ddc972554cf80bffac7e3d19375ec5",
   "run_id": 36785806874,
-  "status": "pending",
+  "status": "postgres_verifier_failed_full_gate_pending",
   "production_java_changed": false,
   "local_attempt": {
     "status": "blocked_before_compilation",
@@ -218,6 +218,52 @@
         "bytes": 180
       }
     ]
+  },
+  "postgres_service": {
+    "job_id": 110126931769,
+    "artifact_id": 11130516895,
+    "sha256": "423e530175bb97da11c7fbe85a0df69557aef4340c4ef022df9b996206ea2e5c",
+    "reports": [
+      {
+        "name": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+        "tests": "10",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "org.apache.polaris.service.catalog.iceberg.PrimitiveRbacRetryTest",
+        "tests": "2",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "org.apache.polaris.service.catalog.iceberg.PrimitiveTableCreateTest",
+        "tests": "3",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0",
+        "cases": [
+          {
+            "name": "changedCatalogStorageConfigRejectsAlreadyValidatedCreate(Path)",
+            "status": "passed"
+          },
+          {
+            "name": "[1] true",
+            "status": "passed"
+          },
+          {
+            "name": "[2] false",
+            "status": "passed"
+          }
+        ]
+      }
+    ],
+    "service_status": "15_passed_0_failed_0_skipped",
+    "job_status": "failed_after_tests",
+    "post_test_verifier_failure": "The workflow searched parameterized JUnit case names for nativeConcurrentTableCreatesProtectLocations, but Gradle XML emitted [1] true and [2] false. Both cases passed; the verifier found neither.",
+    "native_manager_step": "not_run_after_post_test_verifier_failure"
   },
   "gates": {
     "job_id": 110126932043,

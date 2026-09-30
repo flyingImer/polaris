@@ -36,12 +36,26 @@ and fresh old-location rejection assertions had already passed.
 
 The fixture correction in `725d7b8870ddc972554cf80bffac7e3d19375ec5` tightens
 catalog allowed locations within the existing namespace. It preserves the
-namespace restriction and all assertions. The corrected source is being evaluated
-by [run 36785806874](https://github.com/flyingImer/polaris/actions/runs/36785806874).
-Its PostgreSQL and full-gate results are pending. CockroachDB has again passed
-47 tests with no failures or skips on this corrected source. The artifact digest
-matches GitHub metadata, and the retained Docker network remains internal.
-Production Java sources are unchanged.
+namespace restriction and all assertions. On the corrected source, the selected
+PostgreSQL Service step in
+[run 36785806874](https://github.com/flyingImer/polaris/actions/runs/36785806874)
+completed 15 cases with no failures, errors or skips. This covers both real-RBAC
+cases, all UNKNOWN reload cases, the corrected storage-config case, and both
+native PostgreSQL table-create races.
+
+The PostgreSQL job nevertheless failed in its post-test evidence assertion. The
+JUnit XML names the two parameterized race cases `[1] true` and `[2] false`, while
+the workflow searched those case names for the Java method name. The tests passed;
+the evidence assertion found neither case and stopped the job before the 47-case
+PostgreSQL Primitives suite. Its artifact is `11130516895`, with SHA-256
+`423e530175bb97da11c7fbe85a0df69557aef4340c4ef022df9b996206ea2e5c`.
+This is a workflow-verifier defect, not a Service assertion failure, but it keeps
+the PostgreSQL native result and complete workflow gate open. The full repository
+check is still running.
+
+CockroachDB has again passed 47 tests with no failures or skips on this corrected
+source. Its artifact digest matches GitHub metadata, and the retained Docker
+network remains internal. Production Java sources are unchanged.
 
 The first run also passed all 47 native CockroachDB tests with no skips, including
 the repaired worker-result collection. Format/compile, clean formatting and the
