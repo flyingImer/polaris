@@ -1,0 +1,53 @@
+{
+  "date": "2026-09-30",
+  "source_commit": "525afce1b3cbd5edcb5814a3240be33efe755e95",
+  "run_id": 36784333428,
+  "status": "pending",
+  "production_java_changed": false,
+  "local_attempt": {
+    "status": "blocked_before_compilation",
+    "reason": "Gradle could not resolve com.gradle.develocity:4.5.1"
+  },
+  "scenarios": [
+    "real RBAC with warm cache and persisted revocation, plus no-revocation control",
+    "effective catalog storage config changed after Feature validation",
+    "two actual table creations rendezvous at PostgreSQL publication, overlapping and non-overlapping controls",
+    "table/view/multi-table UNKNOWN pointer and content reload",
+    "both future results collected in three native races"
+  ],
+  "document_checks": {
+    "scope": "three newly reconstructed Markdown bodies",
+    "license_exception": "Required ASF HTML license headers retained. Generic linter rejects these comments, so body-only lint is separately scoped.",
+    "baseline_guards": "No project-specific drift profile applied",
+    "semantics": "Public validation record is based only on the public PoC code, workflow logs and JUnit artifacts. Review drafts remain private."
+  },
+  "cockroach": {
+    "job_id": 110121989142,
+    "artifact_id": 11128729521,
+    "sha256": "44e37a96a3172d056446fb143e1c8af5583fc3e7f23b9551e14de5a763b092d8",
+    "reports": [
+      {
+        "name": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+        "tests": "14",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+        "tests": "28",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
+      {
+        "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      }
+    ],
+    "status": "passed"
+  }
+}

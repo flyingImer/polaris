@@ -65,7 +65,7 @@ The source problems remain the starting point:
 | Empty namespace becomes nonempty during deletion | Parent existence and child range belong to opposing protected attempts | Actual Manager create/delete race plus primitive race on FDB and PostgreSQL | Emulator cannot execute the simultaneous read/write rendezvous |
 | Location range changes after early validation | Shared Manager rereads catalog/sibling range and current values. Validates the proposed batch against itself | Overlapping batch and sequential rejection tests. Concurrent sibling-location race on FDB and PostgreSQL | Optional optimized global lookup remains unsupported. Full scans are not a tuned schema |
 | Composed entity/grant observation is inconsistent | Existing resolved-read workflows share a read view. Batch fetches preserve the same context | Inherited resolved-read fixtures. Snapshot retained across another commit on FDB, PostgreSQL and Spanner emulator | Arbitrary Feature call sequences, caller caches and multiple pages are not one snapshot |
-| Conflict reaches the wrong retry boundary | Only confirmed abort enters bounded replay. Feature retry creates a fresh manifest and authorizes again | Actual admin Service tests: reauthorization, revoked permission stops the second submission, stale/UNKNOWN are not replayed | No automatic replay added to multi-phase synthetic-entity or external-effect flows |
+| Conflict reaches the wrong retry boundary | Only confirmed abort enters bounded replay. Feature retry creates a fresh manifest and authorizes again | Admin Service tests with a mock authorizer: repeated check, deny stops second submission, stale/UNKNOWN are not replayed | No automatic replay added to multi-phase synthetic-entity or external-effect flows |
 | Helper success is confused with durable publication | Native commit precedes return from the shared wrapper. Multi-table Feature workspace still has explicit final publication | Real Manager failures and actual Service calls using the PoC persistence | Existing workspace staging remains staging, not an independent durable success |
 | Failure cleanup assumes abort after response loss | Table, view, multi-table and external-catalog callers retain potentially live metadata/secrets on UNKNOWN | Service tests inject uncertainty both before and after actual publication. Confirmed failures clean new multi-table files | No recovery receipt or automatic uncertainty resolver. Production failure injection still needed |
 
@@ -155,7 +155,7 @@ all 47 again on the same source. The database ran on an internal Docker network,
 with verified metadata deny rules on the runner. No Java change was needed.
 See the isolated native reports linked from [VALIDATION.md](VALIDATION.md).
 
-The repository-wide `check` gate remains unverified. It also covers other modules
-not certified by the earlier three-module CI run. The older CockroachDB native
-result applies only to its recorded baseline, not this checkpoint. Production
-Spanner concurrency, performance and data migration remain unverified.
+The repaired repository-wide gate passed on `90af530` in run 36632123504.
+Later request-level tests require their own results, recorded in
+[VALIDATION.md](VALIDATION.md). Production Spanner concurrency, performance and
+data migration remain unverified.

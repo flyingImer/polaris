@@ -23,6 +23,17 @@ Base: `apache/polaris main @ a919f11e51ff76b5ef56633d8cb0429ff2b4c100`.
 Validation uses JDK 21 and the upstream Gradle 9.7.1 wrapper. Native results are
 versioned per checkpoint. An older result does not certify later code.
 
+## Additional request-level validation, 2026-09-30
+
+The new tests and three concurrent-result repairs are committed in
+`525afce1b3cbd5edcb5814a3240be33efe755e95`. They are being evaluated by
+[run 36784333428](https://github.com/flyingImer/polaris/actions/runs/36784333428).
+No passing result is claimed yet for the new Service cases. Their scenarios are
+recorded in [validation/request-validation.json](validation/request-validation.json).
+Production Java sources are unchanged. CockroachDB has passed all 47 native
+tests with no failures or skips on this source, including repaired worker-result
+collection. Its artifact digest and per-suite results are in that JSON record.
+
 ## Repaired repository gate, 2026-09-29
 
 [Run 36632123504](https://github.com/flyingImer/polaris/actions/runs/36632123504)
@@ -170,8 +181,9 @@ starting retries. The final unfiltered suite passes both parallel task tests.
 This is compatibility evidence, not a production latency or concurrency claim.
 The initial failed result is retained in `validation/spanner-terminal-initial.json`.
 
-Actual Service tests cover fresh authorization on conflict retry, stopping when
-permission is revoked, no retry for stale expectations or UNKNOWN, retention of
+At this checkpoint, Service tests with a mock authorizer cover authorization
+reinvocation and denial on retry. Separate tests cover no retry for stale
+expectations or UNKNOWN, retention of
 external-catalog secret references on uncertainty, and table/view/multi-table
 metadata retention when publication may have happened. Multi-table confirmed
 failures clean the newly written files. Uncertainty is injected both before and
