@@ -218,5 +218,12 @@
         "bytes": 180
       }
     ]
+  },
+  "gates": {
+    "job_id": 110126932043,
+    "format_compile": "passed",
+    "format_clean": "passed",
+    "bom_license": "passed",
+    "repository_check": "in_progress"
   }
 }
