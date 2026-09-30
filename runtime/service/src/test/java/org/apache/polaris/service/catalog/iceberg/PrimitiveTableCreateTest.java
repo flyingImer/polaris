@@ -75,6 +75,8 @@ class PrimitiveTableCreateTest {
     var inject = new AtomicBoolean();
     var intercepted = new AtomicInteger();
     String base = directory.toUri().toString().replaceAll("/+$", "");
+    // Tighten the catalog within the existing namespace's location restriction.
+    String tightenedRoot = base + "/old-root/ns/allowed";
     var services =
         services(
             new PrimitiveServiceTestFactory(),
@@ -99,12 +101,12 @@ class PrimitiveTableCreateTest {
                                       .getEntity());
                           var updated =
                               new CatalogEntity.Builder(catalog)
-                                  .setDefaultBaseLocation(base + "/new-root")
+                                  .setDefaultBaseLocation(tightenedRoot)
                                   .setStorageConfigurationInfo(
                                       context.getRealmConfig(),
                                       FileStorageConfigInfo.builder()
                                           .setStorageType(StorageConfigInfo.StorageTypeEnum.FILE)
-                                          .setAllowedLocations(List.of(base + "/new-root"))
+                                          .setAllowedLocations(List.of(tightenedRoot))
                                           .build())
                                   .build();
                           assertThat(
@@ -129,7 +131,7 @@ class PrimitiveTableCreateTest {
     // A fresh Feature request must now reject this location under the new effective config.
     assertThatThrownBy(() -> create(services, "fresh-invalid", base + "/old-root/ns/stale"))
         .isInstanceOf(ForbiddenException.class);
-    create(services, "fresh-valid", base + "/new-root/ns/valid");
+    create(services, "fresh-valid", tightenedRoot + "/valid");
     assertThat(tables(services)).containsExactly(TableIdentifier.of(NS, "fresh-valid"));
   }
 
