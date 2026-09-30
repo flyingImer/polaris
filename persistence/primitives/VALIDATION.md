@@ -25,14 +25,31 @@ versioned per checkpoint. An older result does not certify later code.
 
 ## Additional request-level validation, 2026-09-30
 
-The new tests and three concurrent-result repairs are committed in
-`525afce1b3cbd5edcb5814a3240be33efe755e95`. They are being evaluated by
-[run 36784333428](https://github.com/flyingImer/polaris/actions/runs/36784333428).
-No passing result is claimed yet for the new Service cases. Their scenarios are
-recorded in [validation/request-validation.json](validation/request-validation.json).
-Production Java sources are unchanged. CockroachDB has passed all 47 native
-tests with no failures or skips on this source, including repaired worker-result
-collection. Its artifact digest and per-suite results are in that JSON record.
+The tests and three concurrent-result repairs began at
+`525afce1b3cbd5edcb5814a3240be33efe755e95`. The first run,
+[36784333428](https://github.com/flyingImer/polaris/actions/runs/36784333428),
+passed 14 of 15 selected Service cases, including both native PostgreSQL table
+races, real RBAC retry and UNKNOWN metadata reload. Its sole failure was the
+storage-config test's positive control: the proposed new table location was
+outside the unchanged namespace parent restriction. The stale-request conflict
+and fresh old-location rejection assertions had already passed.
+
+The fixture correction in `725d7b8870ddc972554cf80bffac7e3d19375ec5` tightens
+catalog allowed locations within the existing namespace. It preserves the
+namespace restriction and all assertions. The corrected source is being evaluated
+by [run 36785806874](https://github.com/flyingImer/polaris/actions/runs/36785806874).
+Its PostgreSQL and full-gate results are pending. CockroachDB has again passed
+47 tests with no failures or skips on this corrected source. The artifact digest
+matches GitHub metadata, and the retained Docker network remains internal.
+Production Java sources are unchanged.
+
+The first run also passed all 47 native CockroachDB tests with no skips, including
+the repaired worker-result collection. Format/compile, clean formatting and the
+early BOM/license checks passed. Its full repository check was cancelled when
+the fixture fix started the replacement run. PostgreSQL's 47-case Manager suite
+did not run after the selected Service failure. Exact source revisions, artifact
+digests, cases and the retained failure are recorded in
+[validation/request-validation.json](validation/request-validation.json).
 
 ## Repaired repository gate, 2026-09-29
 

@@ -1,7 +1,7 @@
 {
   "date": "2026-09-30",
-  "source_commit": "525afce1b3cbd5edcb5814a3240be33efe755e95",
-  "run_id": 36784333428,
+  "source_commit": "725d7b8870ddc972554cf80bffac7e3d19375ec5",
+  "run_id": 36785806874,
   "status": "pending",
   "production_java_changed": false,
   "local_attempt": {
@@ -19,13 +19,170 @@
     "scope": "three newly reconstructed Markdown bodies",
     "license_exception": "Required ASF HTML license headers retained. Generic linter rejects these comments, so body-only lint is separately scoped.",
     "baseline_guards": "No project-specific drift profile applied",
-    "semantics": "Public validation record is based only on the public PoC code, workflow logs and JUnit artifacts. Review drafts remain private."
+    "semantics": "Public validation record is based only on the public PoC code, workflow logs and JUnit artifacts. Review drafts remain private.",
+    "body_lint": {
+      "status": "passed",
+      "blocking": 0,
+      "warnings": 0,
+      "checks": 15
+    }
+  },
+  "initial_run": {
+    "source_commit": "525afce1b3cbd5edcb5814a3240be33efe755e95",
+    "run_id": 36784333428,
+    "status": "superseded_after_targeted_failure",
+    "cockroach": {
+      "job_id": 110121989142,
+      "artifact_id": 11128729521,
+      "sha256": "44e37a96a3172d056446fb143e1c8af5583fc3e7f23b9551e14de5a763b092d8",
+      "reports": [
+        {
+          "name": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "tests": "14",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "tests": "28",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        },
+        {
+          "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "tests": "5",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0"
+        }
+      ],
+      "status": "passed"
+    },
+    "postgres_service": {
+      "job_id": 110121988818,
+      "artifact_id": 11129278649,
+      "sha256": "db9f6afc78e24bf081aecfcad723f67c1b3b15599c4ffc78d67150dc2c4e4f13",
+      "reports": [
+        {
+          "name": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+          "tests": "10",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "cases": [
+            {
+              "name": "testCommitTransactionCleansUpMetadataOnFailure(Path)",
+              "status": "passed"
+            },
+            {
+              "name": "[1] \"conflict\"",
+              "status": "passed"
+            },
+            {
+              "name": "[2] \"rejected\"",
+              "status": "passed"
+            },
+            {
+              "name": "[3] \"stale\"",
+              "status": "passed"
+            },
+            {
+              "name": "[1] false",
+              "status": "passed"
+            },
+            {
+              "name": "[2] true",
+              "status": "passed"
+            },
+            {
+              "name": "[1] false",
+              "status": "passed"
+            },
+            {
+              "name": "[2] true",
+              "status": "passed"
+            },
+            {
+              "name": "[1] false",
+              "status": "passed"
+            },
+            {
+              "name": "[2] true",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "name": "org.apache.polaris.service.catalog.iceberg.PrimitiveRbacRetryTest",
+          "tests": "2",
+          "failures": "0",
+          "errors": "0",
+          "skipped": "0",
+          "cases": [
+            {
+              "name": "[1] false",
+              "status": "passed"
+            },
+            {
+              "name": "[2] true",
+              "status": "passed"
+            }
+          ]
+        },
+        {
+          "name": "org.apache.polaris.service.catalog.iceberg.PrimitiveTableCreateTest",
+          "tests": "3",
+          "failures": "1",
+          "errors": "0",
+          "skipped": "0",
+          "cases": [
+            {
+              "name": "changedCatalogStorageConfigRejectsAlreadyValidatedCreate(Path)",
+              "status": "failed"
+            },
+            {
+              "name": "[1] true",
+              "status": "passed"
+            },
+            {
+              "name": "[2] false",
+              "status": "passed"
+            }
+          ]
+        }
+      ],
+      "status": "14_passed_1_failed",
+      "failure": "The storage-config positive control moved the table outside the unchanged namespace parent restriction. The stale-request conflict and old-location rejection assertions passed before this failure.",
+      "native_manager_step": "not_run_after_targeted_failure"
+    },
+    "gates": {
+      "job_id": 110121989048,
+      "format_compile": "passed",
+      "format_clean": "passed",
+      "bom_license": "passed",
+      "repository_check": "cancelled_when_fixture_fix_started_new_run"
+    }
+  },
+  "fixture_fix": "Tighten catalog allowed locations to a subtree within the existing namespace. Preserve the namespace restriction and all assertions.",
+  "jobs": {
+    "postgres": 110126931769,
+    "gates": 110126932043,
+    "cockroach": 110126932125
   },
   "cockroach": {
-    "job_id": 110121989142,
-    "artifact_id": 11128729521,
-    "sha256": "44e37a96a3172d056446fb143e1c8af5583fc3e7f23b9551e14de5a763b092d8",
+    "job_id": 110126932125,
+    "artifact_id": 11129931657,
+    "sha256": "d793d55265480bfcf6ecd42db0f066c9a36201c22d4175981ca5b23da84695e5",
     "reports": [
+      {
+        "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+        "tests": "5",
+        "failures": "0",
+        "errors": "0",
+        "skipped": "0"
+      },
       {
         "name": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
         "tests": "14",
@@ -39,15 +196,27 @@
         "failures": "0",
         "errors": "0",
         "skipped": "0"
-      },
-      {
-        "name": "org.apache.polaris.persistence.primitives.AttemptContractTest",
-        "tests": "5",
-        "failures": "0",
-        "errors": "0",
-        "skipped": "0"
       }
     ],
-    "status": "passed"
+    "status": "passed",
+    "internal_network": true,
+    "metadata_guard_counters": [
+      {
+        "family": "inet",
+        "name": "output_denied",
+        "table": "polaris_poc_guard",
+        "handle": 2,
+        "packets": 34,
+        "bytes": 1976
+      },
+      {
+        "family": "inet",
+        "name": "forward_denied",
+        "table": "polaris_poc_guard",
+        "handle": 10,
+        "packets": 3,
+        "bytes": 180
+      }
+    ]
   }
 }
