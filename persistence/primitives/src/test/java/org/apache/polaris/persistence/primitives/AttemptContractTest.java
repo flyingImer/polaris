@@ -135,7 +135,8 @@ class AttemptContractTest {
     String name = System.getProperty("poc.backend", "h2");
     Assumptions.assumeTrue(
         name.equals("fdb") || name.equals("jdbc"),
-        "H2 is not an isolation proof; Spanner emulator database-wide locks cannot run this schedule");
+        "H2 is not an isolation proof; Spanner emulator database-wide locks cannot run this"
+            + " schedule");
     String parent = prefix + "parent";
     String children = prefix + "children/";
     try (var attempt = backend.begin()) {
@@ -174,8 +175,9 @@ class AttemptContractTest {
                   return false;
                 }
               });
-      assertThat(deletion.get(30, TimeUnit.SECONDS) && creation.get(30, TimeUnit.SECONDS))
-          .isFalse();
+      boolean deletionSucceeded = deletion.get(30, TimeUnit.SECONDS);
+      boolean creationSucceeded = creation.get(30, TimeUnit.SECONDS);
+      assertThat(deletionSucceeded && creationSucceeded).isFalse();
       try (var read = backend.begin()) {
         if (read.get(children + "child") != null) assertThat(read.get(parent)).isNotNull();
         read.commit(List.of());

@@ -104,6 +104,22 @@ jobs:
             sleep 1
           done
           exit 1
+      - name: Request validation, RBAC retry and UNKNOWN tests
+        run: |
+          ./gradlew :polaris-runtime-service:test --max-workers=2 \
+            --tests '*PrimitiveRbacRetryTest' --tests '*PrimitiveTableCreateTest' \
+            --tests '*CommitTransactionMetadataCleanupTest' \
+            -Dpoc.jdbc.url=jdbc:postgresql://127.0.0.1:5432/polaris_poc \
+            -Dpoc.jdbc.user=polaris_poc
+          python3 - <<'PY'
+          import pathlib, xml.etree.ElementTree as ET
+          reports = list(pathlib.Path('runtime/service/build/test-results/test').glob('TEST-*PrimitiveTableCreateTest.xml'))
+          assert len(reports) == 1, 'Missing request-level native report'
+          cases = ET.parse(reports[0]).getroot().findall('testcase')
+          races = [case for case in cases if 'nativeConcurrentTableCreatesProtectLocations' in case.attrib['name']]
+          assert len(races) == 2, 'Missing native overlap race or non-overlap control'
+          assert all(case.find('skipped') is None and case.find('failure') is None and case.find('error') is None for case in races)
+          PY
       - name: Native PostgreSQL Manager and attempt tests
         run: |
           ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
@@ -118,6 +134,8 @@ jobs:
           path: |
             persistence/primitives/build/test-results/**
             persistence/primitives/build/reports/tests/**
+            runtime/service/build/test-results/**
+            runtime/service/build/reports/tests/**
           if-no-files-found: ignore
       - name: Stop disposable PostgreSQL
         if: always()

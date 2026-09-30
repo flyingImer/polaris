@@ -26,8 +26,10 @@ import static org.assertj.core.api.Assertions.assertThatThrownBy;
 import jakarta.ws.rs.core.Response;
 import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Optional;
 import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -44,6 +46,7 @@ import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
 import org.apache.iceberg.rest.requests.ImmutableCreateViewRequest;
 import org.apache.iceberg.rest.requests.UpdateTableRequest;
+import org.apache.iceberg.rest.responses.LoadTableResponse;
 import org.apache.iceberg.view.ImmutableSQLViewRepresentation;
 import org.apache.iceberg.view.ImmutableViewVersion;
 import org.apache.polaris.core.admin.model.Catalog;
@@ -60,6 +63,7 @@ import org.apache.polaris.core.persistence.bootstrap.RootCredentialsSet;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.EntitiesResult;
 import org.apache.polaris.service.TestServices;
+import org.apache.polaris.service.catalog.AccessDelegationMode;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
@@ -183,6 +187,8 @@ public class CommitTransactionMetadataCleanupTest {
     createCatalogAndNamespace(services, location);
     createTable(services, "unknown1", location);
     createTable(services, "unknown2", location);
+    var firstBefore = loadTable(services, "unknown1");
+    var secondBefore = loadTable(services, "unknown2");
     Set<Path> before = metadataFiles(tempDir);
     inject.set(true);
     assertThatThrownBy(
@@ -198,6 +204,8 @@ public class CommitTransactionMetadataCleanupTest {
         .isInstanceOf(CommitStateUnknownException.class);
     assertThat(submissions).hasValue(1);
     assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 2);
+    assertPublishedState(firstBefore, loadTable(services, "unknown1"), committed, "value1");
+    assertPublishedState(secondBefore, loadTable(services, "unknown2"), committed, "value2");
   }
 
   @ParameterizedTest
@@ -239,6 +247,7 @@ public class CommitTransactionMetadataCleanupTest {
     String location = tempDir.toUri().toString().replaceAll("/+$", "");
     createCatalogAndNamespace(services, location);
     createTable(services, "single-unknown", location);
+    var tableBefore = loadTable(services, "single-unknown");
     Set<Path> before = metadataFiles(tempDir);
     inject.set(true);
     var id = TableIdentifier.of(namespace, "single-unknown");
@@ -256,6 +265,8 @@ public class CommitTransactionMetadataCleanupTest {
         .isInstanceOf(CommitStateUnknownException.class);
     assertThat(submissions).hasValue(1);
     assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 1);
+    assertPublishedState(
+        tableBefore, loadTable(services, "single-unknown"), committed, "new-value");
   }
 
   @ParameterizedTest
@@ -317,9 +328,11 @@ public class CommitTransactionMetadataCleanupTest {
         .catalogAdapter()
         .newHandler(services.securityContext(), catalog)
         .createView(Namespace.of(namespace), request);
+    var id = TableIdentifier.of(namespace, "view-unknown");
+    var viewBefore =
+        services.catalogAdapter().newHandler(services.securityContext(), catalog).loadView(id);
     Set<Path> before = metadataFiles(tempDir);
     inject.set(true);
-    var id = TableIdentifier.of(namespace, "view-unknown");
     var update =
         UpdateTableRequest.create(
             id,
@@ -334,6 +347,15 @@ public class CommitTransactionMetadataCleanupTest {
         .isInstanceOf(CommitStateUnknownException.class);
     assertThat(submissions).hasValue(1);
     assertThat(metadataFiles(tempDir)).containsAll(before).hasSize(before.size() + 1);
+    var viewAfter =
+        services.catalogAdapter().newHandler(services.securityContext(), catalog).loadView(id);
+    if (committed) {
+      assertThat(viewAfter.metadataLocation()).isNotEqualTo(viewBefore.metadataLocation());
+      assertThat(viewAfter.metadata().properties()).containsEntry(propertyName, "new-value");
+    } else {
+      assertThat(viewAfter.metadataLocation()).isEqualTo(viewBefore.metadataLocation());
+      assertThat(viewAfter.metadata().properties()).isEqualTo(viewBefore.metadata().properties());
+    }
   }
 
   @ParameterizedTest
@@ -387,6 +409,30 @@ public class CommitTransactionMetadataCleanupTest {
                         services.securityContext()))
         .isSameAs(failure);
     assertThat(metadataFiles(tempDir)).isEqualTo(before);
+  }
+
+  private static LoadTableResponse loadTable(TestServices services, String name) {
+    return services
+        .catalogAdapter()
+        .newHandler(services.securityContext(), catalog)
+        .loadTable(
+            TableIdentifier.of(namespace, name),
+            "all",
+            null,
+            EnumSet.noneOf(AccessDelegationMode.class),
+            Optional.empty())
+        .orElseThrow();
+  }
+
+  private static void assertPublishedState(
+      LoadTableResponse before, LoadTableResponse after, boolean committed, String value) {
+    if (committed) {
+      assertThat(after.metadataLocation()).isNotEqualTo(before.metadataLocation());
+      assertThat(after.tableMetadata().properties()).containsEntry(propertyName, value);
+    } else {
+      assertThat(after.metadataLocation()).isEqualTo(before.metadataLocation());
+      assertThat(after.tableMetadata().properties()).isEqualTo(before.tableMetadata().properties());
+    }
   }
 
   private static Set<Path> metadataFiles(Path directory) throws Exception {

@@ -229,6 +229,9 @@ val quarkusTestArgLine = providers.systemProperty("quarkus.test.arg-line").orEls
 val quarkusProperties = providers.systemPropertiesPrefixedBy("quarkus.")
 
 tasks.withType(Test::class.java).configureEach {
+  listOf("poc.jdbc.url", "poc.jdbc.user", "poc.jdbc.password").forEach { key ->
+    System.getProperty(key)?.let { systemProperty(key, it) }
+  }
   environment("AWS_REGION", providers.environmentVariable("AWS_REGION").getOrElse("us-west-2"))
   // Note: the test secrets are referenced in
   // org.apache.polaris.service.it.ServerManager

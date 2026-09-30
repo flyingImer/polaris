@@ -21,6 +21,7 @@ package org.apache.polaris.service.catalog.iceberg;
 import java.time.Clock;
 import java.util.Properties;
 import java.util.UUID;
+import java.util.function.UnaryOperator;
 import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.PolarisDiagnostics;
 import org.apache.polaris.core.context.RealmContext;
@@ -35,17 +36,34 @@ import org.apache.polaris.persistence.primitives.jdbc.JdbcPrimitives;
 /** Exercises real Java service callers against the strict terminal-attempt implementation. */
 final class PrimitiveServiceTestFactory
     extends LocalPolarisMetaStoreManagerFactory<DurablePrimitives> {
+  private final String jdbcUrl;
+  private final UnaryOperator<DurablePrimitives> decorator;
+
   PrimitiveServiceTestFactory() {
+    this(null, UnaryOperator.identity());
+  }
+
+  PrimitiveServiceTestFactory(String jdbcUrl, UnaryOperator<DurablePrimitives> decorator) {
     super(Clock.systemUTC(), new PolarisDefaultDiagServiceImpl());
+    this.jdbcUrl = jdbcUrl;
+    this.decorator = decorator;
   }
 
   @Override
   protected DurablePrimitives createBackingStore(PolarisDiagnostics diagnostics) {
+    var properties = new Properties();
+    if (jdbcUrl != null) {
+      properties.setProperty("user", System.getProperty("poc.jdbc.user", "polaris_poc"));
+      properties.setProperty("password", System.getProperty("poc.jdbc.password", ""));
+    }
     var backend =
         new JdbcPrimitives(
-            "jdbc:h2:mem:caller-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1", new Properties());
+            jdbcUrl != null
+                ? jdbcUrl
+                : "jdbc:h2:mem:caller-" + UUID.randomUUID() + ";DB_CLOSE_DELAY=-1",
+            properties);
     backend.initialize();
-    return backend;
+    return decorator.apply(backend);
   }
 
   @Override

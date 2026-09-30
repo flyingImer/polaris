@@ -237,7 +237,9 @@ class ManagerFailureTest {
                   return false;
                 }
               });
-      assertThat(drop.get(30, TimeUnit.SECONDS) && create.get(30, TimeUnit.SECONDS)).isFalse();
+      boolean dropSucceeded = drop.get(30, TimeUnit.SECONDS);
+      boolean createSucceeded = create.get(30, TimeUnit.SECONDS);
+      assertThat(dropSucceeded && createSucceeded).isFalse();
     } finally {
       backend.rendezvous = null;
     }
@@ -400,7 +402,9 @@ class ManagerFailureTest {
                   return false;
                 }
               });
-      assertThat(first.get(30, TimeUnit.SECONDS) && second.get(30, TimeUnit.SECONDS)).isFalse();
+      boolean firstSucceeded = first.get(30, TimeUnit.SECONDS);
+      boolean secondSucceeded = second.get(30, TimeUnit.SECONDS);
+      assertThat(firstSucceeded && secondSucceeded).isFalse();
     } finally {
       backend.rendezvous = null;
     }
