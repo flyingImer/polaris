@@ -155,7 +155,17 @@ all 47 again on the same source. The database ran on an internal Docker network,
 with verified metadata deny rules on the runner. No Java change was needed.
 See the isolated native reports linked from [VALIDATION.md](VALIDATION.md).
 
-The repaired repository-wide gate passed on `90af530` in run 36632123504.
-Later request-level tests require their own results, recorded in
-[VALIDATION.md](VALIDATION.md). Production Spanner concurrency, performance and
-data migration remain unverified.
+The repaired repository-wide gate passed on `90af530` in run 36632123504. The
+later corrected request-validation source `725d7b8` also passed format/compile,
+clean formatting, BOM/license checks and the full repository `check` in run
+36785806874. All 15 selected Service cases passed, including the two PostgreSQL
+request races with no skips, and the current Primitives adapter passed 47/0/0 on
+CockroachDB.
+
+That workflow still concluded `failure`: its post-Service XML verifier searched
+parameterized case names for the Java method name. It stopped before the
+corrected-source 47-case PostgreSQL Primitives suite. The earlier PostgreSQL
+47/0/0 result remains historical evidence, not a rerun of the repaired
+worker-result tests. Exact artifacts and counts are recorded in
+[VALIDATION.md](VALIDATION.md). Production Spanner concurrency, performance,
+data migration and exhaustive community-requirement coverage remain unverified.

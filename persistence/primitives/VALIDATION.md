@@ -50,12 +50,38 @@ the evidence assertion found neither case and stopped the job before the 47-case
 PostgreSQL Primitives suite. Its artifact is `11130516895`, with SHA-256
 `423e530175bb97da11c7fbe85a0df69557aef4340c4ef022df9b996206ea2e5c`.
 This is a workflow-verifier defect, not a Service assertion failure, but it keeps
-the PostgreSQL native result and complete workflow gate open. The full repository
-check is still running.
+the corrected-source PostgreSQL native result open. The overall workflow therefore
+finished with `failure`, even though its independent repository gate completed
+successfully.
 
 CockroachDB has again passed 47 tests with no failures or skips on this corrected
 source. Its artifact digest matches GitHub metadata, and the retained Docker
 network remains internal. Production Java sources are unchanged.
+
+The repository gate completed on the same source. The logs, downloaded artifact
+and JUnit XML were checked independently of the workflow conclusion:
+
+| Corrected-source gate | Actual result |
+|---|---|
+| Metadata-denial preflight | Passed before all three jobs. The retained root artifact records 309 denied host-output packets and 43 denied forwarded packets |
+| `format compileAll --max-workers=2` | BUILD SUCCESSFUL in 7m 18s. `git diff --exit-code` then passed |
+| Early BOM and distribution-license gate | BUILD SUCCESSFUL in 47s |
+| Full `check --continue --max-workers=2` | BUILD SUCCESSFUL in 1h 3m 37s |
+| Root JUnit XML | 391 suites: 30,444 passed, 0 failed, 0 errors, 1,069 skipped |
+| Service `test` | 23,754 passed, 0 failed, 45 skipped |
+| Service `intTest` | 2,820 passed, 0 failed, 70 skipped |
+| Service `cloudTest` | 0 passed, 0 failed, 897 skipped |
+| Core `test` | 1,004 passed, 0 failed, 16 skipped |
+| Default Primitives `test` | 43 passed, 0 failed, 32 skipped |
+
+The root artifact is `11132615463`, with SHA-256
+`440b912ad842bb377e0ebec7d25160c87a7fc3e3cfc6afbdcb19f76086aa3b59`.
+The five legacy CockroachDB Service integration suites again contribute 481
+passed and 11 skipped cases inside the Service `intTest` total. They use
+`relational-jdbc`; they are not the new Primitives adapter and are not added a
+second time. The current-source Primitives adapter result is the separate
+CockroachDB 47/0/0 artifact. The PostgreSQL Primitives step did not run after the
+verifier failure, so its earlier 47/0/0 result remains historical evidence only.
 
 The first run also passed all 47 native CockroachDB tests with no skips, including
 the repaired worker-result collection. Format/compile, clean formatting and the

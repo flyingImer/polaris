@@ -2,7 +2,9 @@
   "date": "2026-09-30",
   "source_commit": "725d7b8870ddc972554cf80bffac7e3d19375ec5",
   "run_id": 36785806874,
-  "status": "postgres_verifier_failed_full_gate_pending",
+  "status": "completed_with_postgres_verifier_failure",
+  "run_conclusion": "failure",
+  "completed_at": "2026-09-30T23:41:48Z",
   "production_java_changed": false,
   "local_attempt": {
     "status": "blocked_before_compilation",
@@ -267,9 +269,83 @@
   },
   "gates": {
     "job_id": 110126932043,
+    "artifact_id": 11132615463,
+    "sha256": "440b912ad842bb377e0ebec7d25160c87a7fc3e3cfc6afbdcb19f76086aa3b59",
     "format_compile": "passed",
+    "format_compile_duration": "7m18s",
     "format_clean": "passed",
     "bom_license": "passed",
-    "repository_check": "in_progress"
+    "bom_license_duration": "47s",
+    "repository_check": "passed",
+    "repository_check_duration": "1h3m37s",
+    "metadata_guard_counters": [
+      {
+        "family": "inet",
+        "name": "output_denied",
+        "packets": 309,
+        "bytes": 18476
+      },
+      {
+        "family": "inet",
+        "name": "forward_denied",
+        "packets": 43,
+        "bytes": 2580
+      }
+    ],
+    "junit_xml": {
+      "suite_files": 391,
+      "all_task_groups": {
+        "tests": 31513,
+        "passed": 30444,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 1069
+      },
+      "selected_task_groups": {
+        "runtime/service:test": {
+          "tests": 23799,
+          "passed": 23754,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 45
+        },
+        "runtime/service:intTest": {
+          "tests": 2890,
+          "passed": 2820,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 70
+        },
+        "runtime/service:cloudTest": {
+          "tests": 897,
+          "passed": 0,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 897
+        },
+        "polaris-core:test": {
+          "tests": 1020,
+          "passed": 1004,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 16
+        },
+        "persistence/primitives:test": {
+          "tests": 75,
+          "passed": 43,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 32
+        },
+        "legacy_cockroach_relational_jdbc_service_intTest_subset": {
+          "tests": 492,
+          "passed": 481,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 11,
+          "included_in": "runtime/service:intTest"
+        }
+      }
+    }
   }
 }
