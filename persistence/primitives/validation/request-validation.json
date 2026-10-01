@@ -1,11 +1,19 @@
 {
   "date": "2026-09-30",
-  "source_commit": "725d7b8870ddc972554cf80bffac7e3d19375ec5",
-  "run_id": 36785806874,
-  "status": "completed_with_postgres_verifier_failure",
-  "run_conclusion": "failure",
-  "completed_at": "2026-09-30T23:41:48Z",
+  "source_commit": "48db920f4c3cb614e47c72bd6e02f7fc4e28ac6a",
+  "run_id": 36806550744,
+  "status": "completed_successfully",
+  "run_conclusion": "success",
+  "completed_at": "2026-10-01T03:46:29Z",
   "production_java_changed": false,
+  "change_scope": "Workflow JUnit evidence verifier only. No Java, assertion or isolation change.",
+  "previous_corrected_run": {
+    "source_commit": "725d7b8870ddc972554cf80bffac7e3d19375ec5",
+    "run_id": 36785806874,
+    "status": "completed_with_postgres_verifier_failure",
+    "run_conclusion": "failure",
+    "completed_at": "2026-09-30T23:41:48Z"
+  },
   "local_attempt": {
     "status": "blocked_before_compilation",
     "reason": "Gradle could not resolve com.gradle.develocity:4.5.1"
@@ -168,12 +176,12 @@
     }
   },
   "fixture_fix": "Tighten catalog allowed locations to a subtree within the existing namespace. Preserve the namespace restriction and all assertions.",
-  "jobs": {
+  "previous_jobs": {
     "postgres": 110126931769,
     "gates": 110126932043,
     "cockroach": 110126932125
   },
-  "cockroach": {
+  "previous_cockroach": {
     "job_id": 110126932125,
     "artifact_id": 11129931657,
     "sha256": "d793d55265480bfcf6ecd42db0f066c9a36201c22d4175981ca5b23da84695e5",
@@ -221,7 +229,7 @@
       }
     ]
   },
-  "postgres_service": {
+  "previous_postgres_service": {
     "job_id": 110126931769,
     "artifact_id": 11130516895,
     "sha256": "423e530175bb97da11c7fbe85a0df69557aef4340c4ef022df9b996206ea2e5c",
@@ -267,7 +275,7 @@
     "post_test_verifier_failure": "The workflow searched parameterized JUnit case names for nativeConcurrentTableCreatesProtectLocations, but Gradle XML emitted [1] true and [2] false. Both cases passed; the verifier found neither.",
     "native_manager_step": "not_run_after_post_test_verifier_failure"
   },
-  "gates": {
+  "previous_gates": {
     "job_id": 110126932043,
     "artifact_id": 11132615463,
     "sha256": "440b912ad842bb377e0ebec7d25160c87a7fc3e3cfc6afbdcb19f76086aa3b59",
@@ -347,5 +355,128 @@
         }
       }
     }
+  },
+  "jobs": {
+    "postgres": 110192066241,
+    "gates": 110192066144,
+    "cockroach": 110192066073
+  },
+  "artifacts": {
+    "postgres": {
+      "artifact_id": 11137988876,
+      "size_bytes": 76356,
+      "sha256": "938bb201dad9461941be7b02bb0938dfb39adbea951cda4b7745712a718e7ecd"
+    },
+    "cockroach": {
+      "artifact_id": 11137927351,
+      "size_bytes": 60120,
+      "sha256": "2efad43614ab6164095d46835f250d688c4bbb2cad14d8046511e528ea6354b1"
+    },
+    "gates": {
+      "artifact_id": 11140415105,
+      "size_bytes": 24755616,
+      "sha256": "cc6c8cddf59b8ab0312daedb8f5973b515db8b4d3f62ff2e38a44302ef2e2276"
+    },
+    "verification": "Each downloaded ZIP digest matched the upload log and GitHub artifact metadata."
+  },
+  "postgres": {
+    "job_status": "passed",
+    "service": {
+      "tests": 15,
+      "passed": 15,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "reports": {
+        "CommitTransactionMetadataCleanupTest": 10,
+        "PrimitiveRbacRetryTest": 2,
+        "PrimitiveTableCreateTest": 3
+      },
+      "table_create_races": [
+        {
+          "name": "[1] true",
+          "occurrences": 1,
+          "status": "passed"
+        },
+        {
+          "name": "[2] false",
+          "occurrences": 1,
+          "status": "passed"
+        }
+      ],
+      "fixture_boundary": "RBAC and UNKNOWN use H2. The table-create races use native PostgreSQL."
+    },
+    "primitives": {
+      "tests": 47,
+      "passed": 47,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0,
+      "reports": {
+        "AttemptContractTest": 5,
+        "ManagerFailureTest": 14,
+        "NativeManagerTest": 28
+      }
+    },
+    "artifact_xml_totals": {
+      "suite_files": 6,
+      "tests": 62,
+      "passed": 62,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 0
+    }
+  },
+  "cockroach": {
+    "job_status": "passed",
+    "tests": 47,
+    "passed": 47,
+    "failures": 0,
+    "errors": 0,
+    "skipped": 0,
+    "internal_network": true,
+    "published_ports": false,
+    "metadata_guard_counters": {
+      "output_denied_packets": 29,
+      "forward_denied_packets": 3
+    }
+  },
+  "gates": {
+    "job_status": "passed",
+    "format_compile": {
+      "status": "passed",
+      "duration": "8m18s"
+    },
+    "format_clean": "passed",
+    "bom_license": {
+      "status": "passed",
+      "duration": "1m6s"
+    },
+    "repository_check": {
+      "status": "passed",
+      "duration": "1h37s"
+    },
+    "metadata_guard_counters": {
+      "output_denied_packets": 302,
+      "forward_denied_packets": 43
+    },
+    "junit_xml": {
+      "suite_files": 391,
+      "tests": 31513,
+      "passed": 30444,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 1069
+    }
+  },
+  "claim_boundary": {
+    "authorization": "An already-authorized attempt may finish. A new retry reconstructs and authorizes again. Commit-time authorization validity is not claimed.",
+    "not_verified": [
+      "production performance",
+      "production Spanner concurrency",
+      "crash recovery",
+      "data migration",
+      "all community requirements"
+    ]
   }
 }
