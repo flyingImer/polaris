@@ -23,6 +23,60 @@ Base: `apache/polaris main @ a919f11e51ff76b5ef56633d8cb0429ff2b4c100`.
 Validation uses JDK 21 and the upstream Gradle 9.7.1 wrapper. Native results are
 versioned per checkpoint. An older result does not certify later code.
 
+## Verifier-fixed terminal validation, 2026-09-30
+
+[Run 36806550744](https://github.com/flyingImer/polaris/actions/runs/36806550744)
+completed successfully at 2026-10-01 03:46 UTC. Its tested source is
+`48db920f4c3cb614e47c72bd6e02f7fc4e28ac6a`. Relative to the corrected request
+validation source below, this commit changes only the workflow's JUnit evidence
+check. It recognizes the parameterized case names `[1] true` and `[2] false`.
+It does not change Java sources, test assertions or network isolation.
+
+The logs, downloaded artifacts and JUnit XML were checked independently of the
+workflow conclusion. All three downloaded artifact SHA-256 digests match both
+the upload logs and GitHub artifact metadata.
+
+| Terminal result | Actual result |
+|---|---|
+| PostgreSQL selected Service tests | 15 passed, 0 failed, 0 errors, 0 skipped |
+| PostgreSQL table-create races | `[1] true` and `[2] false` each appear exactly once and passed without skip, failure or error |
+| PostgreSQL 17, new Primitives adapter | 47 passed, 0 failed, 0 errors, 0 skipped |
+| CockroachDB 26.3.1, new Primitives adapter | 47 passed, 0 failed, 0 errors, 0 skipped. Docker network remained internal, with no published ports |
+| Repository gate | Format/compile, clean formatting, BOM/licenses and full `check` passed |
+| Root JUnit XML | 391 suites: 30,444 passed, 0 failed, 0 errors, 1,069 skipped |
+
+The artifacts are:
+
+- Root gate `11140415105`, SHA-256
+  `cc6c8cddf59b8ab0312daedb8f5973b515db8b4d3f62ff2e38a44302ef2e2276`.
+- PostgreSQL `11137988876`, SHA-256
+  `938bb201dad9461941be7b02bb0938dfb39adbea951cda4b7745712a718e7ecd`.
+- CockroachDB `11137927351`, SHA-256
+  `2efad43614ab6164095d46835f250d688c4bbb2cad14d8046511e528ea6354b1`.
+
+The PostgreSQL artifact contains 62 passing cases: the 15 selected Service
+cases and the separate 47-case Primitives adapter suite. The selected Service
+coverage includes real RBAC with a warmed cache, storage-config revalidation,
+both native PostgreSQL table-create races and UNKNOWN pointer/content reload.
+RBAC and UNKNOWN use the H2 Service fixture. Only the table-create races use
+native PostgreSQL.
+
+The root artifact again records 391 suites with 31,513 total cases. Of those,
+30,444 passed and 1,069 were skipped. The cloud suite remains entirely skipped.
+The retained CockroachDB network is internal. Metadata-denial preflight passed
+before every job. The retained root artifact records 302 denied host-output
+packets and 43 denied forwarded packets. The CockroachDB artifact records 29
+and 3 respectively. These are runner-wide firewall counters, not evidence that
+a specific process attempted metadata access.
+
+This run closes the workflow-verifier defect and supplies current-source
+PostgreSQL 47/0/0 evidence for the repaired concurrent-result collection. It
+does not replace the failed-run history below. It also does not prove production
+performance, production Spanner concurrency, migration, crash recovery or every
+community requirement. An already-authorized attempt may finish. A new retry
+must reconstruct the request and authorize again. This is not commit-time
+authorization validity.
+
 ## Additional request-level validation, 2026-09-30
 
 The tests and three concurrent-result repairs began at
@@ -45,8 +99,8 @@ native PostgreSQL table-create races.
 
 The PostgreSQL job nevertheless failed in its post-test evidence assertion. The
 JUnit XML names the two parameterized race cases `[1] true` and `[2] false`, while
-the workflow searched those case names for the Java method name. The tests passed;
-the evidence assertion found neither case and stopped the job before the 47-case
+the workflow searched those case names for the Java method name. The tests passed.
+The evidence assertion found neither case and stopped the job before the 47-case
 PostgreSQL Primitives suite. Its artifact is `11130516895`, with SHA-256
 `423e530175bb97da11c7fbe85a0df69557aef4340c4ef022df9b996206ea2e5c`.
 This is a workflow-verifier defect, not a Service assertion failure, but it keeps
@@ -78,7 +132,7 @@ The root artifact is `11132615463`, with SHA-256
 `440b912ad842bb377e0ebec7d25160c87a7fc3e3cfc6afbdcb19f76086aa3b59`.
 The five legacy CockroachDB Service integration suites again contribute 481
 passed and 11 skipped cases inside the Service `intTest` total. They use
-`relational-jdbc`; they are not the new Primitives adapter and are not added a
+`relational-jdbc`. They are not the new Primitives adapter and are not added a
 second time. The current-source Primitives adapter result is the separate
 CockroachDB 47/0/0 artifact. The PostgreSQL Primitives step did not run after the
 verifier failure, so its earlier 47/0/0 result remains historical evidence only.
