@@ -116,8 +116,10 @@ jobs:
           reports = list(pathlib.Path('runtime/service/build/test-results/test').glob('TEST-*PrimitiveTableCreateTest.xml'))
           assert len(reports) == 1, 'Missing request-level native report'
           cases = ET.parse(reports[0]).getroot().findall('testcase')
-          races = [case for case in cases if 'nativeConcurrentTableCreatesProtectLocations' in case.attrib['name']]
-          assert len(races) == 2, 'Missing native overlap race or non-overlap control'
+          # Gradle XML uses JUnit's parameterized display names, not the Java method name.
+          expected = {'[1] true', '[2] false'}
+          races = [case for case in cases if case.attrib['name'] in expected]
+          assert len(races) == 2 and {case.attrib['name'] for case in races} == expected, 'Missing native overlap race or non-overlap control'
           assert all(case.find('skipped') is None and case.find('failure') is None and case.find('error') is None for case in races)
           PY
       - name: Native PostgreSQL Manager and attempt tests
