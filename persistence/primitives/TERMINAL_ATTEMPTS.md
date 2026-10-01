@@ -162,10 +162,21 @@ clean formatting, BOM/license checks and the full repository `check` in run
 request races with no skips, and the current Primitives adapter passed 47/0/0 on
 CockroachDB.
 
-That workflow still concluded `failure`: its post-Service XML verifier searched
-parameterized case names for the Java method name. It stopped before the
-corrected-source 47-case PostgreSQL Primitives suite. The earlier PostgreSQL
-47/0/0 result remains historical evidence, not a rerun of the repaired
-worker-result tests. Exact artifacts and counts are recorded in
-[VALIDATION.md](VALIDATION.md). Production Spanner concurrency, performance,
-data migration and exhaustive community-requirement coverage remain unverified.
+That workflow concluded `failure` because its post-Service XML verifier searched
+parameterized case names for the Java method name. The failure is retained in
+the validation history. The verifier-only change in `48db920` recognizes the two
+actual case names without changing Java, assertions or isolation.
+
+[Run 36806550744](https://github.com/flyingImer/polaris/actions/runs/36806550744)
+passed on that source. The selected Service tests passed 15/0/0, including both
+PostgreSQL table-create races with no skips. The new Primitives adapter then
+passed 47/0/0 on PostgreSQL and 47/0/0 on CockroachDB. The repository-wide gate
+also passed with 30,444 cases passed, no failures or errors, and 1,069 skips.
+Exact artifacts and digests are recorded in [VALIDATION.md](VALIDATION.md).
+
+This completes the selected PoC validation, not the production design. RBAC
+and UNKNOWN Service tests still use H2 fixtures. An already-authorized attempt
+may finish, while a new retry must reconstruct the request and authorize again.
+The evidence does not establish commit-time authorization validity. Production
+Spanner concurrency, performance, crash recovery, data migration and exhaustive
+community-requirement coverage remain unverified.
