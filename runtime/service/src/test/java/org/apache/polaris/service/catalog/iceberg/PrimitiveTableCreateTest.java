@@ -29,15 +29,18 @@ import java.util.EnumSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 import java.util.UUID;
 import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicInteger;
+import java.util.concurrent.atomic.AtomicReference;
 import java.util.function.UnaryOperator;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
+import org.apache.iceberg.exceptions.AlreadyExistsException;
 import org.apache.iceberg.exceptions.ForbiddenException;
 import org.apache.iceberg.rest.requests.CreateNamespaceRequest;
 import org.apache.iceberg.rest.requests.CreateTableRequest;
@@ -47,10 +50,18 @@ import org.apache.polaris.core.admin.model.CatalogProperties;
 import org.apache.polaris.core.admin.model.CreateCatalogRequest;
 import org.apache.polaris.core.admin.model.FileStorageConfigInfo;
 import org.apache.polaris.core.admin.model.StorageConfigInfo;
+import org.apache.polaris.core.auth.PolarisAuthorizerImpl;
+import org.apache.polaris.core.auth.PolarisPrincipal;
+import org.apache.polaris.core.auth.PolarisPrincipalAttributes;
+import org.apache.polaris.core.collection.ImmutableAttributeMap;
 import org.apache.polaris.core.entity.CatalogEntity;
+import org.apache.polaris.core.entity.CatalogRoleEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.entity.PolarisPrivilege;
+import org.apache.polaris.core.entity.PrincipalRoleEntity;
 import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.persistence.PolarisMetaStoreManager;
@@ -255,6 +266,167 @@ class PrimitiveTableCreateTest {
       assertThat(tables(services))
           .containsExactlyInAnyOrder(TableIdentifier.of(NS, "one"), TableIdentifier.of(NS, "two"));
     }
+  }
+
+  @Test
+  void optionalAbsentThenCreatedBeforeCommit(@TempDir Path directory) {
+    var inject = new AtomicBoolean();
+    var currentServices = new AtomicReference<TestServices>();
+    String base = directory.toUri().toString().replaceAll("/+$", "");
+    var services =
+        services(
+            new PrimitiveServiceTestFactory(),
+            manager -> {
+              var spy = Mockito.spy(manager);
+              Mockito.doAnswer(
+                      call -> {
+                        PolarisBaseEntity candidate = call.getArgument(2);
+                        if (candidate.getSubType() == PolarisEntitySubType.ICEBERG_TABLE
+                            && inject.compareAndSet(true, false)) {
+                          create(
+                              currentServices.get(), "contested", base + "/old-root/ns/contested");
+                        }
+                        return call.callRealMethod();
+                      })
+                  .when(spy)
+                  .createEntityIfNotExists(any(), any(), any());
+              return spy;
+            });
+    currentServices.set(services);
+    setup(services, base);
+    inject.set(true);
+    assertThatThrownBy(() -> create(services, "contested", base + "/old-root/ns/contested"))
+        .isInstanceOf(AlreadyExistsException.class);
+    assertThat(tables(services)).containsExactly(TableIdentifier.of(NS, "contested"));
+  }
+
+  @Test
+  void internalSiblingValidationDoesNotGrantReadAccessOrRevealMetadata(@TempDir Path directory) {
+    var services = services(new PrimitiveServiceTestFactory(), UnaryOperator.identity());
+    String base = directory.toUri().toString().replaceAll("/+$", "");
+    setup(services, base);
+    String secretLocation = base + "/old-root/ns/private-root";
+    create(services, "hidden-sibling", secretLocation);
+    var context = services.newCallContext();
+    var manager = services.metaStoreManager();
+    var catalog =
+        manager
+            .readEntityByName(
+                context,
+                null,
+                PolarisEntityType.CATALOG,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                CATALOG)
+            .getEntity();
+    var namespace =
+        manager
+            .readEntityByName(
+                context,
+                List.of(catalog),
+                PolarisEntityType.NAMESPACE,
+                PolarisEntitySubType.NULL_SUBTYPE,
+                "ns")
+            .getEntity();
+    var user = manager.findPrincipalByName(context, "test-principal").orElseThrow();
+    var principalRole =
+        manager
+            .createEntityIfNotExists(
+                context,
+                null,
+                new PrincipalRoleEntity.Builder()
+                    .setName("creator")
+                    .setId(manager.generateNewEntityId(context).getId())
+                    .setParentId(PolarisEntityConstants.getRootEntityId())
+                    .build())
+            .getEntity();
+    var catalogRole =
+        manager
+            .createEntityIfNotExists(
+                context,
+                List.of(catalog),
+                new CatalogRoleEntity.Builder()
+                    .setName("creator")
+                    .setId(manager.generateNewEntityId(context).getId())
+                    .setCatalogId(catalog.getId())
+                    .setParentId(catalog.getId())
+                    .build())
+            .getEntity();
+    assertThat(manager.grantUsageOnRoleToGrantee(context, null, principalRole, user).isSuccess())
+        .isTrue();
+    assertThat(
+            manager
+                .grantUsageOnRoleToGrantee(context, catalog, catalogRole, principalRole)
+                .isSuccess())
+        .isTrue();
+    assertThat(
+            manager
+                .grantPrivilegeOnSecurableToRole(
+                    context,
+                    catalogRole,
+                    List.of(catalog),
+                    namespace,
+                    PolarisPrivilege.TABLE_CREATE)
+                .isSuccess())
+        .isTrue();
+    var principal =
+        PolarisPrincipal.of(
+            user.getName(),
+            ImmutableAttributeMap.builder()
+                .put(PolarisPrincipalAttributes.PRINCIPAL_ENTITY_ATTRIBUTE_KEY, user)
+                .put(PolarisPrincipalAttributes.PRINCIPAL_ROLE_ALL_ATTRIBUTE_KEY, true)
+                .build(),
+            Set.of());
+    var template = services.catalogAdapter().newHandler(services.securityContext(), CATALOG);
+    var handler =
+        ImmutableIcebergCatalogHandler.builder()
+            .from(template)
+            .polarisPrincipal(principal)
+            .authorizer(new PolarisAuthorizerImpl(context.getRealmConfig()))
+            .build();
+    assertThatThrownBy(
+            () ->
+                handler.loadTable(
+                    TableIdentifier.of(NS, "hidden-sibling"),
+                    "all",
+                    null,
+                    EnumSet.noneOf(AccessDelegationMode.class),
+                    Optional.empty()))
+        .isInstanceOf(ForbiddenException.class);
+    var createHandler =
+        ImmutableIcebergCatalogHandler.builder()
+            .from(template)
+            .polarisPrincipal(principal)
+            .authorizer(new PolarisAuthorizerImpl(context.getRealmConfig()))
+            .build();
+    assertThatThrownBy(
+            () ->
+                createHandler.createTableDirect(
+                    NS,
+                    CreateTableRequest.builder()
+                        .withName("new-table")
+                        .withSchema(SCHEMA)
+                        .withLocation(secretLocation + "/child")
+                        .build(),
+                    EnumSet.noneOf(AccessDelegationMode.class),
+                    Optional.empty()))
+        .isInstanceOf(ForbiddenException.class)
+        .hasMessage("Requested location overlaps an existing sibling");
+    // A non-overlapping create is authorized. Internal reads do not imply sibling read permission.
+    var validHandler =
+        ImmutableIcebergCatalogHandler.builder()
+            .from(template)
+            .polarisPrincipal(principal)
+            .authorizer(new PolarisAuthorizerImpl(context.getRealmConfig()))
+            .build();
+    validHandler.createTableDirect(
+        NS,
+        CreateTableRequest.builder()
+            .withName("allowed")
+            .withSchema(SCHEMA)
+            .withLocation(base + "/old-root/ns/allowed")
+            .build(),
+        EnumSet.noneOf(AccessDelegationMode.class),
+        Optional.empty());
   }
 
   private static boolean createOrConfirmedAbort(

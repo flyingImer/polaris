@@ -125,6 +125,7 @@ public class IcebergExceptionMapperTest {
             new CommitStateUnknownException(new StorageException(403, "transport status")), 500),
         Arguments.of(new CommitFailedException("commit failed"), 409),
         Arguments.of(new AlreadyExistsException("already exists"), 409),
+        Arguments.of(new IllegalArgumentException("Duplicate entity in update batch"), 400),
         Arguments.of(new ValidationException("invalid"), 400));
   }
 

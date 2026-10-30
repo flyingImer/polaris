@@ -95,12 +95,9 @@ final class TransactionalLocationConstraints {
           for (String other : otherLocations) {
             if (overlaps(requested, other)) {
               if (entity.getType() == PolarisEntityType.CATALOG) {
-                throw new ValidationException(
-                    "Catalog location overlaps existing catalog: %s", sibling.getName());
+                throw new ValidationException("Catalog location overlaps an existing catalog");
               }
-              throw new ForbiddenException(
-                  "Location '%s' overlaps sibling '%s' at '%s'",
-                  requested, sibling.getName(), other);
+              throw new ForbiddenException("Requested location overlaps an existing sibling");
             }
           }
         }

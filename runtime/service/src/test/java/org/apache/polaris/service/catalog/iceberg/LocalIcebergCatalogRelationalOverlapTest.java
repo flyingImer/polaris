@@ -68,7 +68,8 @@ public class LocalIcebergCatalogRelationalOverlapTest
       overrides.put("quarkus.datasource.db-kind", "h2");
       overrides.put(
           "quarkus.datasource.jdbc.url",
-          "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;INIT=CREATE SCHEMA IF NOT EXISTS POLARIS_SCHEMA");
+          "jdbc:h2:mem:test;DB_CLOSE_DELAY=-1;MODE=PostgreSQL;DATABASE_TO_LOWER=TRUE;INIT=CREATE"
+              + " SCHEMA IF NOT EXISTS POLARIS_SCHEMA");
       // H2 ignores the currentSchema connection property, so select POLARIS_SCHEMA on every
       // connection, matching the schema the persistence layer expects.
       overrides.put("quarkus.datasource.jdbc.new-connection-sql", "SET SCHEMA POLARIS_SCHEMA");
@@ -114,7 +115,7 @@ public class LocalIcebergCatalogRelationalOverlapTest
             () -> catalog().buildTable(childTable, SCHEMA).withLocation(childLoc).create())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Unable to create entity at location")
-        .hasMessageContaining("conflicts with existing table or namespace");
+        .hasMessageContaining("overlaps an existing sibling");
 
     // The same must hold when the slash-terminated form of the same prefix is used.
     TableIdentifier siblingTable = TableIdentifier.of(ns, "trailing-sibling");
@@ -123,7 +124,7 @@ public class LocalIcebergCatalogRelationalOverlapTest
             () -> catalog().buildTable(siblingTable, SCHEMA).withLocation(siblingLoc).create())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Unable to create entity at location")
-        .hasMessageContaining("conflicts with existing table or namespace");
+        .hasMessageContaining("overlaps an existing sibling");
   }
 
   /**

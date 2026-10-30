@@ -275,7 +275,7 @@ public abstract class AbstractLocalIcebergCatalogOverlapTest {
             () -> catalog().buildTable(parentTable, SCHEMA).withLocation(parentLoc).create())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Unable to create entity at location")
-        .hasMessageContaining("conflicts with existing table or namespace");
+        .hasMessageContaining("overlaps an existing sibling");
 
     // Conversely, creating a child table after the parent table exists must also be rejected
     // (covered by the forward location-index scan).
@@ -293,6 +293,6 @@ public abstract class AbstractLocalIcebergCatalogOverlapTest {
                     .create())
         .isInstanceOf(ForbiddenException.class)
         .hasMessageContaining("Unable to create entity at location")
-        .hasMessageContaining("conflicts with existing table or namespace");
+        .hasMessageContaining("overlaps an existing sibling");
   }
 }

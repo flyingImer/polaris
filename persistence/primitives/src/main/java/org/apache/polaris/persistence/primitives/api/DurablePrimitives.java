@@ -25,6 +25,12 @@ import java.util.Objects;
  * Experimental backend boundary. Keys and payloads have no Polaris domain meaning here. Each
  * attempt is serializable, including missing keys and ranges, together with its final writes. Close
  * aborts; only explicit commit can publish. No method retries caller code.
+ *
+ * <p>Check-only reads participate even if their keys receive no mutations. Serializability does not
+ * impose physical commit order on overlapping attempts or keep every observed value unchanged until
+ * commit. Conservative aborts are allowed. False-conflict rate and retry cost are measured
+ * performance properties, not weaker correctness modes. Callers must not infer a confirmed abort
+ * from a lost commit response.
  */
 public interface DurablePrimitives extends AutoCloseable {
   Attempt begin();

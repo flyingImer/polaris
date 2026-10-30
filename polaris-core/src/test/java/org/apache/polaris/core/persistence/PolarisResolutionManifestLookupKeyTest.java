@@ -32,8 +32,12 @@ import org.apache.polaris.core.PolarisDefaultDiagServiceImpl;
 import org.apache.polaris.core.auth.PolarisPrincipal;
 import org.apache.polaris.core.collection.AttributeMap;
 import org.apache.polaris.core.context.RealmContext;
+import org.apache.polaris.core.entity.PolarisBaseEntity;
+import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest;
+import org.apache.polaris.core.persistence.resolver.PolarisResolutionManifest.ObservationState;
 import org.apache.polaris.core.persistence.resolver.Resolvable;
 import org.apache.polaris.core.persistence.resolver.ResolvedPathKey;
 import org.apache.polaris.core.persistence.resolver.Resolver;
@@ -84,8 +88,8 @@ public class PolarisResolutionManifestLookupKeyTest {
     when(resolver.resolveSelections(Set.of(Resolvable.REQUESTED_PATHS)))
         .thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS));
 
-    ResolvedPolarisEntity referenceCatalog = Mockito.mock(ResolvedPolarisEntity.class);
-    ResolvedPolarisEntity resolvedLeaf = Mockito.mock(ResolvedPolarisEntity.class);
+    ResolvedPolarisEntity referenceCatalog = resolved("catalog", PolarisEntityType.CATALOG, 1);
+    ResolvedPolarisEntity resolvedLeaf = resolved("tbl1", PolarisEntityType.TABLE_LIKE, 1);
     when(resolver.getResolvedReferenceCatalog()).thenReturn(referenceCatalog);
     when(resolver.getResolvedPath()).thenReturn(List.of(resolvedLeaf));
 
@@ -97,7 +101,7 @@ public class PolarisResolutionManifestLookupKeyTest {
             PolarisPrincipal.of("p", AttributeMap.EMPTY, Set.of()),
             "catalog");
 
-    ResolverPath tablePath = new ResolverPath(List.of("ns1", "tbl1"), PolarisEntityType.TABLE_LIKE);
+    ResolverPath tablePath = new ResolverPath(List.of("tbl1"), PolarisEntityType.TABLE_LIKE);
     manifest.addPassthroughPath(tablePath);
 
     var resolved = manifest.getPassthroughResolvedPath(ResolvedPathKey.of(tablePath));
@@ -105,6 +109,79 @@ public class PolarisResolutionManifestLookupKeyTest {
     assertThat(resolved.getResolvedFullPath()).containsExactly(referenceCatalog, resolvedLeaf);
     verify(resolver).resolveSelections(Set.of(Resolvable.REQUESTED_PATHS));
     verify(resolver, never()).resolveAll();
+  }
+
+  @Test
+  void observationDistinguishesUnresolvedFromConfirmedAbsence() {
+    Resolver resolver = Mockito.mock(Resolver.class);
+    when(resolver.resolveAll()).thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS));
+    when(resolver.getResolvedReferenceCatalog())
+        .thenReturn(resolved("catalog", PolarisEntityType.CATALOG, 1));
+    when(resolver.getResolvedPaths()).thenReturn(List.of(List.of()));
+    var manifest = manifest(resolver);
+    var key = ResolvedPathKey.of(List.of("missing"), PolarisEntityType.TABLE_LIKE);
+    assertThat(manifest.observePath(key).state()).isEqualTo(ObservationState.UNRESOLVED);
+    manifest.addPath(new ResolverPath(key, true));
+    assertThat(manifest.observePath(key).state()).isEqualTo(ObservationState.UNRESOLVED);
+    manifest.resolveAll();
+    var observation = manifest.observePath(key);
+    assertThat(observation.state()).isEqualTo(ObservationState.ABSENT);
+    assertThat(observation.snapshot()).hasSize(1);
+    assertThat(observation.snapshot().getFirst().getName()).isEqualTo("catalog");
+  }
+
+  @Test
+  void passthroughObservationsKeepTheirOwnSnapshot() {
+    Resolver resolver = Mockito.mock(Resolver.class);
+    when(resolver.resolveSelections(Set.of(Resolvable.REQUESTED_PATHS)))
+        .thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.SUCCESS));
+    when(resolver.getResolvedReferenceCatalog())
+        .thenReturn(resolved("catalog", PolarisEntityType.CATALOG, 1));
+    when(resolver.getResolvedPath())
+        .thenReturn(
+            List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 7)),
+            List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 8)));
+    var manifest = manifest(resolver);
+    var key = ResolvedPathKey.of(List.of("table"), PolarisEntityType.TABLE_LIKE);
+    manifest.addPassthroughPath(new ResolverPath(key, true));
+    var validated = manifest.observePassthroughPath(key);
+    var later = manifest.observePassthroughPath(key);
+    assertThat(validated.state()).isEqualTo(ObservationState.FOUND);
+    assertThat(validated.snapshot().getLast().getEntityVersion()).isEqualTo(7);
+    assertThat(later.snapshot().getLast().getEntityVersion()).isEqualTo(8);
+    assertThat(validated.snapshot().getLast().getEntityVersion()).isEqualTo(7);
+  }
+
+  @Test
+  void failedPassthroughResolutionIsNotAbsence() {
+    Resolver resolver = Mockito.mock(Resolver.class);
+    when(resolver.resolveSelections(Set.of(Resolvable.REQUESTED_PATHS)))
+        .thenReturn(new ResolverStatus(ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED));
+    var manifest = manifest(resolver);
+    var key = ResolvedPathKey.of(List.of("table"), PolarisEntityType.TABLE_LIKE);
+    manifest.addPassthroughPath(new ResolverPath(key, true));
+    assertThat(manifest.observePassthroughPath(key).state()).isEqualTo(ObservationState.UNRESOLVED);
+    assertThatThrownBy(() -> manifest.getPassthroughResolvedPath(key))
+        .isInstanceOf(CommitConflictException.class);
+  }
+
+  private static PolarisResolutionManifest manifest(Resolver resolver) {
+    return new PolarisResolutionManifest(
+        new PolarisDefaultDiagServiceImpl(),
+        () -> "test",
+        (principal, catalog) -> resolver,
+        PolarisPrincipal.of("p", AttributeMap.EMPTY, Set.of()),
+        "catalog");
+  }
+
+  private static ResolvedPolarisEntity resolved(String name, PolarisEntityType type, int version) {
+    var entity =
+        new PolarisBaseEntity.Builder(
+                new PolarisBaseEntity(
+                    0, type.getCode(), type, PolarisEntitySubType.NULL_SUBTYPE, 0, name))
+            .entityVersion(version)
+            .build();
+    return new ResolvedPolarisEntity(new PolarisDefaultDiagServiceImpl(), entity, List.of(), 0);
   }
 
   @Test

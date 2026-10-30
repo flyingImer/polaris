@@ -33,6 +33,7 @@ import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
+import org.apache.polaris.core.exceptions.CommitConflictException;
 import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.ResolvedPolarisEntity;
 import org.jspecify.annotations.Nullable;
@@ -67,6 +68,29 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
   // Set when resolveAll is called
   private ResolverStatus primaryResolverStatus = null;
+  private boolean pathsResolved;
+
+  /** A missing result is evidence of absence only after successful path resolution. */
+  public enum ObservationState {
+    FOUND,
+    ABSENT,
+    UNRESOLVED
+  }
+
+  /**
+   * Metadata observations are separate from the authorization graph. Keep this value when using it
+   * for validation. A later passthrough observation must not replace the earlier snapshot. An
+   * ABSENT snapshot contains the existing prefix, not a fabricated missing entity.
+   */
+  public record PathObservation(
+      ObservationState state,
+      ResolvedPathKey key,
+      List<PolarisBaseEntity> snapshot,
+      PolarisResolvedPathWrapper resolvedPath) {
+    public PathObservation {
+      snapshot = snapshot.stream().map(e -> new PolarisBaseEntity.Builder(e).build()).toList();
+    }
+  }
 
   private boolean isResolveAllSucceeded() {
     diagnostics.checkNotNull(
@@ -130,6 +154,7 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
   public ResolverStatus resolveAll() {
     primaryResolverStatus = primaryResolver.resolveAll();
+    pathsResolved = true;
     // TODO: This could be a race condition where a Principal is dropped after initial authn
     // but before the resolution attempt; consider whether 403 forbidden is more appropriate.
     diagnostics.check(
@@ -149,6 +174,7 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
   public ResolverStatus resolveSelections(Set<Resolvable> selections) {
     diagnostics.checkNotNull(selections, "resolver_selections_is_null");
     primaryResolverStatus = primaryResolver.resolveSelections(selections);
+    pathsResolved = selections.contains(Resolvable.REQUESTED_PATHS);
     diagnostics.check(
         primaryResolverStatus.getStatus()
             != ResolverStatus.StatusEnum.CALLER_PRINCIPAL_DOES_NOT_EXIST,
@@ -187,6 +213,42 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
   @Override
   public PolarisResolvedPathWrapper getPassthroughResolvedPath(ResolvedPathKey key) {
+    PathObservation observation = observePassthroughPath(key);
+    if (observation.state() == ObservationState.UNRESOLVED && !getIsPassthroughFacade()) {
+      throw new CommitConflictException("Validation path could not be resolved");
+    }
+    return observation.state() == ObservationState.ABSENT ? null : observation.resolvedPath();
+  }
+
+  public PathObservation observePath(ResolvedPathKey key) {
+    Integer index = pathLookup.get(key);
+    if (index == null
+        || !pathsResolved
+        || primaryResolverStatus == null
+        || primaryResolverStatus.getStatus() != ResolverStatus.StatusEnum.SUCCESS) {
+      return new PathObservation(ObservationState.UNRESOLVED, key, List.of(), null);
+    }
+    return observation(key, primaryResolver, primaryResolver.getResolvedPaths().get(index));
+  }
+
+  private PathObservation observation(
+      ResolvedPathKey key, Resolver resolver, List<ResolvedPolarisEntity> path) {
+    if (resolver.getResolvedReferenceCatalog() == null) {
+      return new PathObservation(ObservationState.UNRESOLVED, key, List.of(), null);
+    }
+    List<ResolvedPolarisEntity> resolved = new ArrayList<>();
+    resolved.add(resolver.getResolvedReferenceCatalog());
+    resolved.addAll(path);
+    PolarisResolvedPathWrapper wrapper = new PolarisResolvedPathWrapper(List.copyOf(resolved));
+    ObservationState state =
+        path.size() == key.entityNames().size()
+            ? ObservationState.FOUND
+            : getIsPassthroughFacade() ? ObservationState.UNRESOLVED : ObservationState.ABSENT;
+    List<PolarisBaseEntity> snapshot = new ArrayList<>(wrapper.getRawFullPath());
+    return new PathObservation(state, key, snapshot, wrapper);
+  }
+
+  public PathObservation observePassthroughPath(ResolvedPathKey key) {
     ResolverPath requestedPath = passthroughPaths.get(key);
     diagnostics.check(
         requestedPath != null,
@@ -197,7 +259,9 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
 
     // Run a single-use Resolver for this path.
     Resolver passthroughResolver = resolverFactory.createResolver(principal, catalogName);
-    passthroughResolver.addPath(requestedPath);
+    // Observation must retain the existing prefix when the leaf is absent, even for a path that
+    // was required by the authorization manifest. This does not authorize a missing resource.
+    passthroughResolver.addPath(new ResolverPath(requestedPath.key(), true));
     ResolverStatus status =
         passthroughResolver.resolveSelections(Set.of(Resolvable.REQUESTED_PATHS));
 
@@ -206,27 +270,10 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
           "Returning null for path {} due to resolver status {}",
           requestedPath,
           status.getStatus());
-      return null;
+      return new PathObservation(ObservationState.UNRESOLVED, key, List.of(), null);
     }
 
-    List<ResolvedPolarisEntity> resolvedPath = passthroughResolver.getResolvedPath();
-    if (requestedPath.optional() && !getIsPassthroughFacade()) {
-      if (resolvedPath.size() != requestedPath.entityNames().size()) {
-        LOGGER.debug(
-            "Returning null due to size mismatch from getPassthroughResolvedPath "
-                + "resolvedPath: {}, requestedPath.getEntityNames(): {}",
-            resolvedPath,
-            requestedPath.entityNames());
-        return null;
-      }
-    }
-
-    List<ResolvedPolarisEntity> resolvedEntities = new ArrayList<>();
-    resolvedEntities.add(passthroughResolver.getResolvedReferenceCatalog());
-    resolvedPath.forEach(resolvedEntity -> resolvedEntities.add(resolvedEntity));
-    LOGGER.debug(
-        "Returning resolvedEntities from getPassthroughResolvedPath: {}", resolvedEntities);
-    return new PolarisResolvedPathWrapper(resolvedEntities);
+    return observation(key, passthroughResolver, passthroughResolver.getResolvedPath());
   }
 
   @Override

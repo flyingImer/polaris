@@ -24,6 +24,7 @@ on:
     paths:
       - '.github/workflows/durable-java-poc.yml'
       - '.github/scripts/poc-metadata-guard.sh'
+      - '.github/scripts/poc-verify-dependencies.py'
       - 'polaris-core/**'
       - 'persistence/primitives/src/**'
       - 'persistence/primitives/build.gradle.kts'
@@ -108,7 +109,7 @@ jobs:
         run: |
           ./gradlew :polaris-runtime-service:test --max-workers=2 \
             --tests '*PrimitiveRbacRetryTest' --tests '*PrimitiveTableCreateTest' \
-            --tests '*CommitTransactionMetadataCleanupTest' \
+            --tests '*CommitTransactionMetadataCleanupTest' --tests '*PrimitiveCommitDependencyTest' \
             -Dpoc.jdbc.url=jdbc:postgresql://127.0.0.1:5432/polaris_poc \
             -Dpoc.jdbc.user=polaris_poc
           python3 - <<'PY'
@@ -122,13 +123,17 @@ jobs:
           assert len(races) == 2 and {case.attrib['name'] for case in races} == expected, 'Missing native overlap race or non-overlap control'
           assert all(case.find('skipped') is None and case.find('failure') is None and case.find('error') is None for case in races)
           PY
+          python3 .github/scripts/poc-verify-dependencies.py service
       - name: Native PostgreSQL Manager and attempt tests
         run: |
           ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
             --tests '*NativeManagerTest' --tests '*ManagerFailureTest' --tests '*AttemptContractTest' \
+            --tests '*ConflictGranularityTest' -Dpoc.measure=true \
             -Dpoc.backend=jdbc \
             -Dpoc.jdbc.url=jdbc:postgresql://127.0.0.1:5432/polaris_poc \
             -Dpoc.jdbc.user=polaris_poc
+      - name: Verify native dependency evidence
+        run: python3 .github/scripts/poc-verify-dependencies.py manager
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
@@ -136,6 +141,7 @@ jobs:
           path: |
             persistence/primitives/build/test-results/**
             persistence/primitives/build/reports/tests/**
+            persistence/primitives/build/reports/primitives-contention/**
             runtime/service/build/test-results/**
             runtime/service/build/reports/tests/**
           if-no-files-found: ignore
@@ -186,9 +192,20 @@ jobs:
           test -n "$db_host"
           ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
             --tests '*NativeManagerTest' --tests '*ManagerFailureTest' --tests '*AttemptContractTest' \
+            --tests '*ConflictGranularityTest' -Dpoc.measure=true \
             -Dpoc.backend=jdbc \
             "-Dpoc.jdbc.url=jdbc:postgresql://${db_host}:26257/polaris_poc?sslmode=disable" \
             -Dpoc.jdbc.user=root
+      - name: Verify native dependency evidence
+        run: python3 .github/scripts/poc-verify-dependencies.py manager
+      - name: Native CockroachDB requirement-only and promotion requests
+        run: |
+          db_host=$(docker inspect --format '{{(index .NetworkSettings.Networks "polaris-poc-isolated").IPAddress}}' polaris-poc-cockroach)
+          ./gradlew :polaris-runtime-service:test --max-workers=2 \
+            --tests '*PrimitiveCommitDependencyTest' \
+            "-Dpoc.jdbc.url=jdbc:postgresql://${db_host}:26257/polaris_poc?sslmode=disable" \
+            -Dpoc.jdbc.user=root
+          python3 .github/scripts/poc-verify-dependencies.py service
       - name: Retain isolation and server evidence
         if: always()
         run: |
@@ -203,8 +220,11 @@ jobs:
           path: |
             persistence/primitives/build/test-results/**
             persistence/primitives/build/reports/tests/**
+            persistence/primitives/build/reports/primitives-contention/**
             metadata-guard.json
             isolated-network.json
+            runtime/service/build/test-results/**
+            runtime/service/build/reports/tests/**
             cockroach-version.txt
             cockroach-startup.log
           if-no-files-found: ignore
@@ -213,3 +233,43 @@ jobs:
         run: |
           docker rm --force polaris-poc-cockroach
           docker network rm polaris-poc-isolated
+
+  foundationdb:
+    if: github.repository == 'flyingImer/polaris'
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1
+        with:
+          persist-credentials: false
+      - uses: actions/setup-java@de7274f081f381c8f8158605e0321c36c376e2e6
+        with:
+          java-version: '21'
+          distribution: 'temurin'
+      - name: Block and verify metadata access before tests
+        run: bash .github/scripts/poc-metadata-guard.sh
+      - uses: ./.github/actions/ci-incr-build-cache-prepare
+      - name: Install disposable FoundationDB 7.3.77
+        run: |
+          curl --fail --location --retry 3 -o clients.deb https://github.com/apple/foundationdb/releases/download/7.3.77/foundationdb-clients_7.3.77-1_amd64.deb
+          curl --fail --location --retry 3 -o server.deb https://github.com/apple/foundationdb/releases/download/7.3.77/foundationdb-server_7.3.77-1_amd64.deb
+          echo 'b6c263723009bddbc30b6ae8cf9854340bd35cef14152abb0da8fb5af2b91254  clients.deb' | sha256sum -c -
+          echo '789f1ed4cbacc0fd7043da2217c9e57516e4ec94fa7140853ec22a7e715785cc  server.deb' | sha256sum -c -
+          sudo dpkg -i clients.deb server.deb
+          fdbcli --exec 'status minimal'
+      - name: Native FoundationDB Manager, failure and contention tests
+        run: |
+          ./gradlew :polaris-persistence-primitives:test --max-workers=2 \
+            --tests '*NativeManagerTest' --tests '*ManagerFailureTest' --tests '*AttemptContractTest' \
+            --tests '*ConflictGranularityTest' -Dpoc.measure=true \
+            -Dpoc.backend=fdb -Dpoc.fdb.cluster=/etc/foundationdb/fdb.cluster
+          python3 .github/scripts/poc-verify-dependencies.py manager
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
+        if: always()
+        with:
+          name: durable-java-poc-fdb-results
+          path: |
+            persistence/primitives/build/test-results/**
+            persistence/primitives/build/reports/tests/**
+            persistence/primitives/build/reports/primitives-contention/**
+          if-no-files-found: ignore

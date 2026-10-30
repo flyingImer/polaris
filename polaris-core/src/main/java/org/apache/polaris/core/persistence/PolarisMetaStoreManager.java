@@ -301,6 +301,25 @@ public interface PolarisMetaStoreManager
       @NonNull PolarisCallContext callCtx, @NonNull List<EntityWithPath> entities);
 
   /**
+   * Experimental check-only dependency hook for the Durable prototype. Validate the observed
+   * identity, path and entity version of each dependency in the same serializable transaction as
+   * the updates. Dependencies receive no writes, version increments or change-tracking entries.
+   * This does not require values to remain unchanged until physical commit.
+   *
+   * <p>Implementations without dependency protection reject nonempty dependencies before writing.
+   * They must not silently drop checks or turn dependencies into no-op updates.
+   */
+  default @NonNull EntitiesResult updateEntitiesPropertiesIfNotChanged(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityWithPath> entities,
+      @NonNull List<EntityWithPath> dependencies) {
+    if (!dependencies.isEmpty()) {
+      throw new UnsupportedOperationException("Check-only commit dependencies are not supported");
+    }
+    return updateEntitiesPropertiesIfNotChanged(callCtx, entities);
+  }
+
+  /**
    * Rename an entity, potentially re-parenting it.
    *
    * @param callCtx call context

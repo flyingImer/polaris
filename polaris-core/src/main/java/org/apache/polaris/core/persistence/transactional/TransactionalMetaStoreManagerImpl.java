@@ -1276,6 +1276,18 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
         callCtx, () -> this.updateEntityPropertiesIfNotChanged(callCtx, ms, catalogPath, entity));
   }
 
+  private static void validateUpdateBatch(List<EntityWithPath> entities) {
+    Set<PolarisEntityId> seen = new HashSet<>();
+    // Reject invalid batch shape before stale-version validation can disguise it as a conflict.
+    for (EntityWithPath entityWithPath : entities) {
+      if (!seen.add(
+          new PolarisEntityId(
+              entityWithPath.entity().getCatalogId(), entityWithPath.entity().getId()))) {
+        throw new IllegalArgumentException("Duplicate entity in update batch");
+      }
+    }
+  }
+
   /** See {@link #updateEntitiesPropertiesIfNotChanged(PolarisCallContext, List)} */
   private @NonNull EntitiesResult updateEntitiesPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx,
@@ -1287,15 +1299,8 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
     // list of all updated entities
     List<PolarisBaseEntity> updatedEntities = new ArrayList<>(entities.size());
 
-    Set<PolarisEntityId> seen = new HashSet<>();
     // Validate the full batch before writing anything.
     for (EntityWithPath entityWithPath : entities) {
-      if (!seen.add(
-          new PolarisEntityId(
-              entityWithPath.entity().getCatalogId(), entityWithPath.entity().getId()))) {
-        return new EntitiesResult(
-            BaseResult.ReturnStatus.TARGET_ENTITY_CONCURRENTLY_MODIFIED, null);
-      }
       // Prepare this entity, abort if validation fails
       EntityResult updatedEntityResult =
           this.prepareEntityPropertiesUpdate(
@@ -1324,12 +1329,42 @@ public class TransactionalMetaStoreManagerImpl extends BaseMetaStoreManager {
   @Override
   public @NonNull EntitiesResult updateEntitiesPropertiesIfNotChanged(
       @NonNull PolarisCallContext callCtx, @NonNull List<EntityWithPath> entities) {
+    validateUpdateBatch(entities);
     // get metastore we should be using
     TransactionalPersistence ms = ((TransactionalPersistence) callCtx.getMetaStore());
 
     // need to run inside a read/write transaction
     return ms.runInTransaction(
         callCtx, () -> this.updateEntitiesPropertiesIfNotChanged(callCtx, ms, entities));
+  }
+
+  @Override
+  public @NonNull EntitiesResult updateEntitiesPropertiesIfNotChanged(
+      @NonNull PolarisCallContext callCtx,
+      @NonNull List<EntityWithPath> entities,
+      @NonNull List<EntityWithPath> dependencies) {
+    validateUpdateBatch(entities);
+    if (dependencies.isEmpty()) {
+      return updateEntitiesPropertiesIfNotChanged(callCtx, entities);
+    }
+    TransactionalPersistence ms = (TransactionalPersistence) callCtx.getMetaStore();
+    return ms.runInTransaction(
+        callCtx,
+        () -> {
+          for (EntityWithPath dependency : dependencies) {
+            PolarisEntityResolver resolver =
+                new PolarisEntityResolver(
+                    getDiagnostics(), callCtx, ms, dependency.catalogPath(), dependency.entity());
+            if (resolver.isFailure()) {
+              ms.rollback();
+              return new EntitiesResult(
+                  BaseResult.ReturnStatus.CATALOG_PATH_CANNOT_BE_RESOLVED, null);
+            }
+            validateObservedMetadata(callCtx, ms, dependency.catalogPath());
+            validateObservedMetadata(callCtx, ms, List.of(dependency.entity()));
+          }
+          return updateEntitiesPropertiesIfNotChanged(callCtx, ms, entities);
+        });
   }
 
   /**

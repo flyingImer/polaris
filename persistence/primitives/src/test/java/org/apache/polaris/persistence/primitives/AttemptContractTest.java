@@ -35,6 +35,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Assumptions;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import org.slf4j.LoggerFactory;
 
 class AttemptContractTest {
   private DurablePrimitives backend;
@@ -128,6 +129,38 @@ class AttemptContractTest {
       assertThat(read.get(prefix + "b")).containsExactly((byte) 3);
       read.commit(List.of());
     }
+  }
+
+  @Test
+  void oneWayDependencyMaySerializeBeforeEarlierPhysicalCommit() {
+    String name = System.getProperty("poc.backend", "h2");
+    Assumptions.assumeTrue(
+        name.equals("jdbc") || name.equals("fdb"),
+        "Requires native transactions that permit this overlapping schedule");
+    try (var seed = backend.begin()) {
+      seed.commit(List.of(put(prefix + "a", new byte[] {1}), put(prefix + "b", new byte[] {1})));
+    }
+    boolean applied = false;
+    try (var first = backend.begin()) {
+      assertThat(first.get(prefix + "b")).containsExactly((byte) 1);
+      try (var second = backend.begin()) {
+        second.commit(List.of(put(prefix + "b", new byte[] {2})));
+      }
+      try {
+        first.commit(List.of(put(prefix + "a", new byte[] {2})));
+        applied = true;
+      } catch (StorageFailure e) {
+        assertThat(e.outcome()).isEqualTo(StorageFailure.Outcome.CONFLICT);
+      }
+    }
+    try (var read = backend.readView()) {
+      assertThat(read.get(prefix + "b")).containsExactly((byte) 2);
+      assertThat(read.get(prefix + "a")).containsExactly((byte) (applied ? 2 : 1));
+    }
+    // Both are conforming. Keep the observed outcome in the test report instead of imposing
+    // PostgreSQL's or FDB's conflict policy on every adapter.
+    LoggerFactory.getLogger(AttemptContractTest.class)
+        .info("One-way dependency experiment: backend={}, firstApplied={}", name, applied);
   }
 
   @Test

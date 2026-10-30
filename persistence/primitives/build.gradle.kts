@@ -44,6 +44,7 @@ tasks.withType<Test>().configureEach {
   // Explicit local endpoints only; native tests skip when not configured.
   listOf(
       "poc.backend",
+      "poc.measure",
       "poc.jdbc.url",
       "poc.jdbc.user",
       "poc.jdbc.password",

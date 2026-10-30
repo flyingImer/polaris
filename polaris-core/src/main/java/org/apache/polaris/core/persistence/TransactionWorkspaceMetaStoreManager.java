@@ -86,6 +86,7 @@ public class TransactionWorkspaceMetaStoreManager implements PolarisMetaStoreMan
   // to serve reads within the same transaction while also storing the ordered list of
   // pendingUpdates that ultimately need to be applied in order within the real MetaStoreManager.
   private final List<EntityWithPath> pendingUpdates = new ArrayList<>();
+  private final List<EntityWithPath> readDependencies = new ArrayList<>();
 
   public TransactionWorkspaceMetaStoreManager(
       PolarisDiagnostics diagnostics, PolarisMetaStoreManager delegate) {
@@ -99,6 +100,14 @@ public class TransactionWorkspaceMetaStoreManager implements PolarisMetaStoreMan
 
   public List<EntityWithPath> getPendingUpdates() {
     return ImmutableList.copyOf(pendingUpdates);
+  }
+
+  public void addReadDependency(EntityWithPath dependency) {
+    readDependencies.add(dependency);
+  }
+
+  public List<EntityWithPath> getReadDependencies() {
+    return ImmutableList.copyOf(readDependencies);
   }
 
   @Override

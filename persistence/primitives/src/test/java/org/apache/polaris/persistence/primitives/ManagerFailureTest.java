@@ -52,7 +52,10 @@ import org.apache.polaris.core.persistence.CommitOutcomeUnknownException;
 import org.apache.polaris.core.persistence.CommitRejectedException;
 import org.apache.polaris.core.persistence.ConfirmedTransactionConflictException;
 import org.apache.polaris.core.persistence.EntityAlreadyExistsException;
+import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.transactional.TransactionalMetaStoreManagerImpl;
+import org.apache.polaris.core.policy.PolicyEntity;
+import org.apache.polaris.core.policy.PredefinedPolicyTypes;
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
 import org.apache.polaris.persistence.primitives.api.StorageFailure;
 import org.apache.polaris.persistence.primitives.domain.DomainRecords;
@@ -429,6 +432,146 @@ class ManagerFailureTest {
                 .setCreateTimestamp(System.currentTimeMillis())
                 .build())
         .getPrincipal();
+  }
+
+  @Test
+  void checkOnlyDependencyPublishesNoMutation() {
+    var dependency = principal("dependency");
+    var before = snapshot();
+    assertThat(
+            manager
+                .updateEntitiesPropertiesIfNotChanged(
+                    context, List.of(), List.of(new EntityWithPath(null, dependency)))
+                .isSuccess())
+        .isTrue();
+    assertThat(snapshot()).isEqualTo(before);
+  }
+
+  @Test
+  void staleCheckOnlyDependencyRejectsWholeBatch() {
+    var one = principal("one");
+    var two = principal("two");
+    assertThat(manager.updateEntityPropertiesIfNotChanged(context, null, changed(two)).isSuccess())
+        .isTrue();
+    var before = snapshot();
+    assertThatThrownBy(
+            () ->
+                manager.updateEntitiesPropertiesIfNotChanged(
+                    context,
+                    List.of(new EntityWithPath(null, changed(one))),
+                    List.of(new EntityWithPath(null, two))))
+        .isInstanceOf(CommitConflictException.class);
+    assertThat(snapshot()).isEqualTo(before);
+  }
+
+  @Test
+  void duplicateMutationIsInvalidWithoutPartialWrites() {
+    var one = principal("one");
+    var before = snapshot();
+    var update = new EntityWithPath(null, changed(one));
+    assertThatThrownBy(
+            () -> manager.updateEntitiesPropertiesIfNotChanged(context, List.of(update, update)))
+        .isInstanceOf(IllegalArgumentException.class)
+        .hasMessageContaining("Duplicate entity");
+    assertThat(snapshot()).isEqualTo(before);
+  }
+
+  @Test
+  void detachUsesIdentityAfterUnrelatedMetadataChanges() {
+    var catalog = manager.createCatalog(context, catalog(), List.of()).getCatalog();
+    var target =
+        manager
+            .createEntityIfNotExists(
+                context, List.of(catalog), namespaceAt(catalog, "target", "s3://bucket/target/"))
+            .getEntity();
+    var policy =
+        PolicyEntity.of(
+            manager
+                .createEntityIfNotExists(
+                    context,
+                    List.of(catalog),
+                    new PolarisBaseEntity.Builder(
+                            new PolarisBaseEntity(
+                                catalog.getId(),
+                                manager.generateNewEntityId(context).getId(),
+                                PolarisEntityType.POLICY,
+                                PolarisEntitySubType.NULL_SUBTYPE,
+                                catalog.getId(),
+                                "policy"))
+                        .propertiesAsMap(
+                            Map.of(
+                                PolicyEntity.POLICY_TYPE_CODE_KEY,
+                                Integer.toString(PredefinedPolicyTypes.DATA_COMPACTION.getCode())))
+                        .build())
+                .getEntity());
+    assertThat(
+            manager
+                .attachPolicyToEntity(
+                    context, List.of(catalog), target, List.of(catalog), policy, Map.of())
+                .isSuccess())
+        .isTrue();
+    var newTarget =
+        new PolarisBaseEntity.Builder(target)
+            .internalPropertiesAsMap(Map.of("unrelated", "changed"))
+            .build();
+    var newPolicy = new PolicyEntity.Builder(policy).setDescription("changed").build();
+    assertThat(
+            manager
+                .updateEntityPropertiesIfNotChanged(context, List.of(catalog), newTarget)
+                .isSuccess())
+        .isTrue();
+    assertThat(
+            manager
+                .updateEntityPropertiesIfNotChanged(context, List.of(catalog), newPolicy)
+                .isSuccess())
+        .isTrue();
+    assertThat(
+            manager
+                .detachPolicyFromEntity(context, List.of(catalog), target, List.of(catalog), policy)
+                .isSuccess())
+        .isTrue();
+    assertThat(manager.loadPoliciesOnEntity(context, target).getEntities()).isEmpty();
+  }
+
+  @Test
+  void reciprocalCheckOnlyDependenciesCannotBothCommit() throws Exception {
+    String name = System.getProperty("poc.backend", "h2");
+    Assumptions.assumeTrue(
+        name.equals("fdb") || name.equals("jdbc"),
+        "Requires native concurrency; H2 and Spanner emulator do not qualify this schedule");
+    var one = principal("one");
+    var two = principal("two");
+    backend.rendezvous = new CountDownLatch(2);
+    try (var workers = Executors.newFixedThreadPool(2)) {
+      var first = workers.submit(() -> updateWithDependency(one, two));
+      var second = workers.submit(() -> updateWithDependency(two, one));
+      boolean firstSucceeded = first.get(30, TimeUnit.SECONDS);
+      boolean secondSucceeded = second.get(30, TimeUnit.SECONDS);
+      assertThat(backend.rendezvous.getCount()).isZero();
+      assertThat(firstSucceeded || secondSucceeded).isTrue();
+      assertThat(firstSucceeded && secondSucceeded).isFalse();
+    } finally {
+      backend.rendezvous = null;
+    }
+  }
+
+  private boolean updateWithDependency(PolarisBaseEntity update, PolarisBaseEntity dependency) {
+    try {
+      return manager
+          .updateEntitiesPropertiesIfNotChanged(
+              context,
+              List.of(new EntityWithPath(null, changed(update))),
+              List.of(new EntityWithPath(null, dependency)))
+          .isSuccess();
+    } catch (ConfirmedTransactionConflictException e) {
+      return false;
+    }
+  }
+
+  private static PolarisBaseEntity changed(PolarisBaseEntity entity) {
+    return new PolarisBaseEntity.Builder(entity)
+        .propertiesAsMap(Map.of("test-change", "updated"))
+        .build();
   }
 
   @Test

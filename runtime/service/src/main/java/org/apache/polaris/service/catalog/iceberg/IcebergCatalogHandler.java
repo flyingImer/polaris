@@ -1522,93 +1522,101 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
     // complex) alternative that would intercept at the MetaStoreManager layer.
     List<TableMetadata> tableMetadataObjs = new ArrayList<>();
     Map<TableIdentifier, FileIO> tableFileIOs = new HashMap<>();
-    changesByTable.forEach(
-        (tableIdentifier, changes) -> {
-          Table table = baseCatalog.loadTable(tableIdentifier);
-          if (!(table instanceof BaseTable baseTable)) {
-            throw new IllegalStateException("Cannot wrap catalog that does not produce BaseTable");
-          }
+    try {
+      changesByTable.forEach(
+          (tableIdentifier, changes) -> {
+            Table table = baseCatalog.loadTable(tableIdentifier);
+            if (!(table instanceof BaseTable baseTable)) {
+              throw new IllegalStateException(
+                  "Cannot wrap catalog that does not produce BaseTable");
+            }
 
-          TableOperations tableOps = baseTable.operations();
-          TableMetadata baseMetadata = tableOps.current();
+            TableOperations tableOps = baseTable.operations();
+            TableMetadata baseMetadata = tableOps.current();
 
-          // Apply each change sequentially: validate requirements against current state,
-          // then apply updates. This ensures conflicts are detected (e.g., if two changes
-          // both expect schema ID 0, the second will fail after the first increments it).
-          TableMetadata currentMetadata = baseMetadata;
-          for (UpdateTableRequest change : changes) {
-            // A multi-table transaction must not be a way to bypass the caller-specified-location
-            // gate enforced on the single-table updateTable path.
-            rejectClientSpecifiedLocationIfDisallowed(change);
+            // Apply each change sequentially: validate requirements against current state,
+            // then apply updates. This ensures conflicts are detected (e.g., if two changes
+            // both expect schema ID 0, the second will fail after the first increments it).
+            TableMetadata currentMetadata = baseMetadata;
+            for (UpdateTableRequest change : changes) {
+              // A multi-table transaction must not be a way to bypass the caller-specified-location
+              // gate enforced on the single-table updateTable path.
+              rejectClientSpecifiedLocationIfDisallowed(change);
 
-            // Validate requirements against the current metadata state
-            final TableMetadata metadataForValidation = currentMetadata;
-            change
-                .requirements()
-                .forEach(requirement -> requirement.validate(metadataForValidation));
+              // Validate requirements against the current metadata state
+              final TableMetadata metadataForValidation = currentMetadata;
+              change
+                  .requirements()
+                  .forEach(requirement -> requirement.validate(metadataForValidation));
 
-            // TODO: Refactor to share/reconcile the update-application logic below with
-            // CatalogHandlerUtils to avoid divergence as complexity grows.
-            TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(currentMetadata);
-            for (MetadataUpdate singleUpdate : change.updates()) {
-              // Note: If location-overlap checking is refactored to be atomic, we could
-              // support validation within a single multi-table transaction as well, but
-              // will need to update the TransactionWorkspaceMetaStoreManager to better
-              // expose the concept of being able to read uncommitted updates.
-              if (singleUpdate instanceof MetadataUpdate.SetLocation setLocation) {
-                if (!currentMetadata.location().equals(setLocation.location())
-                    && !realmConfig()
-                        .getConfig(FeatureConfiguration.ALLOW_NAMESPACE_LOCATION_OVERLAP)) {
-                  throw new BadRequestException(
-                      "Unsupported operation: commitTransaction containing SetLocation"
-                          + " for table '%s' and new location '%s'",
-                      change.identifier(), ((MetadataUpdate.SetLocation) singleUpdate).location());
+              // TODO: Refactor to share/reconcile the update-application logic below with
+              // CatalogHandlerUtils to avoid divergence as complexity grows.
+              TableMetadata.Builder metadataBuilder = TableMetadata.buildFrom(currentMetadata);
+              for (MetadataUpdate singleUpdate : change.updates()) {
+                // Note: If location-overlap checking is refactored to be atomic, we could
+                // support validation within a single multi-table transaction as well, but
+                // will need to update the TransactionWorkspaceMetaStoreManager to better
+                // expose the concept of being able to read uncommitted updates.
+                if (singleUpdate instanceof MetadataUpdate.SetLocation setLocation) {
+                  if (!currentMetadata.location().equals(setLocation.location())
+                      && !realmConfig()
+                          .getConfig(FeatureConfiguration.ALLOW_NAMESPACE_LOCATION_OVERLAP)) {
+                    throw new BadRequestException(
+                        "Unsupported operation: commitTransaction containing SetLocation"
+                            + " for table '%s' and new location '%s'",
+                        change.identifier(),
+                        ((MetadataUpdate.SetLocation) singleUpdate).location());
+                  }
+                }
+
+                // Apply updates to builder
+                try {
+                  singleUpdate.applyTo(metadataBuilder);
+                } catch (RetryableValidationException e) {
+                  // Surface as a retryable 409, matching CatalogHandlerUtils.commit.
+                  throw new CommitFailedException(
+                      e, "Validation failed, please retry: %s", e.getMessage());
                 }
               }
 
-              // Apply updates to builder
-              try {
-                singleUpdate.applyTo(metadataBuilder);
-              } catch (RetryableValidationException e) {
-                // Surface as a retryable 409, matching CatalogHandlerUtils.commit.
-                throw new CommitFailedException(
-                    e, "Validation failed, please retry: %s", e.getMessage());
-              }
+              // Update currentMetadata to reflect this change for subsequent requirement validation
+              currentMetadata = metadataBuilder.build();
             }
 
-            // Update currentMetadata to reflect this change for subsequent requirement validation
-            currentMetadata = metadataBuilder.build();
-          }
+            // Commit all accumulated changes for this table in a single atomic operation.
+            // The delete logic (set above to collectCleanup) will record instead of delete.
+            if (!currentMetadata.changes().isEmpty()) {
+              tableOps.commit(baseMetadata, currentMetadata);
+              tableFileIOs.put(tableIdentifier, tableOps.io());
+            } else {
+              transactionMetaStoreManager.addReadDependency(
+                  ((LocalIcebergCatalog.BasePolarisTableOperations) tableOps)
+                      .metadataReadDependency());
+            }
 
-          // Commit all accumulated changes for this table in a single atomic operation.
-          // The delete logic (set above to collectCleanup) will record instead of delete.
-          if (!currentMetadata.changes().isEmpty()) {
-            tableOps.commit(baseMetadata, currentMetadata);
-            tableFileIOs.put(tableIdentifier, tableOps.io());
-          }
-
-          tableMetadataObjs.add(currentMetadata);
-        });
+            tableMetadataObjs.add(currentMetadata);
+          });
+    } catch (CommitStateUnknownException | CommitOutcomeUnknownException e) {
+      throw e;
+    } catch (RuntimeException e) {
+      // The workspace has not submitted its final batch. Earlier tables may already have written
+      // metadata files, so reclaim those as well as the failing table's own cleanup.
+      cleanupWrittenMetadataFiles(
+          writtenMetadataFiles(transactionMetaStoreManager.getPendingUpdates(), tableFileIOs));
+      throw e;
+    }
 
     List<EntityWithPath> pendingUpdates = transactionMetaStoreManager.getPendingUpdates();
-    List<FileToDelete> writtenMetadataFiles =
-        pendingUpdates.stream()
-            .map(ewp -> IcebergTableLikeEntity.of(ewp.entity()))
-            .filter(entity -> entity != null && entity.getMetadataLocation() != null)
-            .filter(entity -> tableFileIOs.containsKey(entity.getTableIdentifier()))
-            .map(
-                entity ->
-                    new FileToDelete(
-                        tableFileIOs.get(entity.getTableIdentifier()),
-                        entity.getMetadataLocation()))
-            .toList();
+    List<FileToDelete> writtenMetadataFiles = writtenMetadataFiles(pendingUpdates, tableFileIOs);
 
     EntitiesResult result;
     try {
       result =
           metaStoreManager()
               .updateEntitiesPropertiesIfNotChanged(
-                  callContext().getPolarisCallContext(), pendingUpdates);
+                  callContext().getPolarisCallContext(),
+                  pendingUpdates,
+                  transactionMetaStoreManager.getReadDependencies());
     } catch (CommitOutcomeUnknownException e) {
       // The new metadata may already be live. Keep both old and new files; do not replay here.
       throw new CommitStateUnknownException(e);
@@ -1616,7 +1624,9 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
         | CommitRejectedException
         | CommitConflictException
         | ValidationException
-        | ForbiddenException e) {
+        | ForbiddenException
+        | UnsupportedOperationException
+        | IllegalArgumentException e) {
       cleanupWrittenMetadataFiles(writtenMetadataFiles);
       throw e;
     }
@@ -1642,6 +1652,19 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
     }
 
     eventAttributeMap().put(EventAttributes.TABLE_METADATAS, tableMetadataObjs);
+  }
+
+  private static List<FileToDelete> writtenMetadataFiles(
+      List<EntityWithPath> pendingUpdates, Map<TableIdentifier, FileIO> tableFileIOs) {
+    return pendingUpdates.stream()
+        .map(ewp -> IcebergTableLikeEntity.of(ewp.entity()))
+        .filter(entity -> entity != null && entity.getMetadataLocation() != null)
+        .filter(entity -> tableFileIOs.containsKey(entity.getTableIdentifier()))
+        .map(
+            entity ->
+                new FileToDelete(
+                    tableFileIOs.get(entity.getTableIdentifier()), entity.getMetadataLocation()))
+        .toList();
   }
 
   record FileToDelete(FileIO io, String location) {

@@ -106,9 +106,43 @@ location index. Early Feature checks remain for feedback, not commit protection.
 Views carry their location in internal metadata for this validation. The mapping
 does not change their public storage-root restrictions.
 
+## Check-only dependencies and observation identity
+
+A multi-table commit can update A while asserting a requirement on B with an empty
+`updates` array. B now joins the final Manager attempt as a check-only dependency.
+Its name/identity, parent path and metadata version are checked without writing B,
+bumping its entity version, or producing a replacement metadata file. Reciprocal
+requirements (read B/write A and read A/write B) therefore cannot both commit.
+This closes the missing dependency illustrated by apache/polaris#5807.
+
+The dependency is captured with the metadata pointer used for requirement
+validation. A later passthrough refresh cannot silently replace it with a newer
+snapshot that was never validated. Manifest observations distinguish `FOUND`,
+`ABSENT` (with the existing path prefix), and `UNRESOLVED`; resolver failure is
+not evidence of absence. Optional absence is still rechecked by the Manager's
+protected create/name lookup.
+
+Authorization declarations and commit dependencies remain separate. The Manager
+may inspect siblings needed for a location predicate without giving the caller
+read access to those siblings. Public overlap errors do not expose sibling names
+or locations. Policy detach continues to use identity and mapping existence;
+unrelated target/policy metadata changes do not become detach preconditions.
+
+Duplicate entities in the final mutation batch are invalid input (400), before
+stale-version validation, with no partial writes. Repeated updates to the same
+table at the REST boundary still coalesce into one final mutation.
+
+The temporary three-argument Manager hook is PoC plumbing, not a settled public
+API proposal. Implementations without check-only support reject nonempty
+check-only dependencies before effects rather than silently dropping them.
+The opaque Primitives method signatures and backend schema are unchanged.
+See [COMMUNITY_ALIGNMENT.md](COMMUNITY_ALIGNMENT.md) for decisions 2–9 and the
+separate correctness and performance evidence boundaries.
+
 ## Operation outcome and retry ownership
 
-Storage reports CONFLICT, REJECTED or UNKNOWN. The shared domain bridge translates
+A successful commit return means APPLIED. Storage failures report CONFLICT,
+REJECTED or UNKNOWN. The shared domain bridge translates
 confirmed abort to `ConfirmedTransactionConflictException`, definite rejection to
 `CommitRejectedException`, and uncertainty to `CommitOutcomeUnknownException`. An ordinary stale version exception is not a
 license to replay. There is no generic receipt or exactly-once layer.

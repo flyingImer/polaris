@@ -142,6 +142,9 @@ request adding CHANGELOG notes for breaking (!) changes and possibly other secti
 
 ### Fixes
 
+- Java Primitives PoC: preserve requirement-only tables as read dependencies in multi-table commits,
+  reject duplicate final entity mutations as invalid input, and omit sibling metadata from overlap errors.
+
 - A list request whose `pageSize` is not a number now returns `400 Bad Request` naming the
   parameter, instead of `404 Not Found`. The status is now the same on every API that accepts
   `pageSize`.

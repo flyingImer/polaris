@@ -111,6 +111,7 @@ import org.apache.polaris.core.context.CallContext;
 import org.apache.polaris.core.entity.CatalogEntity;
 import org.apache.polaris.core.entity.LocationBasedEntity;
 import org.apache.polaris.core.entity.NamespaceEntity;
+import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
@@ -126,6 +127,7 @@ import org.apache.polaris.core.persistence.PolarisResolvedPathWrapper;
 import org.apache.polaris.core.persistence.dao.entity.BaseResult;
 import org.apache.polaris.core.persistence.dao.entity.DropEntityResult;
 import org.apache.polaris.core.persistence.dao.entity.EntityResult;
+import org.apache.polaris.core.persistence.dao.entity.EntityWithPath;
 import org.apache.polaris.core.persistence.dao.entity.ListEntitiesResult;
 import org.apache.polaris.core.persistence.pagination.Page;
 import org.apache.polaris.core.persistence.pagination.PageToken;
@@ -390,7 +392,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     int lastSlashIndex = metadataFileLocation.lastIndexOf("/");
     Preconditions.checkArgument(
         lastSlashIndex != -1,
-        "Invalid metadata file location; metadata file location must be absolute and contain a '/': %s",
+        "Invalid metadata file location; metadata file location must be absolute and contain a '/':"
+            + " %s",
         metadataFileLocation);
 
     PolarisResolvedPathWrapper resolvedTableLike =
@@ -1094,7 +1097,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     int lastSlashIndex = metadataFileLocation.lastIndexOf("/");
     Preconditions.checkArgument(
         lastSlashIndex != -1,
-        "Invalid metadata file location; metadata file location must be absolute and contain a '/': %s",
+        "Invalid metadata file location; metadata file location must be absolute and contain a '/':"
+            + " %s",
         metadataFileLocation);
 
     // Throw an exception if this view already exists in the catalog.
@@ -1278,18 +1282,18 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       if (!optimizedSiblingCheck) {
         throw new IllegalStateException(
             String.format(
-                "%s and %s are both disabled, which means that table location overlap checks are being"
-                    + " performed, but only within each namespace. However, %s is enabled, which indicates"
-                    + " that tables may be created outside of their parent namespace. This is not a safe"
-                    + " combination of configurations.",
+                "%s and %s are both disabled, which means that table location overlap checks are"
+                    + " being performed, but only within each namespace. However, %s is enabled,"
+                    + " which indicates that tables may be created outside of their parent"
+                    + " namespace. This is not a safe combination of configurations.",
                 FeatureConfiguration.ALLOW_TABLE_LOCATION_OVERLAP.key(),
                 FeatureConfiguration.OPTIMIZED_SIBLING_CHECK.key(),
                 FeatureConfiguration.ALLOW_UNSTRUCTURED_TABLE_LOCATION.key()));
       } else if (!loggedPrefixOverlapWarning.getAndSet(true)) {
         LOGGER.warn(
-            "A table is being created with {} and {} enabled, but with {} disabled. "
-                + "This is a safe combination of configurations which may prevent table overlap, but only if the "
-                + "underlying persistence actually implements %s. Exercise caution.",
+            "A table is being created with {} and {} enabled, but with {} disabled. This is a safe"
+                + " combination of configurations which may prevent table overlap, but only if the"
+                + " underlying persistence actually implements %s. Exercise caution.",
             FeatureConfiguration.DEFAULT_LOCATION_OBJECT_STORAGE_PREFIX_ENABLED.key(),
             FeatureConfiguration.OPTIMIZED_SIBLING_CHECK.key(),
             FeatureConfiguration.ALLOW_TABLE_LOCATION_OVERLAP.key());
@@ -1528,9 +1532,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
           getMetaStoreManager().hasOverlappingSiblings(getCurrentPolarisContext(), entity);
       if (directSiblingCheckResult.isPresent()) {
         if (directSiblingCheckResult.get().isPresent()) {
-          throw new org.apache.iceberg.exceptions.ForbiddenException(
-              "Unable to create entity at location '%s' because it conflicts with existing table or namespace at %s",
-              location, directSiblingCheckResult.get().get());
+          throw new ForbiddenException("Requested location overlaps an existing sibling");
         } else {
           return;
         }
@@ -1572,7 +1574,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
                               PageToken.readEverything());
                   if (!siblingTablesResult.isSuccess()) {
                     throw new IllegalStateException(
-                        "Unable to resolve siblings entities to validate location - could not list tables");
+                        "Unable to resolve siblings entities to validate location - could not list"
+                            + " tables");
                   }
                   return siblingTablesResult.getEntities().stream()
                       .map(tbl -> TableIdentifier.of(ns.asNamespace(), tbl.getName()))
@@ -1618,10 +1621,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
               siblingLocation -> {
                 if (targetLocation.isChildOf(siblingLocation)
                     || siblingLocation.isChildOf(targetLocation)) {
-                  throw new ForbiddenException(
-                      "Unable to create entity at location '%s' because it conflicts with existing table or namespace at "
-                          + "location '%s'",
-                      targetLocation, siblingLocation);
+                  throw new ForbiddenException("Requested location overlaps an existing sibling");
                 }
               });
     }
@@ -1643,21 +1643,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     ResolverStatus status = resolutionManifest.resolveAll();
 
     if (status.getStatus() != ResolverStatus.StatusEnum.SUCCESS) {
-      String message =
-          "Unable to resolve sibling entities to validate location - " + status.getStatus();
-      if (status.getStatus().equals(ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED)) {
-        message += ". Could not resolve entity: " + status.getFailedToResolvedEntityName();
-      } else if (status
-          .getStatus()
-          .equals(ResolverStatus.StatusEnum.PATH_COULD_NOT_BE_FULLY_RESOLVED)) {
-        ResolverPath path = status.getFailedToResolvePath();
-        if (path != null) {
-          message += ". path: " + String.join(".", path.entityNames());
-          message += ", failed index: " + status.getFailedToResolvedEntityIndex();
-        }
-      }
-
-      throw new CommitConflictException(message);
+      throw new CommitConflictException("Unable to resolve sibling entities to validate location");
     }
 
     List<PolarisEntity> result = new ArrayList<>(keys.size());
@@ -1721,6 +1707,12 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
     private final boolean makeMetadataCurrentOnCommit;
 
     private FileIO tableFileIO;
+    private EntityWithPath metadataReadDependency;
+
+    EntityWithPath metadataReadDependency() {
+      Preconditions.checkState(metadataReadDependency != null, "Table metadata was not loaded");
+      return metadataReadDependency;
+    }
 
     BasePolarisTableOperations(
         FileIO defaultFileIO,
@@ -1837,6 +1829,7 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       }
 
       String latestLocation = entity != null ? entity.getMetadataLocation() : null;
+      metadataReadDependency = null;
       LOGGER.debug("Refreshing latestLocation: {}", latestLocation);
       if (latestLocation == null) {
         disableRefresh();
@@ -1870,6 +1863,12 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
                       Set.of(PolarisStorageActions.READ, PolarisStorageActions.LIST));
               return TableMetadataParser.read(fileIO, metadataLocation);
             });
+        // Keep the exact entity that supplied the metadata pointer. A later passthrough read
+        // could observe a newer version whose metadata was never used to validate requirements.
+        metadataReadDependency =
+            new EntityWithPath(
+                List.copyOf(resolvedEntities.getRawParentPath()),
+                new PolarisBaseEntity.Builder(entity).build());
         if (polarisEventDispatcher.hasListeners(PolarisEventType.AFTER_REFRESH_TABLE)) {
           polarisEventDispatcher.dispatch(
               new PolarisEvent(
@@ -1996,6 +1995,14 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       String existingLocation =
           existingEntity == null ? null : existingEntity.getMetadataLocation();
       String oldLocation = base == null ? null : base.metadataFileLocation();
+      if (base != null && metadataReadDependency != null && existingEntity != null) {
+        PolarisBaseEntity validated = metadataReadDependency.entity();
+        if (existingEntity.getCatalogId() != validated.getCatalogId()
+            || existingEntity.getId() != validated.getId()
+            || existingEntity.getEntityVersion() != validated.getEntityVersion()) {
+          throw new CommitFailedException("Cannot commit: validated table snapshot changed");
+        }
+      }
       if (!Objects.equal(existingLocation, oldLocation)) {
         if (null == base) {
           throw alreadyExistsExceptionForTableLikeEntity(
@@ -2008,7 +2015,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         }
 
         throw new CommitFailedException(
-            "Cannot commit to table %s: base metadata location %s has been concurrently modified to %s",
+            "Cannot commit to table %s: base metadata location %s has been concurrently modified to"
+                + " %s",
             tableIdentifier, oldLocation, existingLocation);
       }
 
@@ -2995,8 +3003,8 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
       if (!dropWithPurgeEnabled) {
         throw new ForbiddenException(
             String.format(
-                "Unable to purge entity: %s. To enable this feature, set the Polaris configuration %s "
-                    + "or the catalog configuration %s",
+                "Unable to purge entity: %s. To enable this feature, set the Polaris configuration"
+                    + " %s or the catalog configuration %s",
                 identifier.name(),
                 FeatureConfiguration.DROP_WITH_PURGE_ENABLED.key(),
                 FeatureConfiguration.DROP_WITH_PURGE_ENABLED.catalogConfig()));
