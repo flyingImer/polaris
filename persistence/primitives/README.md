@@ -251,6 +251,21 @@ process through the normal native-library search path.
   -Dpoc.backend=fdb -Dpoc.fdb.cluster=/absolute/path/to/fdb.cluster
 ```
 
+The requirement-only and promotion requests use the same explicitly selected
+backend through the Service fixture (direct Java handlers, not a deployed HTTP server):
+
+```sh
+./gradlew :polaris-runtime-service:test --tests '*PrimitiveCommitDependencyTest' \
+  -Dpoc.backend=fdb -Dpoc.fdb.cluster=/absolute/path/to/fdb.cluster
+```
+
+For JDBC, replace the FDB properties with `poc.jdbc.url`, `poc.jdbc.user` and any
+required password. To measure the isolated range and sequence workloads, add
+`--tests '*ConflictGranularityTest' -Dpoc.measure=true` to the Primitives command.
+The eight JSON reports appear under `build/reports/primitives-contention` in this
+module. `python3 .github/scripts/poc-verify-dependencies.py manager` and the
+corresponding `service` mode reject missing or skipped required regressions.
+
 Spanner: start a local emulator with a fresh instance namespace. The explicit
 initialize flag creates the named instance/database and generic record table.
 Use it only for a fresh disposable emulator.

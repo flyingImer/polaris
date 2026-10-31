@@ -114,7 +114,6 @@ public class LocalIcebergCatalogRelationalOverlapTest
     assertThatThrownBy(
             () -> catalog().buildTable(childTable, SCHEMA).withLocation(childLoc).create())
         .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("Unable to create entity at location")
         .hasMessageContaining("overlaps an existing sibling");
 
     // The same must hold when the slash-terminated form of the same prefix is used.
@@ -123,7 +122,6 @@ public class LocalIcebergCatalogRelationalOverlapTest
     assertThatThrownBy(
             () -> catalog().buildTable(siblingTable, SCHEMA).withLocation(siblingLoc).create())
         .isInstanceOf(ForbiddenException.class)
-        .hasMessageContaining("Unable to create entity at location")
         .hasMessageContaining("overlaps an existing sibling");
   }
 

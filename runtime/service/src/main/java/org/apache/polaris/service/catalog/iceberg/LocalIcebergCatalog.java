@@ -114,6 +114,7 @@ import org.apache.polaris.core.entity.NamespaceEntity;
 import org.apache.polaris.core.entity.PolarisBaseEntity;
 import org.apache.polaris.core.entity.PolarisEntity;
 import org.apache.polaris.core.entity.PolarisEntityConstants;
+import org.apache.polaris.core.entity.PolarisEntityCore;
 import org.apache.polaris.core.entity.PolarisEntitySubType;
 import org.apache.polaris.core.entity.PolarisEntityType;
 import org.apache.polaris.core.entity.PolarisEntityUtils;
@@ -1867,7 +1868,9 @@ public class LocalIcebergCatalog extends BaseMetastoreViewCatalog
         // could observe a newer version whose metadata was never used to validate requirements.
         metadataReadDependency =
             new EntityWithPath(
-                List.copyOf(resolvedEntities.getRawParentPath()),
+                resolvedEntities.getRawParentPath().stream()
+                    .<PolarisEntityCore>map(parent -> new PolarisBaseEntity.Builder(parent).build())
+                    .toList(),
                 new PolarisBaseEntity.Builder(entity).build());
         if (polarisEventDispatcher.hasListeners(PolarisEventType.AFTER_REFRESH_TABLE)) {
           polarisEventDispatcher.dispatch(

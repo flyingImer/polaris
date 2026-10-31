@@ -86,8 +86,8 @@ correctness criterion. Initial sibling counts are fixed, and range cases grow
 as operations complete. Sequence cases keep siblings inert as a control.
 
 H2 supports fast functional regressions; it does not qualify native serializable
-races. FDB tests qualify the shared Manager and primitive boundary, not the JDBC
-service fixture. Spanner emulator evidence, where explicitly run, does not
+races. FDB runs the shared Manager/primitive tests and the same requirement-only and
+promotion request suite through an explicitly configured native FDB fixture. Spanner emulator evidence, where explicitly run, does not
 qualify production Spanner concurrency. Production Spanner, crash recovery,
 large-scale performance, mixed writers, schema migration and rollout are not
 established here. NoSQL remains on its existing persistence implementation;

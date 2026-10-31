@@ -36,7 +36,10 @@ if sys.argv[1] == "service":
            ["nativeReciprocalRequirementsCannotBothSucceed",
             "passthroughSnapshotChangedBeforeCommit",
             "requirementOnlyTableRetainsEntityAndMetadata",
-            "repeatedTableRequestsCoalesceIntoOneMutation"], 10)
+            "repeatedTableRequestsCoalesceIntoOneMutation",
+            "threeTablePromotionIsAllOrNothing",
+            "nativePromotionRacePublishesOneCompleteResult",
+            "unknownWithCheckOnlyDependencyRetainsMetadata"], 10)
 else:
     directory = "persistence/primitives/build/test-results/test"
     verify(directory, "ManagerFailureTest",

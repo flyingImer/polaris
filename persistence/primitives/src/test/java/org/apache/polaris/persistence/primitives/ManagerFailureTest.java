@@ -467,12 +467,20 @@ class ManagerFailureTest {
   @Test
   void duplicateMutationIsInvalidWithoutPartialWrites() {
     var one = principal("one");
+    // Invalid shape wins even when the mutation and check-only snapshot are both stale.
+    assertThat(manager.updateEntityPropertiesIfNotChanged(context, null, changed(one)).isSuccess())
+        .isTrue();
     var before = snapshot();
     var update = new EntityWithPath(null, changed(one));
     assertThatThrownBy(
             () -> manager.updateEntitiesPropertiesIfNotChanged(context, List.of(update, update)))
         .isInstanceOf(IllegalArgumentException.class)
         .hasMessageContaining("Duplicate entity");
+    assertThatThrownBy(
+            () ->
+                manager.updateEntitiesPropertiesIfNotChanged(
+                    context, List.of(update, update), List.of(new EntityWithPath(null, one))))
+        .isInstanceOf(IllegalArgumentException.class);
     assertThat(snapshot()).isEqualTo(before);
   }
 

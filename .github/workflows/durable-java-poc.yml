@@ -19,6 +19,7 @@
 
 name: Durable Java PoC validation
 on:
+  workflow_dispatch:
   push:
     branches: [ "prototype/durable-java-primitives" ]
     paths:
@@ -264,11 +265,19 @@ jobs:
             --tests '*ConflictGranularityTest' -Dpoc.measure=true \
             -Dpoc.backend=fdb -Dpoc.fdb.cluster=/etc/foundationdb/fdb.cluster
           python3 .github/scripts/poc-verify-dependencies.py manager
+      - name: Native FoundationDB requirement-only and promotion requests
+        run: |
+          ./gradlew :polaris-runtime-service:test --max-workers=2 \
+            --tests '*PrimitiveCommitDependencyTest' \
+            -Dpoc.backend=fdb -Dpoc.fdb.cluster=/etc/foundationdb/fdb.cluster
+          python3 .github/scripts/poc-verify-dependencies.py service
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a
         if: always()
         with:
           name: durable-java-poc-fdb-results
           path: |
+            runtime/service/build/test-results/**
+            runtime/service/build/reports/tests/**
             persistence/primitives/build/test-results/**
             persistence/primitives/build/reports/tests/**
             persistence/primitives/build/reports/primitives-contention/**

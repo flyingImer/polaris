@@ -1588,7 +1588,7 @@ public abstract class IcebergCatalogHandler extends CatalogHandler implements Au
             if (!currentMetadata.changes().isEmpty()) {
               tableOps.commit(baseMetadata, currentMetadata);
               tableFileIOs.put(tableIdentifier, tableOps.io());
-            } else {
+            } else if (changes.stream().anyMatch(change -> !change.requirements().isEmpty())) {
               transactionMetaStoreManager.addReadDependency(
                   ((LocalIcebergCatalog.BasePolarisTableOperations) tableOps)
                       .metadataReadDependency());

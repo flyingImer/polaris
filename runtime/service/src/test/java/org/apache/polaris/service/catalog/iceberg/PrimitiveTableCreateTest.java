@@ -335,6 +335,7 @@ class PrimitiveTableCreateTest {
                 null,
                 new PrincipalRoleEntity.Builder()
                     .setName("creator")
+                    .setCreateTimestamp(System.currentTimeMillis())
                     .setId(manager.generateNewEntityId(context).getId())
                     .setParentId(PolarisEntityConstants.getRootEntityId())
                     .build())
@@ -346,6 +347,7 @@ class PrimitiveTableCreateTest {
                 List.of(catalog),
                 new CatalogRoleEntity.Builder()
                     .setName("creator")
+                    .setCreateTimestamp(System.currentTimeMillis())
                     .setId(manager.generateNewEntityId(context).getId())
                     .setCatalogId(catalog.getId())
                     .setParentId(catalog.getId())

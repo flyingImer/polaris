@@ -127,7 +127,7 @@ public class PolarisResolutionManifestLookupKeyTest {
     var observation = manifest.observePath(key);
     assertThat(observation.state()).isEqualTo(ObservationState.ABSENT);
     assertThat(observation.snapshot()).hasSize(1);
-    assertThat(observation.snapshot().getFirst().getName()).isEqualTo("catalog");
+    assertThat(observation.snapshot().get(0).getName()).isEqualTo("catalog");
   }
 
   @Test
@@ -138,18 +138,19 @@ public class PolarisResolutionManifestLookupKeyTest {
     when(resolver.getResolvedReferenceCatalog())
         .thenReturn(resolved("catalog", PolarisEntityType.CATALOG, 1));
     when(resolver.getResolvedPath())
-        .thenReturn(
-            List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 7)),
-            List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 8)));
+        .thenReturn(List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 7)))
+        .thenReturn(List.of(resolved("table", PolarisEntityType.TABLE_LIKE, 8)));
     var manifest = manifest(resolver);
     var key = ResolvedPathKey.of(List.of("table"), PolarisEntityType.TABLE_LIKE);
     manifest.addPassthroughPath(new ResolverPath(key, true));
     var validated = manifest.observePassthroughPath(key);
     var later = manifest.observePassthroughPath(key);
     assertThat(validated.state()).isEqualTo(ObservationState.FOUND);
-    assertThat(validated.snapshot().getLast().getEntityVersion()).isEqualTo(7);
-    assertThat(later.snapshot().getLast().getEntityVersion()).isEqualTo(8);
-    assertThat(validated.snapshot().getLast().getEntityVersion()).isEqualTo(7);
+    assertThat(validated.snapshot().get(validated.snapshot().size() - 1).getEntityVersion())
+        .isEqualTo(7);
+    assertThat(later.snapshot().get(later.snapshot().size() - 1).getEntityVersion()).isEqualTo(8);
+    assertThat(validated.snapshot().get(validated.snapshot().size() - 1).getEntityVersion())
+        .isEqualTo(7);
   }
 
   @Test
@@ -161,6 +162,9 @@ public class PolarisResolutionManifestLookupKeyTest {
     var key = ResolvedPathKey.of(List.of("table"), PolarisEntityType.TABLE_LIKE);
     manifest.addPassthroughPath(new ResolverPath(key, true));
     assertThat(manifest.observePassthroughPath(key).state()).isEqualTo(ObservationState.UNRESOLVED);
+    assertThatThrownBy(() -> manifest.getPassthroughResolvedPath(key))
+        .isInstanceOf(CommitConflictException.class);
+    when(resolver.getIsPassthroughFacade()).thenReturn(true);
     assertThatThrownBy(() -> manifest.getPassthroughResolvedPath(key))
         .isInstanceOf(CommitConflictException.class);
   }
@@ -181,7 +185,8 @@ public class PolarisResolutionManifestLookupKeyTest {
                     0, type.getCode(), type, PolarisEntitySubType.NULL_SUBTYPE, 0, name))
             .entityVersion(version)
             .build();
-    return new ResolvedPolarisEntity(new PolarisDefaultDiagServiceImpl(), entity, List.of(), 0);
+    return new ResolvedPolarisEntity(
+        new PolarisDefaultDiagServiceImpl(), entity, List.of(), entity.getGrantRecordsVersion());
   }
 
   @Test

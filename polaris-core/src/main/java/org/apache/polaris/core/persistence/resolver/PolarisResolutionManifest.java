@@ -214,7 +214,7 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
   @Override
   public PolarisResolvedPathWrapper getPassthroughResolvedPath(ResolvedPathKey key) {
     PathObservation observation = observePassthroughPath(key);
-    if (observation.state() == ObservationState.UNRESOLVED && !getIsPassthroughFacade()) {
+    if (observation.state() == ObservationState.UNRESOLVED && observation.resolvedPath() == null) {
       throw new CommitConflictException("Validation path could not be resolved");
     }
     return observation.state() == ObservationState.ABSENT ? null : observation.resolvedPath();
@@ -243,7 +243,9 @@ public class PolarisResolutionManifest implements PolarisResolutionManifestCatal
     ObservationState state =
         path.size() == key.entityNames().size()
             ? ObservationState.FOUND
-            : getIsPassthroughFacade() ? ObservationState.UNRESOLVED : ObservationState.ABSENT;
+            : resolver.getIsPassthroughFacade()
+                ? ObservationState.UNRESOLVED
+                : ObservationState.ABSENT;
     List<PolarisBaseEntity> snapshot = new ArrayList<>(wrapper.getRawFullPath());
     return new PathObservation(state, key, snapshot, wrapper);
   }

@@ -44,6 +44,7 @@ import org.apache.iceberg.MetadataUpdate;
 import org.apache.iceberg.Schema;
 import org.apache.iceberg.SnapshotParser;
 import org.apache.iceberg.SnapshotRefType;
+import org.apache.iceberg.TableMetadata;
 import org.apache.iceberg.UpdateRequirement;
 import org.apache.iceberg.catalog.Namespace;
 import org.apache.iceberg.catalog.TableIdentifier;
@@ -75,6 +76,7 @@ import org.junit.jupiter.api.io.TempDir;
 import org.junit.jupiter.params.ParameterizedTest;
 import org.junit.jupiter.params.provider.ValueSource;
 import org.mockito.Mockito;
+import org.mockito.stubbing.Answer;
 
 /** Actual Iceberg callers, with requirement-only tables participating in final publication. */
 class PrimitiveCommitDependencyTest {
@@ -130,7 +132,7 @@ class PrimitiveCommitDependencyTest {
     var beforeA = load(services, "a");
     // Change B after its metadata was loaded and its explicit assertion checked. Capturing a
     // replacement version after validation would incorrectly admit A's update.
-    UpdateRequirement concurrentChange = ignored -> update(services, schemaChange("b"));
+    UpdateRequirement concurrentChange = afterValidation(() -> update(services, schemaChange("b")));
     var dependency =
         UpdateTableRequest.create(
             id("b"),
@@ -147,8 +149,9 @@ class PrimitiveCommitDependencyTest {
   @Test
   void nativeReciprocalRequirementsCannotBothSucceed(@TempDir Path directory) throws Exception {
     Assumptions.assumeTrue(
-        System.getProperty("poc.jdbc.url") != null,
-        "Requires a disposable native PostgreSQL or CockroachDB endpoint");
+        System.getProperty("poc.jdbc.url") != null
+            || "fdb".equals(System.getProperty("poc.backend")),
+        "Requires a disposable native PostgreSQL, CockroachDB or FoundationDB endpoint");
     var barrier = new CountDownLatch(2);
     var racing = new AtomicBoolean();
     var submissions = new AtomicInteger();
@@ -187,7 +190,7 @@ class PrimitiveCommitDependencyTest {
     assertThat(load(services, first ? "b" : "a").tableMetadata().currentSchemaId()).isZero();
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "threeTablePromotionIsAllOrNothing({0})")
   @ValueSource(booleans = {false, true})
   void threeTablePromotionIsAllOrNothing(boolean competingUpdate, @TempDir Path directory) {
     var services = services(UnaryOperator.identity());
@@ -197,9 +200,10 @@ class PrimitiveCommitDependencyTest {
     var changes = new ArrayList<>(promotion(2));
     // The other writer commits after A and B have been staged, before final publication.
     UpdateRequirement compete =
-        ignored -> {
-          if (competingUpdate) update(services, moveMain("a", 3));
-        };
+        afterValidation(
+            () -> {
+              if (competingUpdate) update(services, moveMain("a", 3));
+            });
     changes.set(
         2,
         UpdateTableRequest.create(
@@ -221,30 +225,35 @@ class PrimitiveCommitDependencyTest {
     }
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "nativePromotionRacePublishesOneCompleteResult({0})")
   @ValueSource(booleans = {false, true})
   void nativePromotionRacePublishesOneCompleteResult(
       boolean singleTableWriter, @TempDir Path directory) throws Exception {
     Assumptions.assumeTrue(
-        System.getProperty("poc.jdbc.url") != null,
-        "Requires a disposable native PostgreSQL or CockroachDB endpoint");
+        System.getProperty("poc.jdbc.url") != null
+            || "fdb".equals(System.getProperty("poc.backend")),
+        "Requires a disposable native PostgreSQL, CockroachDB or FoundationDB endpoint");
     var barrier = new CountDownLatch(2);
     var racing = new AtomicBoolean();
     var services =
         services(
             manager -> {
               var spy = Mockito.spy(manager);
-              Mockito.doAnswer(
-                      call -> {
-                        if (racing.get()) {
-                          barrier.countDown();
-                          if (!barrier.await(30, TimeUnit.SECONDS))
-                            throw new AssertionError("Missing competitor");
-                        }
-                        return call.callRealMethod();
-                      })
+              Answer<Object> publish =
+                  call -> {
+                    if (racing.get()) {
+                      barrier.countDown();
+                      if (!barrier.await(30, TimeUnit.SECONDS))
+                        throw new AssertionError("Missing competitor");
+                    }
+                    return call.callRealMethod();
+                  };
+              Mockito.doAnswer(publish)
                   .when(spy)
                   .updateEntitiesPropertiesIfNotChanged(any(), any(), any());
+              Mockito.doAnswer(publish)
+                  .when(spy)
+                  .updateEntityPropertiesIfNotChanged(any(), any(), any());
               return spy;
             });
     setup(services, directory);
@@ -257,8 +266,11 @@ class PrimitiveCommitDependencyTest {
       var second =
           workers.submit(
               () ->
-                  commitOrConflict(
-                      services, singleTableWriter ? List.of(moveMain("a", 3)) : promotion(3)));
+                  operationOrConflict(
+                      () -> {
+                        if (singleTableWriter) update(services, moveMain("a", 3));
+                        else commit(services, promotion(3));
+                      }));
       promotionWon = first.get(60, TimeUnit.SECONDS);
       competitorWon = second.get(60, TimeUnit.SECONDS);
     }
@@ -296,6 +308,15 @@ class PrimitiveCommitDependencyTest {
       additions.add(setRef("other", 3));
       update(services, UpdateTableRequest.create(id(table), List.of(), additions));
     }
+  }
+
+  private static UpdateRequirement afterValidation(Runnable action) {
+    return new UpdateRequirement() {
+      @Override
+      public void validate(TableMetadata base) {
+        action.run();
+      }
+    };
   }
 
   private static MetadataUpdate setRef(String name, long snapshotId) {
@@ -341,7 +362,7 @@ class PrimitiveCommitDependencyTest {
         .containsEntry("second", "2");
   }
 
-  @ParameterizedTest
+  @ParameterizedTest(name = "unknownWithCheckOnlyDependencyRetainsMetadata({0})")
   @ValueSource(booleans = {false, true})
   void unknownWithCheckOnlyDependencyRetainsMetadata(boolean applied, @TempDir Path directory)
       throws Exception {
@@ -380,8 +401,12 @@ class PrimitiveCommitDependencyTest {
   }
 
   private static boolean commitOrConflict(TestServices services, List<UpdateTableRequest> changes) {
+    return operationOrConflict(() -> commit(services, changes));
+  }
+
+  private static boolean operationOrConflict(Runnable operation) {
     try {
-      commit(services, changes);
+      operation.run();
       return true;
     } catch (CommitFailedException
         | CommitConflictException

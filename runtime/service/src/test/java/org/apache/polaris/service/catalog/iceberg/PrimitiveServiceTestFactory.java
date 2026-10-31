@@ -31,6 +31,7 @@ import org.apache.polaris.core.persistence.transactional.TransactionalPersistenc
 import org.apache.polaris.persistence.primitives.api.DurablePrimitives;
 import org.apache.polaris.persistence.primitives.domain.DomainRecords;
 import org.apache.polaris.persistence.primitives.domain.RecordTransactionalPersistence;
+import org.apache.polaris.persistence.primitives.fdb.FdbPrimitives;
 import org.apache.polaris.persistence.primitives.jdbc.JdbcPrimitives;
 
 /** Exercises real Java service callers against the strict terminal-attempt implementation. */
@@ -51,6 +52,11 @@ final class PrimitiveServiceTestFactory
 
   @Override
   protected DurablePrimitives createBackingStore(PolarisDiagnostics diagnostics) {
+    if ("fdb".equals(System.getProperty("poc.backend"))) {
+      String cluster = System.getProperty("poc.fdb.cluster");
+      if (cluster == null) throw new IllegalArgumentException("Missing poc.fdb.cluster");
+      return decorator.apply(new FdbPrimitives(cluster));
+    }
     var properties = new Properties();
     if (jdbcUrl != null) {
       properties.setProperty("user", System.getProperty("poc.jdbc.user", "polaris_poc"));
