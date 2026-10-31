@@ -1,0 +1,2609 @@
+{
+  "date": "2026-10-31",
+  "source_commit": "eabf12a8c825276ced8a7b6a3a46c12fca732cdd",
+  "base_commit": "9141a0d708841f04d1133d73b21b7bdcc49b7273",
+  "environment": {
+    "os": "Ubuntu 24.04.3 LTS x86_64, managed local execution environment",
+    "jdk": "21.0.13",
+    "gradle": "9.7.1",
+    "gradle_distribution_sha256": "92c1a136d76b5017732a66d2e0a648ebff00dd3687d8bff0d0047a1bd904fdf2",
+    "max_workers": 2,
+    "docker_available": false
+  },
+  "qualification_scope": "Java PoC, direct Service handlers and shared Manager/Primitives. Not a deployed HTTP server or production qualification.",
+  "compiled_source_trees": {
+    "polaris-core/src": "c95094e7daf5556cdcc7f371a43d7c797745e959",
+    "persistence/primitives/src": "0ac62409f5348779847f6dd45e620500df07a7bd",
+    "runtime/service/src": "b3e129fd4e48bbea60f6768c516854290df29198"
+  },
+  "foundationdb": {
+    "source_commit": "976c1fc43b86ae5657ee4c98b8c74f5cdb69da1e",
+    "version": "7.3.77",
+    "server_source": "3ea44ce1d9003ad095e408039e1f755c319c4dfb",
+    "environment": "Local single-process memory database; loopback only; matching native client library; fresh disposable data directories",
+    "manager": {
+      "counts": {
+        "tests": 61,
+        "passed": 61,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 6
+          },
+          "junit_sha256": "c548985355f2f409bcc3dc2154ba9ca6b87011eed4a63c67ffe3a8512b0df491",
+          "timestamp": "2026-10-31T00:56:33.529Z",
+          "skipped_cases": [],
+          "cases": [
+            {
+              "name": "readViewKeepsOneSnapshotAcrossConcurrentPublication()",
+              "outcome": "passed"
+            },
+            {
+              "name": "failureAfterFirstWriteChunkRollsBackWholeBatch()",
+              "outcome": "passed"
+            },
+            {
+              "name": "terminalBatchPublishesMixedMutations()",
+              "outcome": "passed"
+            },
+            {
+              "name": "emptyRangeAndUnchangedParentPreventOrphan()",
+              "outcome": "passed"
+            },
+            {
+              "name": "batchReadPreservesMissingKeysOrderAndDuplicates()",
+              "outcome": "passed"
+            },
+            {
+              "name": "oneWayDependencyMaySerializeBeforeEarlierPhysicalCommit()",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.ConflictGranularityTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "5c43648047ca2c634aa616f8b90ee801751b2a9b82b31efbb824abeb4dadd6eb",
+          "timestamp": "2026-10-31T00:56:34.583Z",
+          "skipped_cases": [],
+          "cases": [
+            {
+              "name": "\"range\"-siblings\"0\"-writers\"1\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"range\"-siblings\"32\"-writers\"1\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"range\"-siblings\"0\"-writers\"4\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"range\"-siblings\"32\"-writers\"4\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"sequence\"-siblings\"0\"-writers\"1\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"sequence\"-siblings\"32\"-writers\"1\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"sequence\"-siblings\"0\"-writers\"4\"",
+              "outcome": "passed"
+            },
+            {
+              "name": "\"sequence\"-siblings\"32\"-writers\"4\"",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 19
+          },
+          "junit_sha256": "546e9ae39f2a3d8bca137587b908ffe0e59bacc50867afa2f4db4f69ee8207b4",
+          "timestamp": "2026-10-31T00:56:35.777Z",
+          "skipped_cases": [],
+          "cases": [
+            {
+              "name": "atomicResetRejectRetainsOldCredentialsAndClientId()",
+              "outcome": "passed"
+            },
+            {
+              "name": "concurrentLocationChecksCannotBothPublishOverlappingSiblings()",
+              "outcome": "passed"
+            },
+            {
+              "name": "duplicateMutationIsInvalidWithoutPartialWrites()",
+              "outcome": "passed"
+            },
+            {
+              "name": "atomicResetUpdatesPrincipalAndSecretsTogether()",
+              "outcome": "passed"
+            },
+            {
+              "name": "dropFailureRollsBackCleanupAndVersions()",
+              "outcome": "passed"
+            },
+            {
+              "name": "lostCatalogResponseIsUnknownWithoutReplay()",
+              "outcome": "passed"
+            },
+            {
+              "name": "batchLocationValidationRejectsItsOwnOverlappingCreates()",
+              "outcome": "passed"
+            },
+            {
+              "name": "changedUnmodifiedAncestorRejectsStaleValidation()",
+              "outcome": "passed"
+            },
+            {
+              "name": "checkOnlyDependencyPublishesNoMutation()",
+              "outcome": "passed"
+            },
+            {
+              "name": "revokeFailureRollsBackGrantAndEndpointVersions()",
+              "outcome": "passed"
+            },
+            {
+              "name": "viewMetadataLocationProtectsOverlapWithoutBecomingStorageRoot()",
+              "outcome": "passed"
+            },
+            {
+              "name": "detachUsesIdentityAfterUnrelatedMetadataChanges()",
+              "outcome": "passed"
+            },
+            {
+              "name": "managerNamespaceCreateDeleteRaceCannotPublishAnOrphan()",
+              "outcome": "passed"
+            },
+            {
+              "name": "atomicResetCannotTakeAnotherPrincipalsClientId()",
+              "outcome": "passed"
+            },
+            {
+              "name": "staleCheckOnlyDependencyRejectsWholeBatch()",
+              "outcome": "passed"
+            },
+            {
+              "name": "bulkCreateRejectsTwoIdsWithSameNameBeforeAnyWrites()",
+              "outcome": "passed"
+            },
+            {
+              "name": "locationValidationProtectsSiblingsAndIgnoresSelfOnUnrelatedUpdate()",
+              "outcome": "passed"
+            },
+            {
+              "name": "catalogRejectPublishesNothing()",
+              "outcome": "passed"
+            },
+            {
+              "name": "reciprocalCheckOnlyDependenciesCannotBothCommit()",
+              "outcome": "passed"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 28
+          },
+          "junit_sha256": "ae97ea0db5656abdc541ba72f5a627068e3d9e344b7ec005e9215f0c64c4187c",
+          "timestamp": "2026-10-31T00:56:40.399Z",
+          "skipped_cases": [],
+          "cases": [
+            {
+              "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testGrantRecordWriteIsIdempotent()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateTestCatalog()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadGrantsGranteeVsSecurableRecords()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testBootstrapAgainIsNoOp()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadResolvedEntitiesById()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testDropEntities()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testPolicyMappingCleanup()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+              "outcome": "passed"
+            },
+            {
+              "name": "validateBootstrap()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateTestCatalogWithRetry()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testEntityCache()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testPolicyMapping()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateTasksInParallel()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testRenameAcrossCatalogsIsRejected()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadTasksInParallel()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testResetCredentialsClientIdCollision()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testBrowse()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateEntitiesWithConflict()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLookup()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testRename()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateEntitiesAlreadyExisting()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testUpdateEntities()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testCreateEntities()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testPrivileges()",
+              "outcome": "passed"
+            },
+            {
+              "name": "testLoadTasks()",
+              "outcome": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "service": {
+      "counts": {
+        "tests": 10,
+        "passed": 10,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveCommitDependencyTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 10
+          },
+          "junit_sha256": "b9eeee8fff9b990765f8377d320dff36c74524623df3cc7a02d7b5a418f4b97b",
+          "timestamp": "2026-10-31T00:57:58.918Z",
+          "skipped_cases": [],
+          "cases": [
+            {
+              "name": "nativePromotionRacePublishesOneCompleteResult(false)",
+              "outcome": "passed"
+            },
+            {
+              "name": "nativePromotionRacePublishesOneCompleteResult(true)",
+              "outcome": "passed"
+            },
+            {
+              "name": "repeatedTableRequestsCoalesceIntoOneMutation(Path)",
+              "outcome": "passed"
+            },
+            {
+              "name": "threeTablePromotionIsAllOrNothing(false)",
+              "outcome": "passed"
+            },
+            {
+              "name": "threeTablePromotionIsAllOrNothing(true)",
+              "outcome": "passed"
+            },
+            {
+              "name": "unknownWithCheckOnlyDependencyRetainsMetadata(false)",
+              "outcome": "passed"
+            },
+            {
+              "name": "unknownWithCheckOnlyDependencyRetainsMetadata(true)",
+              "outcome": "passed"
+            },
+            {
+              "name": "nativeReciprocalRequirementsCannotBothSucceed(Path)",
+              "outcome": "passed"
+            },
+            {
+              "name": "passthroughSnapshotChangedBeforeCommit(Path)",
+              "outcome": "passed"
+            },
+            {
+              "name": "requirementOnlyTableRetainsEntityAndMetadata(Path)",
+              "outcome": "passed"
+            }
+          ]
+        }
+      ]
+    },
+    "one_way_first_applied": false,
+    "measurements": [
+      {
+        "backend": "fdb",
+        "workload": "range",
+        "siblings": 0,
+        "writers": 1,
+        "operations": 10,
+        "attempts": 10,
+        "conflicts": 0,
+        "retries": 0,
+        "abortFraction": 0.0,
+        "p95Millis": 22.581
+      },
+      {
+        "backend": "fdb",
+        "workload": "range",
+        "siblings": 0,
+        "writers": 4,
+        "operations": 40,
+        "attempts": 120,
+        "conflicts": 80,
+        "retries": 80,
+        "abortFraction": 0.666667,
+        "p95Millis": 51.537
+      },
+      {
+        "backend": "fdb",
+        "workload": "range",
+        "siblings": 32,
+        "writers": 1,
+        "operations": 10,
+        "attempts": 10,
+        "conflicts": 0,
+        "retries": 0,
+        "abortFraction": 0.0,
+        "p95Millis": 6.505
+      },
+      {
+        "backend": "fdb",
+        "workload": "range",
+        "siblings": 32,
+        "writers": 4,
+        "operations": 40,
+        "attempts": 122,
+        "conflicts": 82,
+        "retries": 82,
+        "abortFraction": 0.672131,
+        "p95Millis": 49.071
+      },
+      {
+        "backend": "fdb",
+        "workload": "sequence",
+        "siblings": 0,
+        "writers": 1,
+        "operations": 10,
+        "attempts": 10,
+        "conflicts": 0,
+        "retries": 0,
+        "abortFraction": 0.0,
+        "p95Millis": 4.814
+      },
+      {
+        "backend": "fdb",
+        "workload": "sequence",
+        "siblings": 0,
+        "writers": 4,
+        "operations": 40,
+        "attempts": 129,
+        "conflicts": 89,
+        "retries": 89,
+        "abortFraction": 0.689922,
+        "p95Millis": 47.938
+      },
+      {
+        "backend": "fdb",
+        "workload": "sequence",
+        "siblings": 32,
+        "writers": 1,
+        "operations": 10,
+        "attempts": 10,
+        "conflicts": 0,
+        "retries": 0,
+        "abortFraction": 0.0,
+        "p95Millis": 4.406
+      },
+      {
+        "backend": "fdb",
+        "workload": "sequence",
+        "siblings": 32,
+        "writers": 4,
+        "operations": 40,
+        "attempts": 115,
+        "conflicts": 75,
+        "retries": 75,
+        "abortFraction": 0.652174,
+        "p95Millis": 31.044
+      }
+    ],
+    "measurement_scope": "Isolated 10 successful operations per writer, 1/4 writers, 0/32 initial siblings; range scan + distinct insert versus shared counter only. Includes bounded retry latency; no warmup, no production throughput or comparative backend claim.",
+    "applicability": "Both native suites rerun after forced formatting and nonincremental compilation of current source. Named parameterized Service cases retained. Test tasks forced to execute with build cache disabled."
+  },
+  "negative_control": {
+    "counts": {
+      "tests": 1,
+      "passed": 0,
+      "failures": 1,
+      "errors": 0,
+      "skipped": 0
+    },
+    "suites": [
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveCommitDependencyTest",
+        "counts": {
+          "tests": 1,
+          "failures": 1,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 0
+        },
+        "junit_sha256": "29c5e3b1e659ddcbec3aad6813631624fa5b863ed01927227eefae7013f9cc48",
+        "timestamp": "2026-10-31T00:29:20.501Z",
+        "skipped_cases": [],
+        "cases": [
+          {
+            "name": "passthroughSnapshotChangedBeforeCommit(Path)",
+            "outcome": "failure"
+          }
+        ]
+      }
+    ],
+    "mutation": "Temporarily omit check-only dependencies from final Manager submission; restored before positive FDB run.",
+    "expected_failure": "passthroughSnapshotChangedBeforeCommit: Expecting code to raise a throwable. Without protection the stale-B request incorrectly committed."
+  },
+  "preliminary_h2_service": {
+    "backend_version": "2.5.250",
+    "counts": {
+      "tests": 106,
+      "passed": 101,
+      "failures": 0,
+      "errors": 0,
+      "skipped": 5
+    },
+    "suites": [
+      {
+        "suite": "org.apache.polaris.service.admin.PolarisS3InteroperabilityTest",
+        "counts": {
+          "tests": 8,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 8
+        },
+        "junit_sha256": "b9140a6d738733d9989f81619b284c485c8fd2703f0e312eb60cbc2718338727",
+        "timestamp": "2026-10-31T00:23:05.636Z",
+        "skipped_cases": []
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+        "counts": {
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 10
+        },
+        "junit_sha256": "2419f347fe445499337af1519b62ea3cb8f95b61eb0f77c55bde766b8f7b5919",
+        "timestamp": "2026-10-31T00:23:10.759Z",
+        "skipped_cases": []
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveCommitDependencyTest",
+        "counts": {
+          "tests": 10,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 3,
+          "passed": 7
+        },
+        "junit_sha256": "1f581516f647c2bffa1f43b8a2b95cbe46ef8eebb34ee9685a7d6ff9fc579b58",
+        "timestamp": "2026-10-31T00:27:02.927Z",
+        "skipped_cases": [
+          {
+            "name": "[1] false",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL or CockroachDB endpoint"
+          },
+          {
+            "name": "[2] true",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL or CockroachDB endpoint"
+          },
+          {
+            "name": "nativeReciprocalRequirementsCannotBothSucceed(Path)",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL or CockroachDB endpoint"
+          }
+        ]
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveRbacRetryTest",
+        "counts": {
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 2
+        },
+        "junit_sha256": "68de38046c0c5029cb13f8bbca948af4f187a2d239d09deaae54ffb798f32d4f",
+        "timestamp": "2026-10-31T00:24:09.377Z",
+        "skipped_cases": []
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveTableCreateTest",
+        "counts": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 2,
+          "passed": 3
+        },
+        "junit_sha256": "ef1fd3b623b5f492fac4743733f579d2515422faa15794d078ec5811134aea76",
+        "timestamp": "2026-10-31T00:26:54.700Z",
+        "skipped_cases": [
+          {
+            "name": "[1] true",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+          },
+          {
+            "name": "[2] false",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+          }
+        ]
+      },
+      {
+        "suite": "org.apache.polaris.service.exception.IcebergExceptionMapperTest",
+        "counts": {
+          "tests": 71,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 71
+        },
+        "junit_sha256": "62ce724cca4e99609bf7ddfd8b837f502ddb39e032da7442185a556fa841eab2",
+        "timestamp": "2026-10-31T00:24:23.626Z",
+        "skipped_cases": []
+      }
+    ],
+    "applicability": "Development checks before the FDB fixture extension and final parameterized-case naming; includes repaired role timestamps. Final full-check results are recorded separately."
+  },
+  "format_compile": {
+    "command": "format compileAll --max-workers=2 --no-watch-fs --no-daemon --no-build-cache; local init forces Spotless and nonincremental Java compilation in changed modules",
+    "result": "BUILD SUCCESSFUL",
+    "duration_seconds": 155,
+    "tasks": 1027,
+    "log_sha256": "22630e6a0dfed1bc5031664bff05e015b4e96dc1a45f4ea95ea844af3b2cff68"
+  },
+  "repository_check": {
+    "command": ":polaris-bom:check :polaris-server:generateLicenseReport check --continue --max-workers=2",
+    "exit_code": 130,
+    "status": "stopped_after_confirmed_environment_failures",
+    "log_sha256": "0eff529b80fad4f6b168c592588315881676bf547b1a1449b0cec2099422ada1",
+    "source_commit": "976c1fc43b86ae5657ee4c98b8c74f5cdb69da1e",
+    "reason": "Stopped after 31 confirmed Docker startup failures in polaris-admin:test; full remaining task graph was not completed.",
+    "completed_admin_tests": {
+      "counts": {
+        "tests": 49,
+        "passed": 18,
+        "failures": 31,
+        "errors": 0,
+        "skipped": 0
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.admintool.BootstrapCommandTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 6
+          },
+          "junit_sha256": "008a1f2e8886077e774d09f4ba61131433994132adc56ddf4821099a2c7234e5",
+          "timestamp": "2026-10-31T00:41:49.149Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.PurgeCommandTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "bad6e07652f20383bdf4018b57e25d6749c67888042d3b18c93b7b90ef9fe2fe",
+          "timestamp": "2026-10-31T00:41:49.482Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.NoSqlInMemoryBootstrapCommandTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "0ff9b1966b1946239e55793bc24ed5d85bff154181fcfd71b6ee9ba148222b21",
+          "timestamp": "2026-10-31T00:41:49.497Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.NoSqlInMemoryPurgeCommandTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 1
+          },
+          "junit_sha256": "4cee7fc5004f0f1c9b9d9aa66caab74b5ce938e41f86f1c53a22580063e2d39f",
+          "timestamp": "2026-10-31T00:44:32.889Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.NoSqlMongoBootstrapCommandTest",
+          "counts": {
+            "tests": 7,
+            "failures": 7,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "aa617f8963d843fa1b26d57bd86aad5adbe37d49659be4ecede86b08bf6167e4",
+          "timestamp": "2026-10-31T00:44:38.760Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.NoSqlMongoMaintenanceCommandTest",
+          "counts": {
+            "tests": 5,
+            "failures": 5,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "3a038d84b71f5735679e0ec2dfc287a3b66bb011632effa2592b18d931e53db6",
+          "timestamp": "2026-10-31T00:41:37.463Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.NoSqlMongoPurgeCommandTest",
+          "counts": {
+            "tests": 1,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "1d4683c3fd22f2f69a8a02c6948c831f16b40c83eb67cc273415b30e7ee48b50",
+          "timestamp": "2026-10-31T00:44:46.358Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.nosql.TestNoSqlMaintenanceRunCommand",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "e402b78ffa9ddb344deeec4da12c47a257a8ddd27901d7923b672d5d803c6095",
+          "timestamp": "2026-10-31T00:44:50.615Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcBootstrapCommandTest",
+          "counts": {
+            "tests": 8,
+            "failures": 8,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "3aa92e2ce6b10103a10b7109a51f6a05fee41bf9d79ecda9e7930e5402279762",
+          "timestamp": "2026-10-31T00:44:50.663Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.relational.jdbc.CockroachJdbcPurgeCommandTest",
+          "counts": {
+            "tests": 1,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "69792ea82ccc8734502c97239dc1054f14a7eced650a12b744cd894bbd903f80",
+          "timestamp": "2026-10-31T00:44:57.661Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcBootstrapCommandTest",
+          "counts": {
+            "tests": 8,
+            "failures": 8,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "9b8389042d9c66e83a41c84051c7c2f7c511ffbd30342666963d4409830b7243",
+          "timestamp": "2026-10-31T00:45:02.271Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.admintool.relational.jdbc.RelationalJdbcPurgeCommandTest",
+          "counts": {
+            "tests": 1,
+            "failures": 1,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 0
+          },
+          "junit_sha256": "f6b0b419e0d111fc899f40faa2b1232d3903ebc135863c404d3a20cc93ccbb5d",
+          "timestamp": "2026-10-31T00:45:09.873Z",
+          "skipped_cases": []
+        }
+      ]
+    }
+  },
+  "module_checks": {
+    "initial_source_commit": "976c1fc43b86ae5657ee4c98b8c74f5cdb69da1e",
+    "initial_exit_code": 1,
+    "service_selected_classes": [
+      "PrimitiveCommitDependencyTest",
+      "PrimitiveTableCreateTest",
+      "PrimitiveRbacRetryTest",
+      "CommitTransactionMetadataCleanupTest",
+      "IcebergExceptionMapperTest",
+      "PolarisS3InteroperabilityTest",
+      "IcebergCatalogHandlerTest",
+      "LocalIcebergCatalogTest",
+      "LocalIcebergCatalogNoSqlInMemTest",
+      "LocalIcebergCatalogRelationalTest",
+      "LocalIcebergCatalogOverlapTest",
+      "LocalIcebergCatalogNoSqlOverlapTest",
+      "LocalIcebergCatalogRelationalOverlapTest"
+    ],
+    "initial_log_sha256": "33f4606895365c43c7272dc040893ada07e9df541b7c1fe8acc5d81bf6a51af2",
+    "scope": "Core and Primitives complete checks passed. Service styles passed; selected Service tests combined with corrected expectation rerun. Not a replacement for blocked repository-wide check.",
+    "core": {
+      "counts": {
+        "tests": 1023,
+        "passed": 1007,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 16
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.core.DigestUtilsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "de7fb735fbcbd99b8284b30f90e131412b4a4eefb81490dd158574c9fcdefeb2",
+          "timestamp": "2026-10-31T00:59:07.016Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.PolarisDefaultDiagServiceImplTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "a1caaf645e294a1141a92b61dca1a21990aae8d9be5eaba664645a283ea71083",
+          "timestamp": "2026-10-31T00:59:07.386Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.AuthorizationIntentResolverTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 11
+          },
+          "junit_sha256": "b5745663793e81f6113ad608f5886fb8e90241de1f4b5ac0859a9d3ea8ae32d3",
+          "timestamp": "2026-10-31T00:59:07.407Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.AuthorizationPreConditionsTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 4
+          },
+          "junit_sha256": "c6b7d2654d9868daeba12e301a1b8ed07e883d8489fbb205624e7d50eaf1e2dc",
+          "timestamp": "2026-10-31T00:59:10.169Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.AuthorizationRequestTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "979a15ce5293e11f99048e33489062c823ef9c748c40c044cd9000f8c48eddd0",
+          "timestamp": "2026-10-31T00:59:11.667Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.PathSegmentTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "39c4d2f3dd6431b972b66cdd7b11eedeea538d22a79dc629917836e349399e24",
+          "timestamp": "2026-10-31T00:59:11.673Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.PolarisAuthorizerImplTest",
+          "counts": {
+            "tests": 122,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 122
+          },
+          "junit_sha256": "cb968757f26a3c41b9ac1b054959008202986222e12fc8e14b3685049d23b35c",
+          "timestamp": "2026-10-31T00:59:11.685Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.PolarisPrincipalTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 1
+          },
+          "junit_sha256": "014c8ec28dba09230b4dccd33b8a043f2b02988ecfc8b93ef1eaa8ca8a7df3a8",
+          "timestamp": "2026-10-31T00:59:13.304Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.PolarisSecurableTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "333d4d42d6fa8b80df5c1dc09b101bc627bef66eda9be00802f8bbc906351fb6",
+          "timestamp": "2026-10-31T00:59:13.308Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.auth.RbacOperationSemanticsTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "bf34e0b87f52e2d133884cb9e6448ddda00fbf816f8276f4d2819d52c27fa296",
+          "timestamp": "2026-10-31T00:59:13.354Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.collection.ImmutableAttributeMapTest",
+          "counts": {
+            "tests": 26,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 26
+          },
+          "junit_sha256": "cb0e37ce140ed19a35e91f3ccf1f85a47c0452ef80e65ec84be51b6bf9c19293",
+          "timestamp": "2026-10-31T00:59:13.370Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.collection.MutableAttributeMapTest",
+          "counts": {
+            "tests": 27,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 27
+          },
+          "junit_sha256": "c49313de2da26ea1e2f55894aca315f1272ac6357da90248a7a9bbcd85155f01",
+          "timestamp": "2026-10-31T00:59:13.459Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.config.PolarisConfigurationTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "ed56656e7486866633b397a5fb4d7a654f6163e52eeaa13e11aa7dc8a838e349",
+          "timestamp": "2026-10-31T00:59:13.506Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.config.RealmConfigImplTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "ed60f673e25cd62ed12284ebe4b5b27ce165f68f62b227d38d18f6f4ca584f3c",
+          "timestamp": "2026-10-31T00:59:13.555Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.connection.ConnectionConfigInfoDpoTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "6ade402ec0f4b89b63d78cbda9c118eae800d00d6eb169523f21cb8541e2f8b4",
+          "timestamp": "2026-10-31T00:59:13.635Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.connection.GcpAuthenticationParametersDpoTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "86f88739b80d3701cd11eb8e61e71acda06563e0fc2e6889dd8b3a0d4a4ee073",
+          "timestamp": "2026-10-31T00:59:15.789Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.connection.iceberg.IcebergRestConnectionConfigInfoDpoTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "2b7533e51a9025918517ae6ae7cd7208d4b6faa405a8a9014cc013fd26acd49c",
+          "timestamp": "2026-10-31T00:59:15.805Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.credentials.connection.ConnectionCredentialsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "ade6b3b8d8bb3eabf756c35a6d1147306d81b53412b265cce662aed37f1fa0c0",
+          "timestamp": "2026-10-31T00:59:15.976Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.entity.PolarisEntityTypeTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 14
+          },
+          "junit_sha256": "3d55d96f6cdb4d9a4a74f868099939e9b77b76ab4ac2852e6d8c7a174b5a8df1",
+          "timestamp": "2026-10-31T00:59:15.981Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.entity.PolarisEntityUtilsTest",
+          "counts": {
+            "tests": 36,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 36
+          },
+          "junit_sha256": "033ba1d448e09cdba8c1b155e209dc3ca2dcf12f5535adc36352989883d85814",
+          "timestamp": "2026-10-31T00:59:16.034Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.entity.PolarisPrivilegeTest",
+          "counts": {
+            "tests": 111,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 111
+          },
+          "junit_sha256": "147caa89f934f9527ed62e0f7c1bc8bf4e4e716328d95d52b869c033b332e846",
+          "timestamp": "2026-10-31T00:59:16.246Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.identity.credential.AwsIamServiceIdentityCredentialTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "47fe291c35509c2c046d1197668570f6dd09500f995e42fe59b21f1d11860fd5",
+          "timestamp": "2026-10-31T00:59:16.511Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.AtomicOperationMetaStoreManagerCreateConflictTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "32f253fea1b2bc0c2a8114132c803cd3b06b173f4ff382300049db13d26ecd52",
+          "timestamp": "2026-10-31T00:59:16.567Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.AtomicOperationMetaStoreManagerTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 6
+          },
+          "junit_sha256": "2fe9c8cba7c730c3899a58ad8e2cf4371039d544e548a21a3ea36f3d47b373f7",
+          "timestamp": "2026-10-31T00:59:16.914Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.ConfirmedConflictRetryTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "fce4cf7f5bcb143ef1a935ff597c23d51717461c64327d6bdb8318a3f48f1d95",
+          "timestamp": "2026-10-31T00:59:16.954Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.LocalPolarisMetaStoreManagerFactoryTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 1
+          },
+          "junit_sha256": "5bff836bfbe4ff3bddd8f8ae8efe9c34d1a88ce80291c5a4aaa77b7da4691e52",
+          "timestamp": "2026-10-31T00:59:18.966Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PolarisObjectMapperUtilTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 6
+          },
+          "junit_sha256": "5a6f3930c9dd56cd1ab6b8e2818a87b16d7960de1e2bddd25688ca11d6bf844f",
+          "timestamp": "2026-10-31T00:59:19.257Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PolarisResolutionManifestLookupKeyTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "92de916ca67f55609132f50a9deb87ef726136ac95a83fd4c16d29345d3178c4",
+          "timestamp": "2026-10-31T00:59:19.285Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PolarisResolvedPathWrapperTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "a3ea95dd84718a3967938148469bb99294619d32a7e49255ede505d87e986a80",
+          "timestamp": "2026-10-31T00:59:19.594Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PolarisTreeMapAtomicOperationMetaStoreManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1,
+            "passed": 27
+          },
+          "junit_sha256": "baf9f2cc49f307bb42fe653d565832eff69c57d064ff62b3b4ea13af6ef9727a",
+          "timestamp": "2026-10-31T00:59:19.600Z",
+          "skipped_cases": [
+            {
+              "name": "testResetCredentialsClientIdCollision()",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PolarisTreeMapMetaStoreManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 28
+          },
+          "junit_sha256": "5fdc7e1e28c1f9a928f2c5064c618479db85032be527f22f4b377db177a363e6",
+          "timestamp": "2026-10-31T00:59:20.404Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.PrincipalSecretsGeneratorTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "3e9019706acf5c3eb39c66c1020923e71972cbade690872264ef202c14667893",
+          "timestamp": "2026-10-31T00:59:20.729Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.ResolverTest",
+          "counts": {
+            "tests": 22,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 22
+          },
+          "junit_sha256": "830d57f2b29eb543215dec0a122c94fb94fb2bbbef8039d882e4d6afeeabfb54",
+          "timestamp": "2026-10-31T00:59:20.735Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.bootstrap.RootCredentialsSetTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 12
+          },
+          "junit_sha256": "6b0f6d2d79ba7fc34620a39a3083eb2ef4634b66a8a68a7e63d0eebec46fc3ab",
+          "timestamp": "2026-10-31T00:59:21.030Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.cache.EntityWeigherTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "e3bfd3a86151f6b95ad259f673a5c906a8556e30aab4e0e128c1a62da6b3758f",
+          "timestamp": "2026-10-31T00:59:21.195Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.cache.InMemoryEntityCacheTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 10
+          },
+          "junit_sha256": "26bbe8f7c7f1fd024cce1b3a0d907db96a8fb79e87730796bc7ac6bdfc1f73ed",
+          "timestamp": "2026-10-31T00:59:21.205Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.dao.entity.ReturnStatusTest",
+          "counts": {
+            "tests": 18,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 18
+          },
+          "junit_sha256": "9452ab298bb393e20d173e707976fca91f4f07a2160783918b2a63fbe5714710",
+          "timestamp": "2026-10-31T00:59:21.783Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.pagination.MalformedPageTokenTest",
+          "counts": {
+            "tests": 11,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 11
+          },
+          "junit_sha256": "1027fd408f954a33cb5ead7d0c023574bf93aebf63740342d91489559da35f44",
+          "timestamp": "2026-10-31T00:59:21.803Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.pagination.PageTokenTest",
+          "counts": {
+            "tests": 15,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 15
+          },
+          "junit_sha256": "4250eb4851f3ac7a824294b795019377e726be90ab8cf9cb87a56eee3b211401",
+          "timestamp": "2026-10-31T00:59:21.885Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.persistence.transactional.TreeMapMetaStoreTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "5fb262a3ed3f0407e59990ef1fa7c91c2bea3bc4bb1b56158118809497cf63bd",
+          "timestamp": "2026-10-31T00:59:24.284Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.policy.MaintenancePolicyContentTest",
+          "counts": {
+            "tests": 38,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 38
+          },
+          "junit_sha256": "ce3483e11ec3cb42b1c0c3ce920929579fe069d5818cc01c325f32ef58e5a0fd",
+          "timestamp": "2026-10-31T00:59:24.292Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.policy.PolicyEntityTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "b86456c9a362c5a346b19bde05ed86d7691f2e91ae67f86e149949f06849f6fc",
+          "timestamp": "2026-10-31T00:59:24.456Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.policy.PolicyMappingUtilTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "0af0579dc9bc5f5d48ed6bbd1fed162f05b7ac7ef61f87b5983c2a683a4df64e",
+          "timestamp": "2026-10-31T00:59:24.464Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.policy.PolicyTypeTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 10
+          },
+          "junit_sha256": "ed03644f5f77166089dd7f2f94e6cd0729c250ad25dbde9fb84e941b4d92b060",
+          "timestamp": "2026-10-31T00:59:24.474Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.policy.PolicyValidatorsTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "f958ce1f4ebe8a1b9d1918062016318a5b1a5299547634ba457347e003395e67",
+          "timestamp": "2026-10-31T00:59:24.487Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.rest.NamespaceUtilsTest",
+          "counts": {
+            "tests": 91,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 91
+          },
+          "junit_sha256": "961d9d999a96b5bf6a5faf79dc92b1a6a276ebbb8b375574f7f71f6e93a36f8f",
+          "timestamp": "2026-10-31T00:59:24.504Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.rest.PolarisResourcePathsTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "7c6788c3c29d68c1a735a39a34a3eec6fa677ffe3d858ff13a91dcf3624adc41",
+          "timestamp": "2026-10-31T00:59:24.663Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.secrets.SecretReferenceTest",
+          "counts": {
+            "tests": 16,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 16
+          },
+          "junit_sha256": "91c04512cb612867e8323bf6bf7b24fec37239781590988f649474acdbcff727",
+          "timestamp": "2026-10-31T00:59:24.668Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.secrets.UnsafeInMemorySecretsManagerTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "94188f02d27c1c122d07ba8cb815f4d61b138a56eab02b1dafa17e1b563c1b81",
+          "timestamp": "2026-10-31T00:59:24.693Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.PolarisConfigurationStoreTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "0da5a26c6df6bef80432efacf3b8159e7e581c9039266db8cf6b3c8e3e144632",
+          "timestamp": "2026-10-31T00:59:24.725Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.PolarisStorageConfigurationInfoTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "9fd8ed6a3aaf5814bc60de1a697ee0ed799a73234a48202c0398645bd3ad3df5",
+          "timestamp": "2026-10-31T00:59:24.739Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.StorageAccessConfigTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "e8c4c85f9e4c805472a4774e461a3c4e57907a2e2b28579e21ab8aca24abc6e8",
+          "timestamp": "2026-10-31T00:59:25.172Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.StorageLocationTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "5d86cbcca10afec4f42cccc4bcca44ad41b952ab078e09d4e8a27668457c1a0d",
+          "timestamp": "2026-10-31T00:59:25.187Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.StorageLocationValidatorTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "4a95580d129687f10461b26d1959240c9243d8b8a86c3d49cbe842a171a23e23",
+          "timestamp": "2026-10-31T00:59:25.192Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.StorageUriTest",
+          "counts": {
+            "tests": 17,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 17
+          },
+          "junit_sha256": "6ebff665043441ca513a3bc3944678f6a5488dce163cd84d59987888c4b27449",
+          "timestamp": "2026-10-31T00:59:25.256Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.StorageUtilTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 12
+          },
+          "junit_sha256": "12d54caa49ba9f507d3ad95607881442b27b2fe27319d3a80574e2ff98b6fa6b",
+          "timestamp": "2026-10-31T00:59:25.282Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.AwsCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 45,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 45
+          },
+          "junit_sha256": "4205b415dfd18b7d466bd84c5ebfeee8fe70855c16fd675a0f83b8bca683ecb5",
+          "timestamp": "2026-10-31T00:59:25.302Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.AwsRoleSessionNameSanitizerTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "04047e2402933df1837ca0b6ee7561f8d4cfe6fab33d328b2ad7aa16920cf844",
+          "timestamp": "2026-10-31T00:59:26.248Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.AwsSessionNameBuilderTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 14
+          },
+          "junit_sha256": "76c72d0aa730efea2ebf6c15dbfa3734e808ebb30c9fa43a2a1d53166655f191",
+          "timestamp": "2026-10-31T00:59:26.258Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.AwsStorageConfigurationInfoTest",
+          "counts": {
+            "tests": 12,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 12
+          },
+          "junit_sha256": "b760fd021b13891ae6f57707ca374ebc83acceefc5b98cb8174fa226c19c85b5",
+          "timestamp": "2026-10-31T00:59:26.274Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.S3LocationTest",
+          "counts": {
+            "tests": 4,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 4
+          },
+          "junit_sha256": "964f1b5d89285d229ccf005e6fa5684cccfc978dcbe7ebd13c04bf759b05cf28",
+          "timestamp": "2026-10-31T00:59:26.303Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.aws.SessionNameFieldTest",
+          "counts": {
+            "tests": 14,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 14
+          },
+          "junit_sha256": "ce0498eeb15f9b776fbda311af61cb33ff9a3fce89e2fdfb3fae191b1a9916b6",
+          "timestamp": "2026-10-31T00:59:26.310Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.azure.AzureCredentialStorageIntegrationTest",
+          "counts": {
+            "tests": 13,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 12,
+            "passed": 1
+          },
+          "junit_sha256": "343afb214d8e36211c79d29c9d9cec65c358dffd22959b4ac52fba62f9841d5c",
+          "timestamp": "2026-10-31T00:59:26.325Z",
+          "skipped_cases": [
+            {
+              "name": "[1] true, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[2] false, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[3] true, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[4] false, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[1] true, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[2] false, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[3] true, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[4] false, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[1] true, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[2] false, \"blob\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[3] true, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            },
+            {
+              "name": "[4] false, \"dfs\"",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Null Azure testing environment variables!] \nExpecting value to be false but was true"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.azure.AzureCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "40dc2531d4bda463cb875519dc9f3a52ad04d10bfbbdcba733b743ee8c949fa3",
+          "timestamp": "2026-10-31T00:59:26.542Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.azure.AzureLocationTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 5
+          },
+          "junit_sha256": "77e87529356bf49e904404cb26ebfb05ed89065bd5aac82db9897971a7d485c4",
+          "timestamp": "2026-10-31T00:59:28.489Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.cache.StorageCredentialCacheTest",
+          "counts": {
+            "tests": 16,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 16
+          },
+          "junit_sha256": "1443734c0ae2c19e2466c01edb357e89819846aeca7948ae73f86638a795c35d",
+          "timestamp": "2026-10-31T00:59:28.502Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.gcp.GcpAttributionSubjectBuilderTest",
+          "counts": {
+            "tests": 7,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 7
+          },
+          "junit_sha256": "8cef73dcd9de95a4e4709d0be727a2b7a96ac635bf90cd5455f9341096f09e3f",
+          "timestamp": "2026-10-31T00:59:28.587Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.gcp.GcpCredentialsStorageIntegrationTest",
+          "counts": {
+            "tests": 46,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 3,
+            "passed": 43
+          },
+          "junit_sha256": "17fa6c089d52c9ff2d5698706124ccc1f2d3ba3c83c2de87b2ca0732d5bd4473",
+          "timestamp": "2026-10-31T00:59:28.609Z",
+          "skipped_cases": [
+            {
+              "name": "[1] true",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Environment variable GOOGLE_APPLICATION_CREDENTIALS not exits] \nExpecting actual not to be null"
+            },
+            {
+              "name": "[2] false",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Environment variable GOOGLE_APPLICATION_CREDENTIALS not exits] \nExpecting actual not to be null"
+            },
+            {
+              "name": "testRefreshCredentialsEndpointIsReturned()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Environment variable GOOGLE_APPLICATION_CREDENTIALS not exits] \nExpecting actual not to be null"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.gcp.GcpFederatedCredentialsExchangerTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "e7d7c907864a8ce67b6fbe8f50d8de8cdc93e9f438bc12b85b9147556e5b0f36",
+          "timestamp": "2026-10-31T00:59:30.426Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.core.storage.gcp.GcpStorageCredentialCacheKeyTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "3b71e41fd27f7ed296b44d92babc7c169a318a83fa1768c2e4e306db401fdd41",
+          "timestamp": "2026-10-31T00:59:32.403Z",
+          "skipped_cases": []
+        }
+      ]
+    },
+    "primitives": {
+      "counts": {
+        "tests": 82,
+        "passed": 47,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 35
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.persistence.primitives.AttemptContractTest",
+          "counts": {
+            "tests": 6,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 3,
+            "passed": 3
+          },
+          "junit_sha256": "7fa062cab0125b1cf3fd85203a12907709b3c40f7a8a6962895e1058041a91be",
+          "timestamp": "2026-10-31T00:59:06.272Z",
+          "skipped_cases": [
+            {
+              "name": "readViewKeepsOneSnapshotAcrossConcurrentPublication()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 is only a wiring fixture, not a native snapshot conformance claim"
+            },
+            {
+              "name": "emptyRangeAndUnchangedParentPreventOrphan()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 is not an isolation proof; Spanner emulator database-wide locks cannot run this schedule"
+            },
+            {
+              "name": "oneWayDependencyMaySerializeBeforeEarlierPhysicalCommit()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires native transactions that permit this overlapping schedule"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.ConflictGranularityTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 1,
+            "passed": 0
+          },
+          "junit_sha256": "ae2d28800f91f4a5a9daa356976e28f94150767593c8c439c513f560d97ce920",
+          "timestamp": "2026-10-31T00:59:07.627Z",
+          "skipped_cases": [
+            {
+              "name": "measureIndependentCreates(String, int, int)",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.H2ManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 28
+          },
+          "junit_sha256": "99fe47684f6d6a5353cebd948da8b1d1ae38b8b463628e8b91a3186bd74ed5c0",
+          "timestamp": "2026-10-31T00:59:07.629Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.ManagerFailureTest",
+          "counts": {
+            "tests": 19,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 3,
+            "passed": 16
+          },
+          "junit_sha256": "ae903f70f2f693c49cdb8f12054463dbd4e567bc50c34393703c38fd93ce5724",
+          "timestamp": "2026-10-31T00:59:15.020Z",
+          "skipped_cases": [
+            {
+              "name": "concurrentLocationChecksCannotBothPublishOverlappingSiblings()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 does not prove range isolation; Spanner emulator cannot rendezvous concurrent reads"
+            },
+            {
+              "name": "managerNamespaceCreateDeleteRaceCannotPublishAnOrphan()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: H2 does not prove range isolation; Spanner emulator cannot rendezvous concurrent reads"
+            },
+            {
+              "name": "reciprocalCheckOnlyDependenciesCannotBothCommit()",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires native concurrency; H2 and Spanner emulator do not qualify this schedule"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.persistence.primitives.NativeManagerTest",
+          "counts": {
+            "tests": 28,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 28,
+            "passed": 0
+          },
+          "junit_sha256": "2675c306f7c9df7241164b150edb4cfbd5f3d55c2dcdc05bb29b877438d81995",
+          "timestamp": "2026-10-31T00:59:15.433Z",
+          "skipped_cases": [
+            {
+              "name": "testCreatePrincipalReturnedEntitySameAsPersisted()",
+              "reason": ""
+            },
+            {
+              "name": "testGrantRecordWriteIsIdempotent()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateTestCatalog()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadGrantsGranteeVsSecurableRecords()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadResolvedEntitiesGranteeVsSecurableRecords()",
+              "reason": ""
+            },
+            {
+              "name": "testBootstrapAgainIsNoOp()",
+              "reason": ""
+            },
+            {
+              "name": "testBaseLocationPropertyOnEntityThatIsNotCatalogContent()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadResolvedEntitiesById()",
+              "reason": ""
+            },
+            {
+              "name": "testDropEntities()",
+              "reason": ""
+            },
+            {
+              "name": "testPolicyMappingCleanup()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadResolvedEntitySkipsDroppedGranteeReferences()",
+              "reason": ""
+            },
+            {
+              "name": "validateBootstrap()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateTestCatalogWithRetry()",
+              "reason": ""
+            },
+            {
+              "name": "testEntityCache()",
+              "reason": ""
+            },
+            {
+              "name": "testPolicyMapping()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateTasksInParallel()",
+              "reason": ""
+            },
+            {
+              "name": "testRenameAcrossCatalogsIsRejected()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadTasksInParallel()",
+              "reason": ""
+            },
+            {
+              "name": "testResetCredentialsClientIdCollision()",
+              "reason": ""
+            },
+            {
+              "name": "testBrowse()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateEntitiesWithConflict()",
+              "reason": ""
+            },
+            {
+              "name": "testLookup()",
+              "reason": ""
+            },
+            {
+              "name": "testRename()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateEntitiesAlreadyExisting()",
+              "reason": ""
+            },
+            {
+              "name": "testUpdateEntities()",
+              "reason": ""
+            },
+            {
+              "name": "testCreateEntities()",
+              "reason": ""
+            },
+            {
+              "name": "testPrivileges()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadTasks()",
+              "reason": ""
+            }
+          ]
+        }
+      ]
+    },
+    "service_combined": {
+      "counts": {
+        "tests": 565,
+        "passed": 530,
+        "failures": 0,
+        "errors": 0,
+        "skipped": 35
+      },
+      "suites": [
+        {
+          "suite": "org.apache.polaris.service.admin.PolarisS3InteroperabilityTest",
+          "counts": {
+            "tests": 8,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 8
+          },
+          "junit_sha256": "e19f220c7aaad54091d17455dcd55c95602267a0ef36ee11b97a5352e75f9865",
+          "timestamp": "2026-10-31T00:59:39.560Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.CommitTransactionMetadataCleanupTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 10
+          },
+          "junit_sha256": "a2a4c4a4fe2a55ba85320eb98628bea971255ff464c4278c0ae2185b1f9215a7",
+          "timestamp": "2026-10-31T00:59:46.259Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.IcebergCatalogHandlerTest",
+          "counts": {
+            "tests": 29,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 29
+          },
+          "junit_sha256": "2f74ce98009aa95e4f39eadea1308f33b9ebfd8357bf8e311f3c6a9de21ab4aa",
+          "timestamp": "2026-10-31T00:59:56.279Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogNoSqlInMemTest",
+          "counts": {
+            "tests": 211,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 15,
+            "passed": 196
+          },
+          "junit_sha256": "495461a55becdeffa7fd1479fc383e1676ebeabca9e9bf9d18154c22531c5f04",
+          "timestamp": "2026-10-31T01:00:18.575Z",
+          "skipped_cases": [
+            {
+              "name": "testConcurrentReplaceTransactionSchemaConflict()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Schema conflicts are detected server-side] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testTableNameWithSlash()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testCreateOrReplaceTransactionConcurrentCreate()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Conversion to replace transaction is not supported by REST catalog] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "createAndDropEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support creating/dropping empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testConcurrentReplaceTransactionPartitionSpecConflict()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Spec conflicts are detected server-side] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSortOrderServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Sort order update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSpecServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Spec update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "listTablesInEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support listing tables in empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "namespacePropertiesOnEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support properties on empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSchemaServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Schema update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "listNamespacesWithEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testNamespaceWithSlash()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: \nExpecting value to be true but was false"
+            },
+            {
+              "name": "createTableInUniqueLocation()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadTableWithMissingMetadataFile(Path)",
+              "reason": ""
+            },
+            {
+              "name": "dropAfterRenameDoesntCorruptTable()",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogNoSqlOverlapTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 1
+          },
+          "junit_sha256": "dc60ff3e0c63668f1edb061394f91c69d5dae16a736979dd89f5600f9007830d",
+          "timestamp": "2026-10-31T01:01:06.742Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogOverlapTest",
+          "counts": {
+            "tests": 1,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 1
+          },
+          "junit_sha256": "a65c78e4e19a33bdb3709b6378e58482f028d2e649d3527b15504972b27b319d",
+          "timestamp": "2026-10-31T01:01:29.707Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogRelationalOverlapTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "313618e19994cb48f30d71b2f24346a0e1329853795901682120974fb7769321",
+          "timestamp": "2026-10-31T01:01:50.979Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogRelationalTest",
+          "counts": {
+            "tests": 211,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 15,
+            "passed": 196
+          },
+          "junit_sha256": "b50f5cb03bb0f7936f58aa12a1f81e33958467c277da7e2b7e90b18a93a5719c",
+          "timestamp": "2026-10-31T01:02:16.085Z",
+          "skipped_cases": [
+            {
+              "name": "testConcurrentReplaceTransactionSchemaConflict()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Schema conflicts are detected server-side] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testTableNameWithSlash()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testCreateOrReplaceTransactionConcurrentCreate()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Conversion to replace transaction is not supported by REST catalog] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "createAndDropEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support creating/dropping empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testConcurrentReplaceTransactionPartitionSpecConflict()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Spec conflicts are detected server-side] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSortOrderServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Sort order update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSpecServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Spec update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "listTablesInEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support listing tables in empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "namespacePropertiesOnEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support properties on empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testUpdateTableSchemaServerSideRetry()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Schema update recovery is only supported with server-side retry] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "listNamespacesWithEmptyNamespace()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: [Only valid for catalogs that support empty namespaces] \nExpecting value to be true but was false"
+            },
+            {
+              "name": "testNamespaceWithSlash()",
+              "reason": "org.opentest4j.TestAbortedException: assumption was not met due to: \nExpecting value to be true but was false"
+            },
+            {
+              "name": "createTableInUniqueLocation()",
+              "reason": ""
+            },
+            {
+              "name": "testLoadTableWithMissingMetadataFile(Path)",
+              "reason": ""
+            },
+            {
+              "name": "dropAfterRenameDoesntCorruptTable()",
+              "reason": ""
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogTest",
+          "counts": {
+            "tests": 3,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 3
+          },
+          "junit_sha256": "f925b47072c59fd6e453e32f7597b0627737fd404fa6d113634dbc0ad15bac3f",
+          "timestamp": "2026-10-31T01:06:16.196Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveCommitDependencyTest",
+          "counts": {
+            "tests": 10,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 3,
+            "passed": 7
+          },
+          "junit_sha256": "d2c75ea651a67c555767e4b9383f3d3f42341e59d7eecb13b43b95da91d1772c",
+          "timestamp": "2026-10-31T01:02:39.216Z",
+          "skipped_cases": [
+            {
+              "name": "nativePromotionRacePublishesOneCompleteResult(false)",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL, CockroachDB or FoundationDB endpoint"
+            },
+            {
+              "name": "nativePromotionRacePublishesOneCompleteResult(true)",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL, CockroachDB or FoundationDB endpoint"
+            },
+            {
+              "name": "nativeReciprocalRequirementsCannotBothSucceed(Path)",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires a disposable native PostgreSQL, CockroachDB or FoundationDB endpoint"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveRbacRetryTest",
+          "counts": {
+            "tests": 2,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 2
+          },
+          "junit_sha256": "f9a385afeee7a654728dbca26ce1cfc715edbb7af20b223c0b06757e4bbaeb06",
+          "timestamp": "2026-10-31T01:02:53.809Z",
+          "skipped_cases": []
+        },
+        {
+          "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveTableCreateTest",
+          "counts": {
+            "tests": 5,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 2,
+            "passed": 3
+          },
+          "junit_sha256": "a99e7f9cf4e947b0740b9adc2ebe83eaa7075125f0845ce8dd24402470087de9",
+          "timestamp": "2026-10-31T01:03:02.145Z",
+          "skipped_cases": [
+            {
+              "name": "[1] true",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+            },
+            {
+              "name": "[2] false",
+              "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+            }
+          ]
+        },
+        {
+          "suite": "org.apache.polaris.service.exception.IcebergExceptionMapperTest",
+          "counts": {
+            "tests": 71,
+            "failures": 0,
+            "errors": 0,
+            "skipped": 0,
+            "passed": 71
+          },
+          "junit_sha256": "7458d4d0a71c3c9e02e25466f453e6aef8372b8f15186d9f89af1463329c79f6",
+          "timestamp": "2026-10-31T01:03:11.987Z",
+          "skipped_cases": []
+        }
+      ]
+    },
+    "repair": {
+      "source_commit": "eabf12a8c825276ced8a7b6a3a46c12fca732cdd",
+      "change": "Test-only: exact generic sibling-resolution message replaces old expectation of hidden names/paths. Production Java and native PoC tests unchanged.",
+      "log_sha256": "1b76bf33fc6636f788c4ac25d911128c359930550e4e1e5afceef12f2748c5ad",
+      "service_rerun": {
+        "counts": {
+          "tests": 3,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 3
+        },
+        "suites": [
+          {
+            "suite": "org.apache.polaris.service.catalog.iceberg.LocalIcebergCatalogTest",
+            "counts": {
+              "tests": 3,
+              "failures": 0,
+              "errors": 0,
+              "skipped": 0,
+              "passed": 3
+            },
+            "junit_sha256": "f925b47072c59fd6e453e32f7597b0627737fd404fa6d113634dbc0ad15bac3f",
+            "timestamp": "2026-10-31T01:06:16.196Z",
+            "skipped_cases": [],
+            "cases": [
+              {
+                "name": "testHashedTableLocationsEncodeNonAsciiIdentifiersAsUtf8()",
+                "outcome": "passed"
+              },
+              {
+                "name": "testFailedLocationSiblingResolutionException()",
+                "outcome": "passed"
+              },
+              {
+                "name": "testLocationSiblingResolution()",
+                "outcome": "passed"
+              }
+            ]
+          }
+        ]
+      }
+    },
+    "required_case_details": [
+      {
+        "suite": "org.apache.polaris.core.persistence.PolarisResolutionManifestLookupKeyTest",
+        "counts": {
+          "tests": 7,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 7
+        },
+        "junit_sha256": "92de916ca67f55609132f50a9deb87ef726136ac95a83fd4c16d29345d3178c4",
+        "timestamp": "2026-10-31T00:59:19.285Z",
+        "skipped_cases": [],
+        "cases": [
+          {
+            "name": "observationDistinguishesUnresolvedFromConfirmedAbsence()",
+            "outcome": "passed"
+          },
+          {
+            "name": "failedPassthroughResolutionIsNotAbsence()",
+            "outcome": "passed"
+          },
+          {
+            "name": "passthroughObservationsKeepTheirOwnSnapshot()",
+            "outcome": "passed"
+          },
+          {
+            "name": "passthroughResolvedPathResolvesOnlyRequestedPathsNotFullGraph()",
+            "outcome": "passed"
+          },
+          {
+            "name": "pathKeyLookupResolvesRegisteredPath()",
+            "outcome": "passed"
+          },
+          {
+            "name": "pathKeyLookupUsesLastRegistrationForDuplicateCanonicalPath()",
+            "outcome": "passed"
+          },
+          {
+            "name": "pathKeyLookupFailsForUnregisteredPath()",
+            "outcome": "passed"
+          }
+        ]
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveRbacRetryTest",
+        "counts": {
+          "tests": 2,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 0,
+          "passed": 2
+        },
+        "junit_sha256": "f9a385afeee7a654728dbca26ce1cfc715edbb7af20b223c0b06757e4bbaeb06",
+        "timestamp": "2026-10-31T01:02:53.809Z",
+        "skipped_cases": [],
+        "cases": [
+          {
+            "name": "[1] false",
+            "outcome": "passed"
+          },
+          {
+            "name": "[2] true",
+            "outcome": "passed"
+          }
+        ]
+      },
+      {
+        "suite": "org.apache.polaris.service.catalog.iceberg.PrimitiveTableCreateTest",
+        "counts": {
+          "tests": 5,
+          "failures": 0,
+          "errors": 0,
+          "skipped": 2,
+          "passed": 3
+        },
+        "junit_sha256": "a99e7f9cf4e947b0740b9adc2ebe83eaa7075125f0845ce8dd24402470087de9",
+        "timestamp": "2026-10-31T01:03:02.145Z",
+        "skipped_cases": [
+          {
+            "name": "[1] true",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+          },
+          {
+            "name": "[2] false",
+            "reason": "org.opentest4j.TestAbortedException: Assumption failed: Requires explicit disposable native PostgreSQL endpoint; H2 is not range evidence"
+          }
+        ],
+        "cases": [
+          {
+            "name": "changedCatalogStorageConfigRejectsAlreadyValidatedCreate(Path)",
+            "outcome": "passed"
+          },
+          {
+            "name": "optionalAbsentThenCreatedBeforeCommit(Path)",
+            "outcome": "passed"
+          },
+          {
+            "name": "internalSiblingValidationDoesNotGrantReadAccessOrRevealMetadata(Path)",
+            "outcome": "passed"
+          },
+          {
+            "name": "[1] true",
+            "outcome": "skipped"
+          },
+          {
+            "name": "[2] false",
+            "outcome": "skipped"
+          }
+        ]
+      }
+    ]
+  },
+  "blocked_native_backends": {
+    "postgresql": {
+      "version_target": "17",
+      "status": "not_executed_on_current_source",
+      "reason": "No Docker or usable non-root PostgreSQL runtime in local environment; fork Actions paused."
+    },
+    "cockroachdb": {
+      "version": "26.3.1",
+      "status": "blocked_before_tests",
+      "reason": "Official binary exited during startup: unable to get proc cpu time: no such process.",
+      "startup_log_sha256": "75c87f603d560d008515e09a9bde261eb0c96e1f751900b759761b109a0cef40"
+    },
+    "production_spanner": {
+      "status": "not_qualified"
+    },
+    "spanner_emulator": {
+      "status": "not_rerun_on_current_source"
+    }
+  },
+  "github_actions": {
+    "source_commit": "eabf12a8c825276ced8a7b6a3a46c12fca732cdd",
+    "run_count": 0,
+    "status": "fork_workflows_paused",
+    "observed_message": "Workflows are not currently being run on this fork due to the scale of GitHub Actions usage. A repository maintainer can choose to re-enable these.",
+    "workflow_url": "https://github.com/flyingImer/polaris/actions/workflows/durable-java-poc.yml",
+    "manual_dispatch_added": true
+  },
+  "retained_development_failures": [
+    "Java 17 test compilation: getFirst/getLast and unchecked Mockito stubbing; repaired.",
+    "Manifest fixture grant version mismatch; repaired; seven cases passed.",
+    "UpdateRequirement lambda did not implement a functional interface; repaired.",
+    "Real-authorizer fixture missed role creation timestamps; repaired; positive and negative authorization controls passed.",
+    "Concurrent local Gradle invocation could not acquire journal cache lock; subsequent checks run sequentially.",
+    "One legacy Service test expected hidden sibling names/paths in errors; changed to exact generic-message assertions and reran the class.",
+    "Stale Spotless outputs caused preliminary module-check failures. Forced Spotless and nonincremental compilation, with daemon/file watching/build cache disabled, then reran native and module checks. No source change was needed."
+  ],
+  "final_repair_gates": {
+    "source_commit": "eabf12a8c825276ced8a7b6a3a46c12fca732cdd",
+    "result": "network_approval_cancelled_during_distribution_license_report",
+    "command": "format compileAll :polaris-runtime-service:spotlessCheck :polaris-runtime-service:checkstyleTest :polaris-runtime-service:test (LocalIcebergCatalogTest only) rat :polaris-bom:check :polaris-server:generateLicenseReport --continue --no-build-cache --no-watch-fs --no-daemon",
+    "log_sha256": "1b76bf33fc6636f788c4ac25d911128c359930550e4e1e5afceef12f2748c5ad"
+  },
+  "offline_gates": {
+    "exitCode": 0,
+    "command": [
+      "format",
+      "compileAll",
+      "rat",
+      ":polaris-bom:check",
+      ":polaris-runtime-service:spotlessCheck",
+      ":polaris-runtime-service:checkstyleTest",
+      "--offline",
+      "--no-build-cache"
+    ],
+    "log_sha256": "077eedbe0e89ad7a035e45524dcd645598f653ce5450e4831ffb302ba8dda6c7"
+  },
+  "offline_license": {
+    "exitCode": 0,
+    "command": [
+      ":polaris-server:generateLicenseReport",
+      "--offline",
+      "--no-build-cache"
+    ],
+    "log_sha256": "ed402ac29a7d13646d22032d99a179f66249c85228ae51fe6d7b1b9d9e26958b"
+  },
+  "qualification_status": "incomplete: repository check and SQL native backends require restored CI environment",
+  "native_verifier_sha256": "a534f216cb19634fb6b2b41e9b25913cc9b559430b5d1f45a2f446f37e932485"
+}

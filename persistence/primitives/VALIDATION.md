@@ -23,6 +23,123 @@ Base: `apache/polaris main @ a919f11e51ff76b5ef56633d8cb0429ff2b4c100`.
 Validation uses JDK 21 and the upstream Gradle 9.7.1 wrapper. Native results are
 versioned per checkpoint. An older result does not certify later code.
 
+## Community alignment: decisions 2–9, 2026-10-31
+
+The implementation and native test source is
+`976c1fc43b86ae5657ee4c98b8c74f5cdb69da1e`. The follow-up
+`eabf12a8c825276ced8a7b6a3a46c12fca732cdd` changes only one legacy test:
+sibling-resolution errors must have the exact generic message, without hidden
+names or paths. Production Java and the native PoC test sources are unchanged.
+This extends the user's branch head at
+`9141a0d708841f04d1133d73b21b7bdcc49b7273`.
+
+**The targeted PoC regressions pass; complete repository and SQL backend
+qualification remain open.** Exact source trees, suite/case outcomes, skip
+reasons, JUnit digests, environment details, measurements and retained failures
+are in [validation/community-alignment.json](validation/community-alignment.json).
+The decision mapping and contract interpretation are in
+[COMMUNITY_ALIGNMENT.md](COMMUNITY_ALIGNMENT.md).
+
+| Scope | Passed | Failed/errors | Skipped | Qualification |
+|---|---:|---:|---:|---|
+| FoundationDB 7.3.77: Manager, failure, attempt and contention suites | 61 | 0 | 0 | Native local single-process database, memory storage engine, loopback endpoint and matching native client |
+| FoundationDB 7.3.77: requirement-only and promotion requests | 10 | 0 | 0 | Direct Java Service handlers on the native FDB fixture; not a deployed HTTP server |
+| Core complete module check | 1007 | 0 | 16 | Functional/regression coverage; skipped cases retained |
+| Default Primitives complete module check, H2 2.5.250 | 47 | 0 | 35 | Functional coverage; native-only schedules are not inferred from skips |
+| Selected Service regressions, 13 classes | 530 | 0 | 35 | Combined results after the three-case `LocalIcebergCatalogTest` rerun; includes in-memory NoSQL and relational catalog profiles |
+
+The 13-class Service run initially had 529 passes, one failure and 35 skips. Its
+sole failure expected a hidden sibling name in a public error. Both resolution
+failure variants now assert the exact generic message. That three-case class
+was rerun successfully; the other 12 classes were not counted twice. Thirty
+Service skips are inherited catalog-profile cases and five are unconfigured
+native request races. The dependency and promotion races have separate native
+FDB results above; the table-create races remain unqualified on this checkpoint.
+
+The native Service suite passed reciprocal check-only requirements, unchanged
+check-only entity/metadata, stale passthrough snapshot rejection, coalesced
+same-table requests, all-or-nothing three-table promotion, dual promotion,
+promotion versus an actual single-table `updateTable`, and both applied/unapplied
+UNKNOWN injections. The real-authorizer create test also passed its denied
+sibling read, generic overlap error and successful non-overlapping create.
+
+A negative control temporarily omitted the dependency list from final Manager
+submission. `passthroughSnapshotChangedBeforeCommit` then failed as intended:
+the stale-B request incorrectly committed. The dependency submission was
+restored before the successful native runs. This deliberate failure is retained
+separately from the passing suite totals.
+
+The one-way FDB experiment recorded `firstApplied=false`: this backend aborted
+the earlier reader. The contract also permits a legal serial order in which
+that reader succeeds. Reciprocal dependencies cannot both succeed; the native
+Manager test uses independent principals so broad sibling scans cannot mask a
+missing read dependency.
+
+### Build and environment limits
+
+Validation used Ubuntu 24.04.3 LTS, JDK 21.0.13 and the repository's Gradle 9.7.1
+version. A local stale Spotless output caused an intermediate check failure.
+Spotless and nonincremental Java compilation were then forced for the changed
+modules with daemon/file watching/build cache disabled. That full
+`format compileAll` run passed in 2m 35s; no production source change was needed.
+Both native suites were rerun afterward. Core/Primitives module checks and
+Service Checkstyle/Spotless passed.
+
+After the test-only correction, `format compileAll`, RAT, BOM and Service static
+checks passed again in an offline 51-second run. Distribution license generation
+also passed offline in 33 seconds. Its preceding online attempt ended when the
+execution environment cancelled a network approval; it is not counted as a
+successful run. Offline mode used the already downloaded dependency metadata.
+
+The complete repository `check --continue` was attempted. The admin suite
+finished 49 cases: 18 passed and 31 failed, all with a root cause stating that no
+valid Docker environment was available. The full run was stopped after those
+confirmed environment failures. Remaining repository tasks are not certified by
+the targeted checks above. The full repository gate is **not passed**.
+
+Current-source PostgreSQL 17 tests have not executed: the local environment has
+no Docker or usable non-root PostgreSQL runtime. CockroachDB 26.3.1 was started
+from the official binary but exited before tests with
+`unable to get proc cpu time: no such process`. Its older native results below
+remain historical. Neither SQL backend is qualified for this checkpoint.
+
+GitHub reports that workflows on this fork are paused due to the scale of
+Actions usage. The current source head has zero workflow runs. A maintainer must
+re-enable [Durable Java PoC validation](https://github.com/flyingImer/polaris/actions/workflows/durable-java-poc.yml),
+then run the added manual-dispatch entry on `prototype/durable-java-primitives`.
+That workflow retains the full repository gate and PostgreSQL/CockroachDB/FDB
+jobs, and rejects missing or skipped native regressions.
+
+Production Spanner is not qualified; its emulator was not rerun. Crash recovery,
+large-scale performance, migration, rollout and mixed writers remain outside
+this checkpoint. Older green CI runs do not close these current-source gaps.
+
+### Isolated contention measurements
+
+Each case completes ten operations per writer. Range cases read the sibling
+prefix and insert distinct records; sequence cases only update a shared counter.
+The latter isolates allocator-shaped contention from the range predicate.
+Retries are confirmed conflicts, and p95 includes retry latency. There is no
+warmup, production throughput claim or performance pass threshold.
+
+| Workload | Writers | Initial siblings | Successful operations | Attempts | Retries | Abort fraction | p95 ms |
+|---|---:|---:|---:|---:|---:|---:|---:|
+| range | 1 | 0 | 10 | 10 | 0 | 0.00% | 22.581 |
+| range | 1 | 32 | 10 | 10 | 0 | 0.00% | 6.505 |
+| range | 4 | 0 | 40 | 120 | 80 | 66.67% | 51.537 |
+| range | 4 | 32 | 40 | 122 | 82 | 67.21% | 49.071 |
+| sequence | 1 | 0 | 10 | 10 | 0 | 0.00% | 4.814 |
+| sequence | 1 | 32 | 10 | 10 | 0 | 0.00% | 4.406 |
+| sequence | 4 | 0 | 40 | 129 | 89 | 68.99% | 47.938 |
+| sequence | 4 | 32 | 40 | 115 | 75 | 65.22% | 31.044 |
+
+All cases completed within the test's retry bound. The four-writer workloads
+show substantial conflict/retry costs even in this small experiment. They
+justify keeping correctness and performance qualification separate; they do not
+justify weakening the consistency contract or claiming that a tuned production
+schema would have the same cost. Broad protected scans and the existing separate
+ID reservation transaction remain in place.
+
 ## Verifier-fixed terminal validation, 2026-09-30
 
 [Run 36806550744](https://github.com/flyingImer/polaris/actions/runs/36806550744)

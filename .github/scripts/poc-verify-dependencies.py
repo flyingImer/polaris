@@ -42,12 +42,13 @@ if sys.argv[1] == "service":
             "unknownWithCheckOnlyDependencyRetainsMetadata"], 10)
 else:
     directory = "persistence/primitives/build/test-results/test"
+    verify(directory, "NativeManagerTest", [], 28)
     verify(directory, "ManagerFailureTest",
            ["reciprocalCheckOnlyDependenciesCannotBothCommit",
             "staleCheckOnlyDependencyRejectsWholeBatch",
             "checkOnlyDependencyPublishesNoMutation",
             "duplicateMutationIsInvalidWithoutPartialWrites",
-            "detachUsesIdentityAfterUnrelatedMetadataChanges"], 5)
-    verify(directory, "AttemptContractTest", ["oneWayDependencyMaySerializeBeforeEarlierPhysicalCommit"], 1)
+            "detachUsesIdentityAfterUnrelatedMetadataChanges"], 19)
+    verify(directory, "AttemptContractTest", ["oneWayDependencyMaySerializeBeforeEarlierPhysicalCommit"], 6)
     verify(directory, "ConflictGranularityTest", [], 8)
     assert len(list(pathlib.Path("persistence/primitives/build/reports/primitives-contention").glob("*.json"))) == 8

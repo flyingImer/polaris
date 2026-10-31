@@ -25,6 +25,33 @@ This checkpoint extends the Java PoC. It is not a production rollout or a propos
 migration of existing stores. Current-run results belong in `VALIDATION.md`;
 older validation checkpoints do not certify these changes.
 
+## Current result
+
+The implementation is pushed at `976c1fc`; `eabf12a` only corrects a legacy test
+that expected hidden sibling names in an error. The PoC demonstrates check-only
+publication dependencies without mutating the checked entity, while retaining
+three-table promotion atomicity. Removing the dependency list makes the stale-B
+regression fail, as intended.
+
+FoundationDB 7.3.77 passed 61 Manager/Primitives cases and 10 direct Service cases,
+with no failures or skips. Core passed 1007 cases; default Primitives passed 47;
+the selected Service regressions passed 530 after the legacy expectation fix.
+Their 16/35/35 skips are recorded separately. Format/compile, RAT, BOM and
+distribution-license checks passed; the latter completed using cached metadata
+offline. These results do not certify a deployed HTTP server.
+
+Correctness has a measurable cost: the small four-writer FDB workloads recorded
+about 65–69% confirmed aborts. Range and shared-counter contention were measured
+separately, with attempts, retries and p95 retained. The PoC keeps broad scans and
+the current allocator while leaving optimization for a later experiment.
+
+Complete qualification remains open. The full repository check encountered 31
+Docker startup failures and was stopped; GitHub has paused this fork's Actions.
+PostgreSQL and CockroachDB have no executed native tests on this checkpoint, and
+production Spanner is unqualified. A maintainer must re-enable the workflow to
+finish the full gate and SQL qualification. See [VALIDATION.md](VALIDATION.md)
+for the exact matrix and failure history.
+
 ## Decision coverage
 
 | Decision | Implementation and observable result | Main regression evidence |
