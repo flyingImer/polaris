@@ -141,9 +141,7 @@ class LocalIcebergCatalogTest {
         .thenReturn(new ResolverStatus(PolarisEntityType.TABLE_LIKE, "test-name"));
     Assertions.assertThatThrownBy(() -> catalog.resolveOptionalPaths(List.of(), "test"))
         .isInstanceOf(CommitConflictException.class)
-        .hasMessageContaining("Unable to resolve sibling entities to validate location")
-        .hasMessageContaining("test-name")
-        .hasMessageContaining(ResolverStatus.StatusEnum.ENTITY_COULD_NOT_BE_RESOLVED.name());
+        .hasMessage("Unable to resolve sibling entities to validate location");
 
     when(resolver.resolveAll())
         .thenReturn(
@@ -153,10 +151,7 @@ class LocalIcebergCatalogTest {
                 123));
     Assertions.assertThatThrownBy(() -> catalog.resolveOptionalPaths(List.of(), "test"))
         .isInstanceOf(CommitConflictException.class)
-        .hasMessageContaining("Unable to resolve sibling entities to validate location")
-        .hasMessageContaining("ns1.ns2.table3")
-        .hasMessageContaining("failed index: 123")
-        .hasMessageContaining(ResolverStatus.StatusEnum.PATH_COULD_NOT_BE_FULLY_RESOLVED.name());
+        .hasMessage("Unable to resolve sibling entities to validate location");
   }
 
   @Test
